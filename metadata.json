@@ -1,0 +1,8 @@
+{
+  "name": "GRBX Box",
+  "description": "Academic competition and social platform for students, institutional representatives, and administrators.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
