@@ -114,7 +114,6 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
     {
       title: 'COMMUNITY & MARKETING',
       items: [
-        { id: 'community' as AdminTabType, label: 'Community Feed & Moderation', icon: MessageSquare },
         { id: 'chatroom_live' as AdminTabType, label: 'Daily Ultimate Search Chat', icon: Trophy, badge: 'Live' },
         { id: 'announcements' as AdminTabType, label: 'Admin Announcements', icon: MessageSquare },
         { id: 'sponsorship' as AdminTabType, label: 'Sponsorship & Ticker', icon: Tag },

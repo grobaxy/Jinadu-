@@ -161,7 +161,7 @@ export const MinimartView: React.FC = () => {
               <span className="text-xs text-blue-200 font-medium">Campus Student Discovery</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-              Buy & Sell Directly Among Fellow Scholars
+              List your skills, handouts, products Among fellow scholar
             </h2>
             <p className="text-xs text-blue-200/90 max-w-xl">
               Discover textbooks, gadgets, hostel appliances, and student services. Instant contact via WhatsApp — zero fees, zero middlemen.

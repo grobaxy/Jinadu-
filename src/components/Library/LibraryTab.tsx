@@ -25,6 +25,7 @@ import {
   AlertCircle,
   FileQuestion,
   User,
+  Zap,
 } from 'lucide-react';
 import { PastQuestion, PastQuestionSettings } from '../../types';
 import {
@@ -50,9 +51,10 @@ import { PastQuestionViewerModal } from './PastQuestionViewerModal';
 import { PastQuestionUploadModal } from './PastQuestionUploadModal';
 import { MyContributionsView } from './MyContributionsView';
 import { BookmarksView } from './BookmarksView';
+import { resolveUserSubscriptionTier } from '../../lib/campusService';
 
 export const LibraryTab: React.FC = () => {
-  const { currentUser, isUserSubscribed, openWalletModal } = useApp();
+  const { currentUser, userProfile, isUserSubscribed, openWalletModal } = useApp();
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'browse' | 'contributions' | 'bookmarks'>('browse');
@@ -124,15 +126,17 @@ export const LibraryTab: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  // Determine user tier
+  // Determine user tier accurately across all subscription plans
   const userTier: 'free' | 'premium' | 'vip' = useMemo(() => {
-    if (!currentUser) return 'free';
-    const plan = (currentUser as any).subscriptionPlan?.toLowerCase() || '';
-    const tier = (currentUser as any).tier?.toLowerCase() || '';
-    if (plan.includes('vip') || tier === 'vip') return 'vip';
-    if (plan.includes('premium') || tier === 'premium' || isUserSubscribed) return 'premium';
-    return 'free';
-  }, [currentUser, isUserSubscribed]);
+    return resolveUserSubscriptionTier(userProfile || currentUser);
+  }, [currentUser, userProfile, isUserSubscribed]);
+
+  // Derived user-facing plan title
+  const planDisplayName = useMemo(() => {
+    if (userTier === 'vip') return 'VIP Scholar Plan';
+    if (userTier === 'premium') return 'Premium Scholar Plan';
+    return 'Free Scholar Plan';
+  }, [userTier]);
 
   // Load Data
   const loadLibraryData = async () => {
@@ -176,7 +180,7 @@ export const LibraryTab: React.FC = () => {
 
   useEffect(() => {
     loadLibraryData();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, userTier]);
 
   // Handle My Department quick filter toggle
   const toggleMyDepartmentFilter = () => {
@@ -342,11 +346,30 @@ export const LibraryTab: React.FC = () => {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             {/* Title & Badge */}
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                   <Shield className="w-3.5 h-3.5" />
                   Verified Past Questions Library
                 </span>
+                
+                {/* Identified Plan Badge */}
+                {userTier === 'vip' ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-xs">
+                    <Crown className="w-3.5 h-3.5 fill-current text-slate-950" />
+                    {planDisplayName} • Unlimited Access
+                  </span>
+                ) : userTier === 'premium' ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-xs">
+                    <Zap className="w-3.5 h-3.5 fill-current text-amber-300" />
+                    {planDisplayName} • 10 Views/Day
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    <Lock className="w-3.5 h-3.5 text-slate-500" />
+                    {planDisplayName} • {settings.freeDailyViewLimit} Free Views/Day
+                  </span>
+                )}
+
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                   <Sparkles className="w-3 h-3 text-amber-500" />
                   Earn +{settings.uploadGpReward} GP Per Upload
