@@ -59,6 +59,60 @@ export function loadPaystackInlineScript(): Promise<boolean> {
   });
 }
 
+// Helper to safely parse JSON from responses, avoiding 'Unexpected token A' when Vercel or proxies return plain text/HTML errors
+async function safeParseResponse(res: Response, fallbackErrorMessage: string): Promise<any> {
+  let text = '';
+  try {
+    text = await res.text();
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || fallbackErrorMessage,
+    };
+  }
+
+  if (!text || text.trim() === '') {
+    return {
+      success: false,
+      error: `Empty response from server (HTTP ${res.status})`,
+    };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (_parseErr) {
+    // If response was plain text or HTML (such as Vercel's "A server error has occurred")
+    if (text.includes('A server error') || text.includes('FUNCTION_INVOCATION_FAILED')) {
+      return {
+        success: false,
+        error: 'Payment server is currently initializing on Vercel. You can still complete your payment securely via the Card or Web Checkout button below.',
+        isVercelFunctionError: true,
+      };
+    }
+    return {
+      success: false,
+      error: `Server error (${res.status}): ${text.slice(0, 120).trim()}`,
+    };
+  }
+}
+
+// Fallback Live Public Key for Grobax Network
+export const PAYSTACK_LIVE_PUBLIC_KEY = 'pk_live_70e9ddbaca92590a8bfbd673b80abb40f083ac96';
+
+// Fetch public key from backend or fallback
+export async function getPaystackPublicKey(): Promise<string> {
+  try {
+    const res = await fetch('/api/paystack/public-key');
+    const data = await safeParseResponse(res, 'Unable to get public key');
+    if (data && data.publicKey) {
+      return data.publicKey;
+    }
+  } catch {
+    // ignore
+  }
+  return PAYSTACK_LIVE_PUBLIC_KEY;
+}
+
 // Generate real live bank transfer account via Paystack Charge API
 export async function createPaystackTransferAccount(params: {
   planId: string;
@@ -74,8 +128,7 @@ export async function createPaystackTransferAccount(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
-    const data = await res.json();
-    return data;
+    return await safeParseResponse(res, 'Could not connect to payment server to generate transfer account.');
   } catch (err: any) {
     return {
       success: false,
@@ -99,8 +152,7 @@ export async function initializePaystackTransaction(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
-    const data = await res.json();
-    return data;
+    return await safeParseResponse(res, 'Could not connect to payment server.');
   } catch (err: any) {
     return {
       success: false,
@@ -113,8 +165,7 @@ export async function initializePaystackTransaction(params: {
 export async function verifyPaystackTransaction(reference: string): Promise<PaystackVerifyResponse> {
   try {
     const res = await fetch(`/api/paystack/verify/${encodeURIComponent(reference)}`);
-    const data = await res.json();
-    return data;
+    return await safeParseResponse(res, 'Verification connection failed.');
   } catch (err: any) {
     return {
       success: false,

@@ -664,13 +664,13 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                         if (authUrl) {
                           window.open(authUrl, '_blank', 'noopener,noreferrer');
                         } else {
-                          fetchLiveTransferAccount();
+                          handleLaunchCardCheckout();
                         }
                       }}
                       className="w-full py-3.5 rounded-xl bg-[#00C3F7] hover:bg-[#00a8d6] text-[#011b33] text-xs font-black shadow-lg flex items-center justify-center gap-2 transition cursor-pointer"
                     >
                       <ExternalLink className="w-4 h-4" />
-                      <span>Open Paystack Transfer Checkout</span>
+                      <span>Open Paystack Checkout</span>
                     </button>
                     <button
                       type="button"
