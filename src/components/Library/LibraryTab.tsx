@@ -791,6 +791,7 @@ export const LibraryTab: React.FC = () => {
           faculty: (userProfile as any)?.faculty || (currentUser as any)?.faculty,
           department: (userProfile as any)?.department || (currentUser as any)?.department,
           level: (userProfile as any)?.level || (currentUser as any)?.level,
+          institutionCategory: (userProfile as any)?.institutionCategory || (currentUser as any)?.institutionCategory,
         }}
         existingQuestions={approvedQuestions}
       />

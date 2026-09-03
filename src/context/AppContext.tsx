@@ -641,7 +641,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [walletModalTab, setWalletModalTab] = useState<
     'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade'
   >('profile');
-  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(DEFAULT_SUBSCRIPTION_PLANS);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('grobax_saved_subscription_plans') : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_SUBSCRIPTION_PLANS;
+  });
 
   // Balance privacy visibility state (persisted locally)
   const [isBalanceHidden, setIsBalanceHidden] = useState<boolean>(() => {

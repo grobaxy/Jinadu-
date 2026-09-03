@@ -59,6 +59,17 @@ export interface FirestoreErrorInfo {
   };
 }
 
+export function isQuotaExceededError(err: unknown): boolean {
+  if (!err) return false;
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    msg.includes('quota exceeded') ||
+    msg.includes('resource-exhausted') ||
+    msg.includes('free daily read units') ||
+    msg.includes('quota limit')
+  );
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): void {
   const errorMessage = error instanceof Error ? error.message : String(error);
   const errInfo: FirestoreErrorInfo = {
@@ -78,7 +89,11 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path,
   };
-  console.warn(`[Grobax DataAccess] ${operationType.toUpperCase()} Notice on ${path}:`, JSON.stringify(errInfo));
+  if (isQuotaExceededError(error)) {
+    console.warn(`[Grobax DataAccess] Daily free-tier Firestore quota limit reached on ${path}. Serving cached state.`, JSON.stringify(errInfo));
+  } else {
+    console.warn(`[Grobax DataAccess] ${operationType.toUpperCase()} Notice on ${path}:`, JSON.stringify(errInfo));
+  }
 }
 
 /**
@@ -264,6 +279,8 @@ class GrobaxDataEngine {
         return result;
       } catch (err) {
         handleFirestoreError(err, OperationType.GET, cacheKey);
+        const cached = this.getCache<T>(cacheKey);
+        return cached || null;
       }
     });
   }
@@ -326,6 +343,8 @@ class GrobaxDataEngine {
         return results;
       } catch (err) {
         handleFirestoreError(err, OperationType.LIST, collectionPath);
+        const cached = this.getCache<T[]>(queryKey);
+        return cached || [];
       }
     });
   }
@@ -486,13 +505,22 @@ class GrobaxDataEngine {
 
     const q = query(collection(db, collectionPath), ...constraints);
 
+    const cacheKey = `${collectionPath}:subscribe_last_cache`;
+
     return onSnapshot(
       q,
       (snap) => {
         const results = snap.docs.map((d) => ({ id: d.id, ...d.data() } as T));
+        this.setCache(cacheKey, results, 10 * 60 * 1000);
         callback(results);
       },
       (err) => {
+        const cached = this.getCache<T[]>(cacheKey);
+        if (cached && cached.length > 0) {
+          try {
+            callback(cached);
+          } catch (_) {}
+        }
         if (onError) {
           onError(err);
         } else {
@@ -512,16 +540,26 @@ class GrobaxDataEngine {
     onError?: (err: any) => void
   ): Unsubscribe {
     const docRef = doc(db, collectionPath, docId);
+    const cacheKey = `${collectionPath}/${docId}`;
+
     return onSnapshot(
       docRef,
       (snap) => {
         if (!snap.exists()) {
           callback(null);
         } else {
-          callback({ id: snap.id, ...snap.data() } as T);
+          const docData = { id: snap.id, ...snap.data() } as T;
+          this.setCache(cacheKey, docData, 10 * 60 * 1000);
+          callback(docData);
         }
       },
       (err) => {
+        const cached = this.getCache<T>(cacheKey);
+        if (cached) {
+          try {
+            callback(cached);
+          } catch (_) {}
+        }
         if (onError) {
           onError(err);
         } else {

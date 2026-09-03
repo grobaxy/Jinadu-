@@ -46,6 +46,7 @@ interface PastQuestionUploadModalProps {
     faculty?: string;
     department?: string;
     level?: string;
+    institutionCategory?: string;
   } | null;
   existingQuestions?: any[];
 }
@@ -137,16 +138,32 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
         setInstitutionName(userInst);
         setInstitutionId(userInst.toLowerCase().replace(/[^a-z0-9]/g, ''));
 
-        // Auto-assign category
-        const lower = userInst.toLowerCase();
-        if (lower.includes('polytechnic') || lower.includes('poly')) {
-          setSelectedCategory('Polytechnic');
-        } else if (lower.includes('college of education')) {
-          setSelectedCategory('College of Education');
-        } else if (lower.includes('monotechnic')) {
-          setSelectedCategory('Monotechnic');
+        // Auto-assign category from profile or static institution directory
+        if (currentUser.institutionCategory) {
+          setSelectedCategory(currentUser.institutionCategory as InstitutionCategory);
         } else {
-          setSelectedCategory('University');
+          const matchedInst = NIGERIAN_INSTITUTIONS.find(
+            (inst) =>
+              inst.name.toLowerCase() === userInst.toLowerCase() ||
+              userInst.toLowerCase().includes(inst.name.toLowerCase()) ||
+              inst.name.toLowerCase().includes(userInst.toLowerCase())
+          );
+          if (matchedInst) {
+            setSelectedCategory(matchedInst.category as InstitutionCategory);
+          } else {
+            const lower = userInst.toLowerCase();
+            if (lower.includes('polytechnic') || lower.includes('poly')) {
+              setSelectedCategory('Polytechnic');
+            } else if (lower.includes('college of education') || lower.includes('education')) {
+              setSelectedCategory('College of Education');
+            } else if (lower.includes('health') || lower.includes('nursing')) {
+              setSelectedCategory('Health Tech & Nursing');
+            } else if (lower.includes('monotechnic') || lower.includes('institute') || lower.includes('academy')) {
+              setSelectedCategory('Specialized Institutes');
+            } else {
+              setSelectedCategory('University');
+            }
+          }
         }
       } else {
         const defaultInst = NIGERIAN_INSTITUTIONS[0]?.name || 'University of Lagos (UNILAG)';
@@ -488,134 +505,77 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
               </div>
             )}
 
-            {/* 1. Category Selector */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-                1. Institution Category
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {INSTITUTION_CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => handleCategoryChange(cat.id)}
-                    className={`px-3 py-2 rounded-xl border text-xs font-semibold text-left transition-all ${
-                      selectedCategory === cat.id
-                        ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-600 dark:border-blue-500 text-blue-700 dark:text-blue-300 shadow-xs'
-                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
-                    }`}
-                  >
-                    <span className="block truncate">{cat.shortLabel}</span>
-                  </button>
-                ))}
+            {/* Auto-Assigned Fixed Academic Profile Card (Replaces Category selector and manual school/dept inputs) */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-50/80 via-slate-50 to-indigo-50/50 dark:from-slate-800/90 dark:via-slate-900 dark:to-blue-950/40 border border-blue-200/90 dark:border-blue-900/60 shadow-xs space-y-3.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-600/10 text-blue-700 dark:text-blue-300 border border-blue-500/30 flex items-center gap-1.5">
+                    <GraduationCap className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    {selectedCategory}
+                  </span>
+                  <span className="text-xs text-slate-300 dark:text-slate-600">•</span>
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    Institutional Past Question Vault
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/70 dark:border-emerald-800/80">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                  <span>Fixed to Academic Profile</span>
+                </div>
+              </div>
+
+              {/* Institution Title */}
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
+                  <Building className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>{institutionName.toUpperCase()}</span>
+                </h3>
+              </div>
+
+              {/* Fixed Faculty, Department, and Academic Level */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-blue-100 dark:border-slate-800">
+                <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1 mb-1">
+                    <Layers className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                    <span>Faculty / School</span>
+                  </div>
+                  <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate" title={facultyName}>
+                    {facultyName || 'School of Engineering Technology'}
+                  </p>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1 mb-1">
+                    <GraduationCap className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                    <span>Department</span>
+                  </div>
+                  <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate" title={departmentName}>
+                    {departmentName || 'Electrical / Electronics Engineering Technology'}
+                  </p>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1 mb-1">
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>Academic Level</span>
+                  </div>
+                  <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate" title={level}>
+                    {level || 'Post-Grad'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 pt-0.5">
+                <Info className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
+                <span>
+                  This past question will automatically be published under your institution, faculty, department, and level so coursemates can instantly browse it.
+                </span>
               </div>
             </div>
 
-            {/* 2. Institution, Faculty, Department */}
+            {/* Academic Session, Semester, Exam Type */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Institution */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>Institution / School <span className="text-rose-500">*</span></span>
-                  {currentUser?.institution && (
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Auto-assigned</span>
-                  )}
-                </label>
-                <input
-                  type="text"
-                  value={institutionName}
-                  onChange={(e) => {
-                    setInstitutionName(e.target.value);
-                    setInstitutionId(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''));
-                  }}
-                  list="institutions-datalist"
-                  placeholder="e.g. University of Lagos (UNILAG)"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-                <datalist id="institutions-datalist">
-                  {NIGERIAN_INSTITUTIONS.map((inst) => (
-                    <option key={inst.id} value={inst.name} />
-                  ))}
-                </datalist>
-              </div>
-
-              {/* Faculty */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>{activeCategoryMeta.facultyNomenclature} <span className="text-rose-500">*</span></span>
-                  {currentUser?.faculty && (
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Auto-assigned</span>
-                  )}
-                </label>
-                <input
-                  type="text"
-                  value={facultyName}
-                  onChange={(e) => handleFacultyChange(e.target.value)}
-                  list="faculties-datalist"
-                  placeholder="e.g. Faculty of Science"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-                <datalist id="faculties-datalist">
-                  {categoryFaculties.map((f) => (
-                    <option key={f.faculty} value={f.faculty} />
-                  ))}
-                </datalist>
-              </div>
-
-              {/* Department */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>Department <span className="text-rose-500">*</span></span>
-                  {currentUser?.department && (
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Auto-assigned</span>
-                  )}
-                </label>
-                <input
-                  type="text"
-                  value={departmentName}
-                  onChange={(e) => setDepartmentName(e.target.value)}
-                  list="departments-datalist"
-                  placeholder="e.g. Computer Science"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-                <datalist id="departments-datalist">
-                  {availableDepartments.map((d) => (
-                    <option key={d.name} value={d.name} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            {/* 3. Level, Session, Semester, Exam Type */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              {/* Level */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>Academic Level</span>
-                  {currentUser?.level && (
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Auto-assigned</span>
-                  )}
-                </label>
-                <input
-                  type="text"
-                  value={level}
-                  onChange={(e) => setLevel(e.target.value)}
-                  list="levels-datalist"
-                  placeholder="e.g. 200 Level"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-                <datalist id="levels-datalist">
-                  {activeCategoryMeta.levels.map((lvl) => (
-                    <option key={lvl} value={lvl}>
-                      {lvl}
-                    </option>
-                  ))}
-                </datalist>
-              </div>
 
               {/* Academic Session - Direct input by user with quick suggestions */}
               <div>

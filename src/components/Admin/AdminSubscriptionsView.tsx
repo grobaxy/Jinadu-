@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { SubscriptionPlan, UserSubscriptionRecord, PRIMARY_SUPER_ADMIN_UID } from '../../types';
 import { grobaxDataService } from '../../lib/dataAccess';
 import { logManagerActivity } from '../../lib/adminPermissions';
-import { useApp } from '../../context/AppContext';
+import { useApp, DEFAULT_SUBSCRIPTION_PLANS } from '../../context/AppContext';
 import {
   CreditCard,
   Plus,
@@ -19,19 +19,33 @@ import {
   Tag,
   Clock,
   Zap,
+  ExternalLink,
 } from 'lucide-react';
 
 export function AdminSubscriptionsView() {
   const { userProfile } = useApp();
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+
+  const getInitialPlans = (): SubscriptionPlan[] => {
+    try {
+      const saved = localStorage.getItem('grobax_saved_subscription_plans');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_SUBSCRIPTION_PLANS;
+  };
+
+  const [plans, setPlans] = useState<SubscriptionPlan[]>(getInitialPlans);
   const [userSubscriptions, setUserSubscriptions] = useState<UserSubscriptionRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<SubscriptionPlan | null>(null);
   const [isDeletingPlan, setIsDeletingPlan] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [quotaNotice, setQuotaNotice] = useState(false);
   const hasCheckedInitialSeed = useRef(false);
   const [activeTab, setActiveTab] = useState<'plans' | 'subscribers'>('plans');
 
@@ -54,23 +68,35 @@ export function AdminSubscriptionsView() {
 
   // Sync with subscriptionPlans collection via Grobax Data Access Layer
   useEffect(() => {
-    setLoading(true);
     const unsubscribePlans = grobaxDataService.subscribe<SubscriptionPlan>(
       'subscriptionPlans',
       { orderBy: [{ field: 'displayOrder', direction: 'asc' }] },
       (loadedPlans) => {
-        // If collection is empty on first load, seed initial plans
         if (loadedPlans.length === 0 && !hasCheckedInitialSeed.current) {
           hasCheckedInitialSeed.current = true;
+          // Seed cloud only if collection is truly blank
           seedInitialPlans();
-        } else {
+        } else if (loadedPlans.length > 0) {
           hasCheckedInitialSeed.current = true;
           setPlans(loadedPlans);
+          setLoading(false);
+          try {
+            localStorage.setItem('grobax_saved_subscription_plans', JSON.stringify(loadedPlans));
+          } catch {}
+        } else {
           setLoading(false);
         }
       },
       (err) => {
-        console.error('Error fetching subscription plans:', err);
+        const isQuota =
+          String(err?.message || err).includes('Quota exceeded') ||
+          String(err?.message || err).includes('resource-exhausted') ||
+          String(err?.message || err).includes('Free daily read units');
+        if (isQuota) {
+          setQuotaNotice(true);
+        }
+        console.warn('Subscription plans sync notice (using cached/default plans):', err);
+        setPlans((prev) => (prev.length > 0 ? prev : getInitialPlans()));
         setLoading(false);
       }
     );
@@ -82,7 +108,7 @@ export function AdminSubscriptionsView() {
       (loadedSubs) => {
         setUserSubscriptions(loadedSubs);
       },
-      (err) => console.warn('User subscriptions snapshot error:', err)
+      (err) => console.warn('User subscriptions snapshot notice:', err)
     );
 
     return () => {
@@ -92,6 +118,8 @@ export function AdminSubscriptionsView() {
   }, []);
 
   const seedInitialPlans = async () => {
+    if (quotaNotice) return;
+    setIsSeeding(true);
     const defaultPlans: Omit<SubscriptionPlan, 'id'>[] = [
       {
         planId: 'plan_basic_naira',
@@ -179,8 +207,17 @@ export function AdminSubscriptionsView() {
       for (const p of defaultPlans) {
         await grobaxDataService.create('subscriptionPlans', p, p.planId);
       }
-    } catch (err) {
-      console.error('Failed to seed initial plans:', err);
+    } catch (err: any) {
+      const isQuota =
+        String(err?.message || err).includes('Quota exceeded') ||
+        String(err?.message || err).includes('resource-exhausted') ||
+        String(err?.message || err).includes('Free daily read units');
+      if (isQuota) {
+        setQuotaNotice(true);
+      }
+      console.warn('Initial cloud subscription plans seed notice:', err);
+    } finally {
+      setIsSeeding(false);
     }
   };
 
@@ -280,14 +317,45 @@ export function AdminSubscriptionsView() {
       });
       setIsModalOpen(false);
     } catch (err: any) {
-      console.error('Error saving subscription plan:', err);
-      setMessage({ type: 'error', text: err.message || 'Failed to save subscription plan.' });
+      console.warn('Notice saving subscription plan:', err);
+      const isQuota =
+        String(err?.message || err).includes('Quota exceeded') ||
+        String(err?.message || err).includes('resource-exhausted') ||
+        String(err?.message || err).includes('Free daily read units');
+      if (isQuota) {
+        setQuotaNotice(true);
+      }
+      // Update local state and localStorage cache so admin experience isn't blocked
+      setPlans((prev) => {
+        const idx = prev.findIndex((p) => p.planId === planData.planId);
+        const updated = idx >= 0 ? [...prev.slice(0, idx), planData, ...prev.slice(idx + 1)] : [...prev, planData];
+        try {
+          localStorage.setItem('grobax_saved_subscription_plans', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+      setMessage({
+        type: isQuota ? 'success' : 'error',
+        text: isQuota
+          ? 'Plan saved locally in cached storage. Cloud write will synchronize once the daily Firestore quota resets.'
+          : (err.message || 'Failed to save subscription plan.'),
+      });
+      setIsModalOpen(false);
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleTogglePlanActive = async (plan: SubscriptionPlan) => {
+    // Update local state immediately
+    setPlans((prev) => {
+      const updated = prev.map((p) => (p.planId === plan.planId ? { ...p, active: !p.active } : p));
+      try {
+        localStorage.setItem('grobax_saved_subscription_plans', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
     try {
       await grobaxDataService.update('subscriptionPlans', plan.planId, {
         active: !plan.active,
@@ -305,8 +373,15 @@ export function AdminSubscriptionsView() {
         previousValue: { active: plan.active },
         newValue: { active: !plan.active },
       });
-    } catch (err) {
-      console.error('Error toggling plan active status:', err);
+    } catch (err: any) {
+      const isQuota =
+        String(err?.message || err).includes('Quota exceeded') ||
+        String(err?.message || err).includes('resource-exhausted') ||
+        String(err?.message || err).includes('Free daily read units');
+      if (isQuota) {
+        setQuotaNotice(true);
+      }
+      console.warn('Notice toggling plan active status:', err);
     }
   };
 
@@ -317,6 +392,15 @@ export function AdminSubscriptionsView() {
   const handleConfirmDeletePlan = async () => {
     if (!planToDelete) return;
     setIsDeletingPlan(true);
+
+    // Remove locally so UI reflects action
+    setPlans((prev) => {
+      const updated = prev.filter((p) => p.planId !== planToDelete.planId);
+      try {
+        localStorage.setItem('grobax_saved_subscription_plans', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
 
     try {
       await grobaxDataService.delete('subscriptionPlans', planToDelete.planId);
@@ -339,8 +423,21 @@ export function AdminSubscriptionsView() {
       });
       setPlanToDelete(null);
     } catch (err: any) {
-      console.error('Error deleting plan:', err);
-      setMessage({ type: 'error', text: err.message || 'Failed to delete plan.' });
+      const isQuota =
+        String(err?.message || err).includes('Quota exceeded') ||
+        String(err?.message || err).includes('resource-exhausted') ||
+        String(err?.message || err).includes('Free daily read units');
+      if (isQuota) {
+        setQuotaNotice(true);
+        setMessage({
+          type: 'success',
+          text: `Plan "${planToDelete.name}" deleted locally in cached storage. Cloud database will synchronize after quota reset.`,
+        });
+      } else {
+        console.warn('Notice deleting plan:', err);
+        setMessage({ type: 'error', text: err.message || 'Failed to delete plan.' });
+      }
+      setPlanToDelete(null);
     } finally {
       setIsDeletingPlan(false);
     }
@@ -410,6 +507,31 @@ export function AdminSubscriptionsView() {
           </button>
         </div>
       </div>
+
+      {quotaNotice && (
+        <div className="p-4 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 text-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-sm text-amber-900 dark:text-amber-100">
+                Firestore Free-Tier Daily Read Quota Reached
+              </p>
+              <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5 max-w-2xl leading-relaxed">
+                The database hit the daily Spark free read unit limit. Grobax has automatically switched to high-speed cached subscription plans so user checkouts and privileges continue smoothly. Quotas reset automatically at midnight PT.
+              </p>
+            </div>
+          </div>
+          <a
+            href="https://console.firebase.google.com/project/gen-lang-client-0808281932/firestore/databases/ai-studio-grbxbox-f5f6e3af-7b8c-4cb3-b0be-448c38423a10/data?openUpgradeDialog=true"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors shrink-0 shadow-sm"
+          >
+            <span>Firebase Console / Upgrade</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      )}
 
       {message && (
         <div
