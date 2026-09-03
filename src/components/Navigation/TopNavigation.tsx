@@ -18,6 +18,12 @@ import {
   Sparkles,
   Wallet,
   Search,
+  Swords,
+  ShoppingBag,
+  Gift,
+  Smartphone,
+  Shield,
+  Megaphone,
 } from 'lucide-react';
 
 interface TopNavigationProps {
@@ -83,11 +89,29 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
   const getNotifIcon = (type: string) => {
     switch (type) {
       case 'league':
-        return <Building2 className="w-4 h-4 text-emerald-400" />;
+        return <Building2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />;
       case 'wallet':
-        return <Wallet className="w-4 h-4 text-blue-400" />;
+        return <Wallet className="w-4 h-4 text-amber-500 dark:text-amber-400" />;
+      case 'reward':
+        return <Gift className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />;
+      case 'gus':
+        return <Trophy className="w-4 h-4 text-amber-500 dark:text-amber-400" />;
+      case 'dome':
+      case 'arena':
+        return <Swords className="w-4 h-4 text-blue-500 dark:text-blue-400" />;
+      case 'academic_library':
+      case 'library':
+        return <BookOpen className="w-4 h-4 text-teal-500 dark:text-teal-400" />;
+      case 'vtu':
+        return <Smartphone className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />;
+      case 'minimart':
+        return <ShoppingBag className="w-4 h-4 text-purple-500 dark:text-purple-400" />;
+      case 'announcement':
+        return <Megaphone className="w-4 h-4 text-blue-500 dark:text-blue-400" />;
+      case 'system':
+        return <ShieldCheck className="w-4 h-4 text-blue-500 dark:text-blue-400" />;
       default:
-        return <Sparkles className="w-4 h-4 text-indigo-400" />;
+        return <Sparkles className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />;
     }
   };
 

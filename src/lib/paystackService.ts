@@ -13,12 +13,30 @@ export interface PaystackInitResponse {
   error?: string;
 }
 
+export interface PaystackTransferAccountResponse {
+  success: boolean;
+  reference?: string;
+  accountNumber?: string;
+  accountName?: string;
+  bankName?: string;
+  bankSlug?: string;
+  amountNaira?: number;
+  expiresAt?: string;
+  displayText?: string;
+  status?: string;
+  authorization_url?: string;
+  fallbackCheckout?: boolean;
+  error?: string;
+}
+
 export interface PaystackVerifyResponse {
   success: boolean;
   verified: boolean;
   status: string;
   amountNaira?: number;
   reference?: string;
+  isPending?: boolean;
+  gatewayResponse?: string;
   isSimulated?: boolean;
   error?: string;
 }
@@ -39,6 +57,31 @@ export function loadPaystackInlineScript(): Promise<boolean> {
     };
     document.body.appendChild(script);
   });
+}
+
+// Generate real live bank transfer account via Paystack Charge API
+export async function createPaystackTransferAccount(params: {
+  planId: string;
+  planName: string;
+  amountNaira: number;
+  email: string;
+  userId: string;
+  userName: string;
+}): Promise<PaystackTransferAccountResponse> {
+  try {
+    const res = await fetch('/api/paystack/charge-transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || 'Could not connect to payment server to generate transfer account.',
+    };
+  }
 }
 
 // Initialize payment transaction on backend

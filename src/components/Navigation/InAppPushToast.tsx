@@ -11,6 +11,12 @@ import {
   Building2,
   Wallet,
   ShieldAlert,
+  BookOpen,
+  ShoppingBag,
+  Gift,
+  Smartphone,
+  ShieldCheck,
+  Megaphone,
 } from 'lucide-react';
 
 /**
@@ -109,13 +115,20 @@ export const InAppPushToast: React.FC = () => {
     markNotificationRead(activeToast.id);
     if (activeToast.actionUrl) {
       const target = activeToast.actionUrl.toLowerCase();
-      if (target.includes('chat') || target.includes('daily')) setActiveTab('daily_qa');
-      else if (target.includes('community') || target.includes('feed')) setActiveTab('community');
-      else if (target.includes('library')) setActiveTab('library');
+      if (target.includes('chat') || target.includes('daily') || target.includes('gus')) setActiveTab('daily_qa');
+      else if (target.includes('community') || target.includes('feed') || target.includes('minimart')) setActiveTab('community');
+      else if (target.includes('library') || target.includes('past_question')) setActiveTab('library');
+      else if (target.includes('wallet') || target.includes('user') || target.includes('profile')) setActiveTab('home');
       else setActiveTab('home');
     } else if (activeToast.type === 'dome' || activeToast.type === 'league') {
       setActiveTab('home');
-    } else if (activeToast.type === 'announcement' || activeToast.type === 'system') {
+    } else if (activeToast.type === 'academic_library' || activeToast.type === 'library') {
+      setActiveTab('library');
+    } else if (activeToast.type === 'gus') {
+      setActiveTab('daily_qa');
+    } else if (activeToast.type === 'minimart') {
+      setActiveTab('community');
+    } else {
       setActiveTab('home');
     }
     setActiveToast(null);
@@ -124,15 +137,27 @@ export const InAppPushToast: React.FC = () => {
   const getToastIcon = (t: string) => {
     switch (t) {
       case 'dome':
+      case 'arena':
         return <Swords className="w-5 h-5 text-blue-400" />;
       case 'gus':
         return <Trophy className="w-5 h-5 text-amber-400" />;
       case 'league':
         return <Building2 className="w-5 h-5 text-emerald-400" />;
       case 'wallet':
-        return <Wallet className="w-5 h-5 text-blue-400" />;
+        return <Wallet className="w-5 h-5 text-amber-400" />;
+      case 'reward':
+        return <Gift className="w-5 h-5 text-emerald-400" />;
+      case 'academic_library':
+      case 'library':
+        return <BookOpen className="w-5 h-5 text-teal-400" />;
+      case 'vtu':
+        return <Smartphone className="w-5 h-5 text-indigo-400" />;
+      case 'minimart':
+        return <ShoppingBag className="w-5 h-5 text-purple-400" />;
+      case 'announcement':
+        return <Megaphone className="w-5 h-5 text-blue-400" />;
       case 'system':
-        return <ShieldAlert className="w-5 h-5 text-rose-400" />;
+        return <ShieldCheck className="w-5 h-5 text-blue-400" />;
       default:
         return <Sparkles className="w-5 h-5 text-blue-400" />;
     }

@@ -11,6 +11,12 @@ import {
   Sparkles,
   CheckCircle2,
   Clock,
+  BookOpen,
+  ShoppingBag,
+  Gift,
+  Smartphone,
+  ShieldCheck,
+  Megaphone,
 } from 'lucide-react';
 
 interface NotificationDetailModalProps {
@@ -31,39 +37,64 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
       case 'dome':
       case 'arena':
         return {
-          icon: <Swords className="w-5 h-5 text-purple-400" />,
-          label: 'Arena Match',
-          style: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+          icon: <Swords className="w-5 h-5 text-blue-500 dark:text-blue-400" />,
+          label: 'Speed Quiz & Arena',
+          style: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
         };
       case 'gus':
         return {
-          icon: <Trophy className="w-5 h-5 text-amber-400" />,
-          label: 'GUS Tournament',
+          icon: <Trophy className="w-5 h-5 text-amber-500 dark:text-amber-400" />,
+          label: 'Daily Ultimate Search',
           style: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
         };
       case 'league':
         return {
-          icon: <Building2 className="w-5 h-5 text-emerald-400" />,
-          label: 'Institutional League',
+          icon: <Building2 className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />,
+          label: 'Campus League',
           style: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
         };
       case 'wallet':
         return {
-          icon: <Wallet className="w-5 h-5 text-blue-400" />,
-          label: 'Wallet & GP',
-          style: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+          icon: <Wallet className="w-5 h-5 text-amber-500 dark:text-amber-400" />,
+          label: 'GP Wallet & Rewards',
+          style: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+        };
+      case 'reward':
+        return {
+          icon: <Gift className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />,
+          label: 'Scholar Milestone Reward',
+          style: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+        };
+      case 'academic_library':
+      case 'library':
+        return {
+          icon: <BookOpen className="w-5 h-5 text-teal-500 dark:text-teal-400" />,
+          label: 'Academic Past Questions Library',
+          style: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20',
+        };
+      case 'vtu':
+        return {
+          icon: <Smartphone className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />,
+          label: 'Telecom Airtime & Data',
+          style: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+        };
+      case 'minimart':
+        return {
+          icon: <ShoppingBag className="w-5 h-5 text-purple-500 dark:text-purple-400" />,
+          label: 'Campus Minimart',
+          style: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
         };
       case 'announcement':
         return {
-          icon: <Sparkles className="w-5 h-5 text-purple-400" />,
-          label: 'Admin Broadcast',
-          style: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+          icon: <Megaphone className="w-5 h-5 text-blue-500 dark:text-blue-400" />,
+          label: 'Campus Announcement',
+          style: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
         };
       default:
         return {
-          icon: <Bell className="w-5 h-5 text-purple-400" />,
+          icon: <Bell className="w-5 h-5 text-blue-500 dark:text-blue-400" />,
           label: 'System Notification',
-          style: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+          style: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
         };
     }
   };

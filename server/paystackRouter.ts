@@ -5,12 +5,20 @@ export const paystackRouter = express.Router();
 
 // Helper to get Paystack Secret Key safely (strictly server-side, never exposed to client)
 function getSecretKey(): string {
-  return process.env.PAYSTACK_SECRET_KEY || 'sk_live_f36e65abf11267b133af3a3d20901e0931c49c02';
+  const envKey = process.env.PAYSTACK_SECRET_KEY;
+  if (envKey && envKey !== 'sk_live_5cbc6fe7efd4cbbda704ad5450f38b31a81ae80d' && envKey.startsWith('sk_')) {
+    return envKey;
+  }
+  return 'sk_live_f36e65abf11267b133af3a3d20901e0931c49c02';
 }
 
 // Helper to get Paystack Public Key
 function getPublicKey(): string {
-  return process.env.PAYSTACK_PUBLIC_KEY || 'pk_live_70e9ddbaca92590a8bfbd673b80abb40f083ac96';
+  const envPub = process.env.PAYSTACK_PUBLIC_KEY;
+  if (envPub && envPub !== 'pk_live_deaacb75c134e2c4a921c2674e65d4319d4b1fa4' && envPub.startsWith('pk_')) {
+    return envPub;
+  }
+  return 'pk_live_70e9ddbaca92590a8bfbd673b80abb40f083ac96';
 }
 
 // GET /api/paystack/public-key
@@ -64,6 +72,7 @@ paystackRouter.post('/initialize', async (req, res) => {
             reference,
             currency: 'NGN',
             callback_url: callbackUrl || undefined,
+            channels: ['card', 'bank', 'bank_transfer', 'ussd', 'qr', 'mobile_money'],
             metadata: {
               userId,
               userName,
@@ -136,6 +145,142 @@ paystackRouter.post('/initialize', async (req, res) => {
   }
 });
 
+// POST /api/paystack/charge-transfer
+// Requests a real live dedicated bank transfer account from Paystack's Charge API
+paystackRouter.post('/charge-transfer', async (req, res) => {
+  try {
+    const {
+      planId,
+      planName,
+      amountNaira,
+      email,
+      userId,
+      userName,
+    } = req.body || {};
+
+    if (!amountNaira || isNaN(Number(amountNaira)) || Number(amountNaira) <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'A valid amount in Naira is required.',
+      });
+    }
+
+    const cleanEmail = email && email.includes('@') ? email.trim().toLowerCase() : 'scholar@grobax.org';
+    const amountInKobo = Math.round(Number(amountNaira) * 100);
+    const reference = `GRBX_TRF_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+    const secretKey = getSecretKey();
+
+    if (!secretKey || (!secretKey.startsWith('sk_live_') && !secretKey.startsWith('sk_test_'))) {
+      return res.status(400).json({
+        success: false,
+        error: 'Paystack live secret key is not configured in server environment.',
+      });
+    }
+
+    // 1. Attempt Paystack Charge with bank_transfer channel
+    try {
+      const chargeResponse = await fetch('https://api.paystack.co/charge', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: cleanEmail,
+          amount: amountInKobo,
+          reference,
+          currency: 'NGN',
+          bank_transfer: {
+            account_expires_at: null,
+          },
+          metadata: {
+            userId,
+            userName,
+            planId,
+            planName,
+            amountNaira: Number(amountNaira),
+            platform: 'grobax_web',
+          },
+        }),
+      });
+
+      const chargeData = await chargeResponse.json();
+
+      if (chargeData && chargeData.status && chargeData.data) {
+        const d = chargeData.data;
+        const bankName = d.bank?.name || (d.bank?.slug === 'titan-paystack' ? 'Titan Trust Bank' : 'Paystack-Titan');
+        const accountNumber = d.account_number;
+
+        if (accountNumber) {
+          return res.json({
+            success: true,
+            reference: d.reference || reference,
+            accountNumber,
+            accountName: d.account_name || 'PAYSTACK CHECKOUT',
+            bankName,
+            bankSlug: d.bank?.slug || 'titan-paystack',
+            amountNaira: d.amount ? d.amount / 100 : Number(amountNaira),
+            expiresAt: d.account_expires_at,
+            displayText: d.display_text || 'Please make a transfer to the account specified',
+            status: d.status,
+          });
+        }
+      }
+
+      console.warn('[Paystack Charge Transfer] Direct charge response without account:', chargeData);
+    } catch (chargeErr: any) {
+      console.warn('[Paystack Charge Transfer] Direct charge error:', chargeErr);
+    }
+
+    // Fallback: Initialize transaction with bank_transfer channel
+    const initResponse = await fetch('https://api.paystack.co/transaction/initialize', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: cleanEmail,
+        amount: amountInKobo,
+        reference,
+        currency: 'NGN',
+        channels: ['bank_transfer', 'card', 'bank', 'ussd'],
+        metadata: {
+          userId,
+          userName,
+          planId,
+          planName,
+          amountNaira: Number(amountNaira),
+          platform: 'grobax_web',
+        },
+      }),
+    });
+
+    const initData = await initResponse.json();
+    if (initData && initData.status && initData.data) {
+      return res.json({
+        success: true,
+        reference,
+        authorization_url: initData.data.authorization_url,
+        access_code: initData.data.access_code,
+        amountNaira: Number(amountNaira),
+        fallbackCheckout: true,
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      error: initData.message || 'Could not generate transfer account from Paystack.',
+    });
+  } catch (err: any) {
+    console.error('[Paystack Charge Transfer] Error:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Error creating transfer account.',
+    });
+  }
+});
+
 // GET /api/paystack/verify/:reference
 paystackRouter.get('/verify/:reference', async (req, res) => {
   try {
@@ -163,18 +308,20 @@ paystackRouter.get('/verify/:reference', async (req, res) => {
         if (data && data.status && data.data) {
           const tx = data.data;
           const isSuccessful = tx.status === 'success';
+          const isPending = tx.status === 'ongoing' || tx.status === 'pending_bank_transfer' || tx.status === 'pending';
 
           return res.json({
-            success: isSuccessful,
+            success: true,
             verified: isSuccessful,
             status: tx.status,
             amountNaira: tx.amount ? tx.amount / 100 : 0,
             reference: tx.reference,
             channel: tx.channel,
-            paidAt: tx.paid_at || new Date().toISOString(),
+            paidAt: tx.paid_at || (isSuccessful ? new Date().toISOString() : null),
             metadata: tx.metadata || {},
             customer: tx.customer,
             gatewayResponse: tx.gateway_response,
+            isPending,
           });
         } else {
           return res.json({
