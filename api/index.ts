@@ -4311,9 +4311,5 @@ app.use((err, _req, res, _next) => {
     message: err?.message || "An error occurred while processing the request."
   });
 });
-function handler(req, res) {
-  return app(req, res);
-}
-export {
-  handler as default
-};
+
+export default app;

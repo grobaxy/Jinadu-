@@ -1,11 +1,11 @@
 // api/index.ts
 import express2 from "express";
 import dotenv from "dotenv";
-
-// server/vtuRoutes.ts
 import { Router } from "express";
-
-// src/lib/vtuTypes.ts
+import { Router as Router2 } from "express";
+import express from "express";
+import crypto from "crypto";
+import { Router as Router3 } from "express";
 var DEFAULT_AIRTIME_DATA_SETTINGS = {
   airtimeEnabled: true,
   dataEnabled: true,
@@ -2030,8 +2030,6 @@ function getAirtimeRedemptionWindowStatus(date = /* @__PURE__ */ new Date()) {
     scheduleDescription: "Free users can redeem only during the first 15 minutes of each hour (:00 - :15)."
   };
 }
-
-// server/vtuProvider.ts
 function extractPairgateErrorMessage(raw, fallback) {
   if (!raw) return fallback;
   if (typeof raw === "string") return raw;
@@ -2351,8 +2349,6 @@ var VtuProviderService = class {
   }
 };
 var vtuProvider = new VtuProviderService();
-
-// server/vtuRoutes.ts
 var vtuRouter = Router();
 var currentSettings = { ...DEFAULT_AIRTIME_DATA_SETTINGS };
 var inMemoryTransactions = /* @__PURE__ */ new Map();
@@ -2898,11 +2894,6 @@ vtuRouter.post("/admin/reconcile", async (req, res) => {
     return res.status(500).json({ success: false, message: err?.message || "Reconciliation failed" });
   }
 });
-
-// server/minimartRouter.ts
-import { Router as Router2 } from "express";
-
-// src/data/mockMinimartData.ts
 var DEFAULT_MINIMART_CONFIG = {
   premiumDailyListingLimit: 3,
   vipDailyListingLimit: 6,
@@ -3293,8 +3284,6 @@ var INITIAL_MINIMART_PRODUCTS = [
     viewsCount: 95
   }
 ];
-
-// server/minimartRouter.ts
 var minimartRouter = Router2();
 var currentConfig = { ...DEFAULT_MINIMART_CONFIG };
 var categories = [...INITIAL_MINIMART_CATEGORIES];
@@ -3756,10 +3745,6 @@ minimartRouter.post("/admin/moderate-product", (req, res) => {
     product: prod
   });
 });
-
-// server/paystackRouter.ts
-import express from "express";
-import crypto from "crypto";
 var paystackRouter = express.Router();
 function getSecretKey() {
   const envKey = process.env.PAYSTACK_SECRET_KEY;
@@ -4105,9 +4090,6 @@ paystackRouter.post("/webhook", express.raw({ type: "application/json" }), async
     return res.status(500).send("Webhook handler error");
   }
 });
-
-// server/libraryRouter.ts
-import { Router as Router3 } from "express";
 var libraryRouter = Router3();
 var DEFAULT_SETTINGS = {
   enabled: true,
@@ -4261,8 +4243,6 @@ libraryRouter.post("/view-check", (req, res) => {
     return res.status(500).json({ success: false, error: err?.message || "View check failed." });
   }
 });
-
-// api/index.ts
 dotenv.config();
 var app = express2();
 app.use((req, res, next) => {
@@ -4310,9 +4290,7 @@ app.use((err, _req, res, _next) => {
     message: err?.message || "An error occurred while processing the request."
   });
 });
-function handler(req, res) {
-  return app(req, res);
-}
+var index_default = app;
 export {
-  handler as default
+  index_default as default
 };
