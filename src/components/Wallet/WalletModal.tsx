@@ -2191,12 +2191,22 @@ export const WalletModal: React.FC = () => {
 
           {/* TAB 5: MEMBERSHIP UPGRADE PLANS (SYNCED LIVE FROM FIRESTORE ADMIN) */}
           {activeTab === 'upgrade' && (() => {
-            const activeTierName = currentUser.membershipTier || currentUser.subscriptionTier || 'Free Scholar';
+            const isUserExpired = currentUser.subscriptionExpiry
+              ? new Date(currentUser.subscriptionExpiry).getTime() <= Date.now()
+              : false;
+
+            const activeTierName = !isUserExpired && currentUser.membershipTier && !currentUser.membershipTier.toLowerCase().includes('free')
+              ? currentUser.membershipTier
+              : (!isUserExpired && currentUser.activePlanId
+                ? (subscriptionPlans.find(p => p.planId === currentUser.activePlanId || p.id === currentUser.activePlanId)?.name || currentUser.membershipTier || 'Free Scholar')
+                : (currentUser.membershipTier || currentUser.subscriptionTier || 'Free Scholar'));
+
             const isFreeBase =
-              !currentUser.activePlanId &&
-              (!currentUser.membershipTier ||
-                currentUser.membershipTier.toLowerCase().includes('starter') ||
-                currentUser.membershipTier.toLowerCase().includes('free'));
+              isUserExpired ||
+              (!currentUser.activePlanId &&
+                (!currentUser.membershipTier ||
+                  currentUser.membershipTier.toLowerCase().trim() === 'starter scholar' ||
+                  currentUser.membershipTier.toLowerCase().includes('free')));
 
             return (
               <div className="space-y-6">
@@ -2320,9 +2330,12 @@ export const WalletModal: React.FC = () => {
                       : false;
 
                     const isCurrent = !isPlanExpired && Boolean(
-                      (currentUser.activePlanId && currentUser.activePlanId === plan.planId) ||
+                      (currentUser.activePlanId && (currentUser.activePlanId === plan.planId || currentUser.activePlanId === plan.id)) ||
+                      (currentUser.subscription?.planId && (currentUser.subscription.planId === plan.planId || currentUser.subscription.planId === plan.id)) ||
+                      ((currentUser as any).planId && ((currentUser as any).planId === plan.planId || (currentUser as any).planId === plan.id)) ||
                       (currentUser.membershipTier && currentUser.membershipTier.trim().toLowerCase() === plan.name.trim().toLowerCase()) ||
-                      (currentUser.subscriptionTier && currentUser.subscriptionTier.trim().toLowerCase() === plan.name.trim().toLowerCase())
+                      (currentUser.subscriptionTier && currentUser.subscriptionTier.trim().toLowerCase() === plan.name.trim().toLowerCase()) ||
+                      ((currentUser as any).subscriptionPlan && (currentUser as any).subscriptionPlan.trim().toLowerCase() === plan.name.trim().toLowerCase())
                     );
 
                     return (
@@ -2653,15 +2666,17 @@ export const WalletModal: React.FC = () => {
           userId={currentUser.id || 'scholar'}
           userName={currentUser.name || currentUser.fullName || 'Scholar'}
           onSuccess={async (reference) => {
+            const planToUpgrade = selectedPlanForUpgrade;
             setIsPaystackOpen(false);
+            if (!planToUpgrade) return;
             setIsUpgrading(true);
-            const res = await subscribeToPlan(selectedPlanForUpgrade, 'CARD', reference);
+            const res = await subscribeToPlan(planToUpgrade, 'CARD', reference);
             setUpgradeResult(res);
             setIsUpgrading(false);
             if (res.success) {
               setTimeout(() => {
                 setSelectedPlanForUpgrade(null);
-              }, 2000);
+              }, 2500);
             }
           }}
           onClose={() => setIsPaystackOpen(false)}

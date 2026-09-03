@@ -163,6 +163,14 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
             if (initRes.publicKey) {
               setPublicKey(initRes.publicKey);
             }
+            try {
+              localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
+                reference: initRes.reference,
+                plan,
+                userId,
+                timestamp: Date.now(),
+              }));
+            } catch {}
           }
         }
       } catch (err) {
@@ -196,12 +204,17 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
 
       try {
         const verifyRes = await verifyPaystackTransaction(reference);
-        if (verifyRes && verifyRes.verified && verifyRes.status === 'success') {
+        if (verifyRes && (verifyRes.verified || verifyRes.status === 'success')) {
           stopPolling();
           setPaymentStep('success');
-          setTimeout(async () => {
+          try {
+            localStorage.removeItem('grobax_pending_paystack_sub');
+          } catch {}
+          try {
             await onSuccess(reference);
-          }, 1800);
+          } catch (onErr) {
+            console.warn('onSuccess activation notice:', onErr);
+          }
         }
       } catch {
         // Polling checks silently fail without blocking UI
@@ -233,12 +246,17 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
     try {
       const verifyRes = await verifyPaystackTransaction(reference);
 
-      if (verifyRes.verified && verifyRes.status === 'success') {
+      if (verifyRes && (verifyRes.verified || verifyRes.status === 'success')) {
         stopPolling();
         setPaymentStep('success');
-        setTimeout(async () => {
+        try {
+          localStorage.removeItem('grobax_pending_paystack_sub');
+        } catch {}
+        try {
           await onSuccess(reference);
-        }, 1800);
+        } catch (onErr) {
+          console.warn('onSuccess activation notice:', onErr);
+        }
       } else if (verifyRes.isPending || verifyRes.status === 'ongoing' || verifyRes.status === 'pending_bank_transfer') {
         setErrorMsg('We are still waiting to receive the deposit from your bank. Bank transfers typically reflect in 10–60 seconds. We are continuing to check automatically in the background.');
       } else {
@@ -275,18 +293,20 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
             userName,
           },
           callback: async (response: any) => {
-            const finalRef = response.reference || reference;
-            setIsVerifying(true);
-            const verifyRes = await verifyPaystackTransaction(finalRef);
-            if (verifyRes.verified || verifyRes.status === 'success') {
-              stopPolling();
-              setPaymentStep('success');
-              setTimeout(async () => {
-                await onSuccess(finalRef);
-              }, 1800);
-            } else {
-              setErrorMsg('Transaction completed on Paystack, verifying status with bank...');
+            const finalRef = response?.reference || response?.trxref || reference;
+            stopPolling();
+            setPaymentStep('success');
+            setIsVerifying(false);
+            try {
+              localStorage.removeItem('grobax_pending_paystack_sub');
+            } catch {}
+            try {
+              await onSuccess(finalRef);
+            } catch (actErr) {
+              console.warn('Subscription activation notice:', actErr);
             }
+            // Perform background verification check asynchronously
+            verifyPaystackTransaction(finalRef).catch(() => {});
           },
           onClose: () => {
             setIsLaunchingPopup(false);

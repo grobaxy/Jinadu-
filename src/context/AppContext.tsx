@@ -82,6 +82,7 @@ import {
   UserSubscriptionRecord,
   ChatroomLiveMessage,
 } from '../types';
+import { verifyPaystackTransaction } from '../lib/paystackService';
 import {
   MOCK_USERS,
   MOCK_POSTS,
@@ -469,6 +470,20 @@ export const checkIsUserSubscribed = (user: UserProfile | null | undefined): boo
     }
   }
 
+  // Active plan ID present and valid
+  if (
+    user.activePlanId &&
+    user.activePlanId.trim().length > 0 &&
+    !user.activePlanId.toLowerCase().includes('free')
+  ) {
+    return true;
+  }
+
+  // Active subscription object
+  if (user.subscription && user.subscription.status === 'active') {
+    return true;
+  }
+
   if (user.isPremium) return true;
   if ((user as any).isSubscribed) return true;
 
@@ -477,7 +492,7 @@ export const checkIsUserSubscribed = (user: UserProfile | null | undefined): boo
     if (
       tier &&
       !tier.includes('free') &&
-      !tier.includes('starter') &&
+      tier !== 'starter scholar' &&
       !tier.includes('scholar (starter)')
     ) {
       return true;
@@ -486,16 +501,20 @@ export const checkIsUserSubscribed = (user: UserProfile | null | undefined): boo
 
   if (user.subscriptionTier) {
     const tier = user.subscriptionTier.toLowerCase().trim();
-    if (tier && !tier.includes('free') && !tier.includes('starter')) {
+    if (tier && !tier.includes('free') && tier !== 'starter scholar' && !tier.includes('scholar (starter)')) {
       return true;
     }
   }
 
-  if (
-    user.activePlanId &&
-    user.activePlanId.trim().length > 0 &&
-    !user.activePlanId.toLowerCase().includes('free')
-  ) {
+  const planStr = (
+    ((user as any).subscriptionPlan ||
+      (user as any).planId ||
+      (user as any).tier ||
+      (user as any).plan ||
+      '') + ''
+  ).toLowerCase().trim();
+
+  if (planStr && !planStr.includes('free') && planStr !== 'starter scholar' && planStr.length > 0) {
     return true;
   }
 
@@ -575,16 +594,25 @@ export const resolveUserSubscriptionStatus = (user: Partial<UserProfile> | null 
   const isPrem = Boolean(
     user.isPremium ||
     (user as any).isSubscribed ||
-    (membership && !membership.includes('free') && !membership.includes('starter') && membership.trim().length > 0) ||
-    (subTier && !subTier.includes('free') && !subTier.includes('starter') && subTier.trim().length > 0) ||
-    (planStr && !planStr.includes('free') && !planStr.includes('starter') && planStr.trim().length > 0)
+    (user.activePlanId && !user.activePlanId.toLowerCase().includes('free')) ||
+    (user.subscription && user.subscription.status === 'active') ||
+    (membership && !membership.includes('free') && membership !== 'starter scholar' && !membership.includes('scholar (starter)') && membership.trim().length > 0) ||
+    (subTier && !subTier.includes('free') && subTier !== 'starter scholar' && !subTier.includes('scholar (starter)') && subTier.trim().length > 0) ||
+    (planStr && !planStr.includes('free') && planStr !== 'starter scholar' && planStr.trim().length > 0)
   );
 
   if (isPrem) {
+    const resolvedTier =
+      (user.membershipTier && !user.membershipTier.toLowerCase().includes('free') && user.membershipTier) ||
+      (user.subscriptionTier && !user.subscriptionTier.toLowerCase().includes('free') && user.subscriptionTier) ||
+      ((user as any).subscriptionPlan && !(user as any).subscriptionPlan.toLowerCase().includes('free') && (user as any).subscriptionPlan) ||
+      (user.activePlanId && (DEFAULT_SUBSCRIPTION_PLANS.find(p => p.planId === user.activePlanId)?.name)) ||
+      'PREMIUM SCHOLAR';
+
     return {
       isSubscribed: true,
       isExpired: false,
-      effectiveTier: user.membershipTier || user.subscriptionTier || 'PREMIUM SCHOLAR',
+      effectiveTier: resolvedTier,
       tierType: 'premium',
       isPremium: true,
     };
@@ -862,9 +890,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     subscriptionTier: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
                       ? 'Free Scholar'
                       : (data.subscriptionTier || data.membershipTier || prev.subscriptionTier || 'Free Scholar'),
+                    subscriptionPlan: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
+                      ? ''
+                      : (data.subscriptionPlan || data.membershipTier || prev.subscriptionPlan || ''),
+                    planId: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
+                      ? ''
+                      : (data.planId || data.activePlanId || prev.planId || ''),
+                    tier: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
+                      ? 'Free Scholar'
+                      : (data.tier || data.membershipTier || prev.tier || 'Free Scholar'),
+                    plan: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
+                      ? ''
+                      : (data.plan || data.membershipTier || prev.plan || ''),
+                    isSubscribed: isSuper || Boolean(
+                      (!data.subscriptionExpiry || new Date(data.subscriptionExpiry).getTime() > Date.now()) &&
+                      (data.isSubscribed || data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free')) || (data.membershipTier && !data.membershipTier.toLowerCase().includes('free') && data.membershipTier.toLowerCase() !== 'starter scholar') || prev.isSubscribed)
+                    ),
                     isPremium: isSuper || Boolean(
                       (!data.subscriptionExpiry || new Date(data.subscriptionExpiry).getTime() > Date.now()) &&
-                      (data.isPremium || (data.membershipTier && !data.membershipTier.toLowerCase().includes('free')) || prev.isPremium)
+                      (data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free')) || (data.membershipTier && !data.membershipTier.toLowerCase().includes('free') && data.membershipTier.toLowerCase() !== 'starter scholar') || prev.isPremium)
                     ),
                     subscriptionExpiry: data.subscriptionExpiry || prev.subscriptionExpiry || '',
                     subscription: data.subscription || prev.subscription || undefined,
@@ -3027,9 +3071,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else if (
           isActivelySubscribed ||
           currentUser.isPremium ||
-          (membership && !membership.includes('free') && !membership.includes('starter') && membership.trim().length > 0) ||
-          (subTier && !subTier.includes('free') && !subTier.includes('starter') && subTier.trim().length > 0) ||
-          (planStr && !planStr.includes('free') && !planStr.includes('starter') && planStr.trim().length > 0)
+          (currentUser.activePlanId && !currentUser.activePlanId.toLowerCase().includes('free')) ||
+          (membership && !membership.includes('free') && membership !== 'starter scholar' && !membership.includes('scholar (starter)') && membership.trim().length > 0) ||
+          (subTier && !subTier.includes('free') && subTier !== 'starter scholar' && !subTier.includes('scholar (starter)') && subTier.trim().length > 0) ||
+          (planStr && !planStr.includes('free') && planStr !== 'starter scholar' && planStr.trim().length > 0)
         ) {
           tier = 'premium';
         }
@@ -4177,6 +4222,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activePlanId: plan.planId,
         membershipTier: plan.name,
         subscriptionTier: plan.name,
+        subscriptionPlan: plan.name,
+        planId: plan.planId,
+        tier: plan.name,
+        plan: plan.name,
+        isSubscribed: true,
         isPremium: true,
         gusTier: gusTier as any,
         subscriptionExpiry: expiryDate,
@@ -4195,13 +4245,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...(paymentMethod === 'GP' ? { gpBalance: newGp } : {}),
       };
 
-      setCurrentUser(prev => ({
-        ...prev,
-        ...updatedUserPatch,
-      }));
+      const targetUid = firebaseUser?.uid || currentUser.id;
+
+      setCurrentUser(prev => {
+        const nextUser = {
+          ...prev,
+          ...updatedUserPatch,
+        };
+        try {
+          if (targetUid) {
+            localStorage.setItem(`grobax_user_profile_${targetUid}`, JSON.stringify(nextUser));
+          }
+        } catch {}
+        return nextUser;
+      });
+
+      // Update userSubscriptions local state immediately
+      setUserSubscriptions(prev => [
+        { ...subRecord, id: subRecord.subscriptionId },
+        ...prev.filter(s => s.planId !== plan.planId)
+      ]);
+
+      // Remove any pending payment record from localStorage
+      try {
+        localStorage.removeItem('grobax_pending_paystack_sub');
+      } catch {}
 
       // Update user in Firestore
-      const targetUid = firebaseUser?.uid || currentUser.id;
       if (targetUid) {
         try {
           await updateUserProfileInFirestore(targetUid, updatedUserPatch);
@@ -4232,6 +4302,85 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
   };
+
+  // Automatic Paystack Payment Verification & Activation for pending transactions and redirect callbacks
+  useEffect(() => {
+    if (!isAuthReady || !currentUser.id) return;
+
+    let isMounted = true;
+
+    async function checkPendingPaystackPayment() {
+      try {
+        // 1. Check URL search parameters (e.g. redirect callback from Paystack: ?reference=... or ?trxref=...)
+        let urlRef = '';
+        if (typeof window !== 'undefined' && window.location && window.location.search) {
+          const params = new URLSearchParams(window.location.search);
+          urlRef = params.get('reference') || params.get('trxref') || '';
+        }
+
+        // 2. Check localStorage for pending checkout
+        let pendingData: any = null;
+        try {
+          const raw = localStorage.getItem('grobax_pending_paystack_sub');
+          if (raw) {
+            pendingData = JSON.parse(raw);
+          }
+        } catch {}
+
+        const refToVerify = urlRef || pendingData?.reference;
+        if (!refToVerify) return;
+
+        const verifyRes = await verifyPaystackTransaction(refToVerify);
+
+        if (isMounted && verifyRes && (verifyRes.verified || verifyRes.status === 'success')) {
+          // Find the matching plan
+          const targetPlanId = verifyRes.planId || pendingData?.plan?.planId || pendingData?.plan?.id;
+          const targetPlanName = verifyRes.planName || pendingData?.plan?.name;
+
+          let matchedPlan = subscriptionPlans.find(
+            p => (targetPlanId && (p.planId === targetPlanId || p.id === targetPlanId)) ||
+                 (targetPlanName && p.name.toLowerCase() === targetPlanName.toLowerCase())
+          );
+
+          if (!matchedPlan) {
+            matchedPlan = DEFAULT_SUBSCRIPTION_PLANS.find(
+              p => (targetPlanId && (p.planId === targetPlanId || p.id === targetPlanId)) ||
+                   (targetPlanName && p.name.toLowerCase() === targetPlanName.toLowerCase())
+            );
+          }
+
+          if (!matchedPlan && pendingData?.plan) {
+            matchedPlan = pendingData.plan;
+          }
+
+          if (!matchedPlan) {
+            matchedPlan = DEFAULT_SUBSCRIPTION_PLANS[0];
+          }
+
+          if (matchedPlan) {
+            await subscribeToPlan(matchedPlan, 'CARD', refToVerify);
+
+            // Clean up URL and localStorage
+            try {
+              localStorage.removeItem('grobax_pending_paystack_sub');
+              if (urlRef && window.history && window.history.replaceState) {
+                const cleanUrl = window.location.pathname + window.location.hash;
+                window.history.replaceState({}, document.title, cleanUrl);
+              }
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.warn('Pending Paystack payment check notice:', err);
+      }
+    }
+
+    checkPendingPaystackPayment();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthReady, currentUser.id, subscriptionPlans]);
 
   return (
     <AppContext.Provider

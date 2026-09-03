@@ -727,6 +727,11 @@ export interface UserProfile {
   activePlanId?: string;
   membershipTier?: string;
   subscriptionTier?: string;
+  subscriptionPlan?: string;
+  planId?: string;
+  tier?: string;
+  plan?: string;
+  isSubscribed?: boolean;
   isPremium?: boolean;
   dailyQaUsage?: {
     date: string;

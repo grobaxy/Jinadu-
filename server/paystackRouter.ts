@@ -319,6 +319,8 @@ paystackRouter.get('/verify/:reference', async (req, res) => {
             channel: tx.channel,
             paidAt: tx.paid_at || (isSuccessful ? new Date().toISOString() : null),
             metadata: tx.metadata || {},
+            planId: tx.metadata?.planId,
+            planName: tx.metadata?.planName,
             customer: tx.customer,
             gatewayResponse: tx.gateway_response,
             isPending,
@@ -350,6 +352,7 @@ paystackRouter.get('/verify/:reference', async (req, res) => {
       reference,
       paidAt: new Date().toISOString(),
       amountNaira: 0,
+      planId: reference.startsWith('plan_') ? reference : undefined,
     });
   } catch (err: any) {
     console.error('[Paystack Verify] Internal error:', err);

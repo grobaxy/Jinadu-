@@ -1440,7 +1440,22 @@ export const ensureUserInFirestore = async (
       activePlanId: existing?.activePlanId || fallbackDetails?.activePlanId || '',
       membershipTier: existing?.membershipTier || fallbackDetails?.membershipTier || 'Free Scholar',
       subscriptionTier: existing?.subscriptionTier || fallbackDetails?.subscriptionTier || (existing?.membershipTier || 'Free Scholar'),
-      isPremium: Boolean(existing?.isPremium || fallbackDetails?.isPremium || (existing?.membershipTier && !existing.membershipTier.toLowerCase().includes('free'))),
+      subscriptionPlan: existing?.subscriptionPlan || fallbackDetails?.subscriptionPlan || existing?.membershipTier || '',
+      planId: existing?.planId || fallbackDetails?.planId || existing?.activePlanId || '',
+      tier: existing?.tier || fallbackDetails?.tier || existing?.membershipTier || 'Free Scholar',
+      plan: existing?.plan || fallbackDetails?.plan || existing?.membershipTier || '',
+      isSubscribed: Boolean(
+        existing?.isSubscribed ||
+        fallbackDetails?.isSubscribed ||
+        (existing?.activePlanId && !existing.activePlanId.toLowerCase().includes('free')) ||
+        (existing?.membershipTier && !existing.membershipTier.toLowerCase().includes('free') && existing.membershipTier.toLowerCase() !== 'starter scholar')
+      ),
+      isPremium: Boolean(
+        existing?.isPremium ||
+        fallbackDetails?.isPremium ||
+        (existing?.activePlanId && !existing.activePlanId.toLowerCase().includes('free')) ||
+        (existing?.membershipTier && !existing.membershipTier.toLowerCase().includes('free') && existing.membershipTier.toLowerCase() !== 'starter scholar')
+      ),
       subscriptionExpiry: existing?.subscriptionExpiry || fallbackDetails?.subscriptionExpiry || '',
       subscription: existing?.subscription || fallbackDetails?.subscription || undefined,
       walletAddress: existing?.walletAddress || fallbackDetails?.walletAddress || `0x${uid.substring(0, 10)}${Math.random().toString(16).substring(2, 6)}`,
@@ -1912,6 +1927,21 @@ export const updateUserProfileInFirestore = async (
   }
   if (updates.gusTier !== undefined) {
     payload.gusTier = updates.gusTier;
+  }
+  if ((updates as any).subscriptionPlan !== undefined) {
+    payload.subscriptionPlan = (updates as any).subscriptionPlan;
+  }
+  if ((updates as any).planId !== undefined) {
+    payload.planId = (updates as any).planId;
+  }
+  if ((updates as any).tier !== undefined) {
+    payload.tier = (updates as any).tier;
+  }
+  if ((updates as any).plan !== undefined) {
+    payload.plan = (updates as any).plan;
+  }
+  if ((updates as any).isSubscribed !== undefined) {
+    payload.isSubscribed = (updates as any).isSubscribed;
   }
   if (updates.privacy !== undefined) {
     payload.privacy = {

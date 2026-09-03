@@ -29,8 +29,15 @@ function normalizeDisplayTier(tierValue?: string): 'free' | 'premium' | 'vip' {
   if (!tierValue) return 'free';
   const t = tierValue.toLowerCase().trim();
   if (t === 'vip' || t.includes('vip') || t.includes('titan') || t.includes('annual')) return 'vip';
-  if (t === 'premium' || t.includes('premium') || t.includes('pro') || t.includes('champion')) {
-    if (!t.includes('free') && !t.includes('starter')) {
+  if (
+    t === 'premium' ||
+    t.includes('premium') ||
+    t.includes('pro') ||
+    t.includes('champion') ||
+    t.includes('starter plan') ||
+    t.includes('basic')
+  ) {
+    if (!t.includes('free') && t !== 'starter scholar') {
       return 'premium';
     }
   }
