@@ -23,6 +23,16 @@ export const AdvertisementTicker: React.FC = () => {
 
   const tickerList = activeTickerItems.length > 0 ? activeTickerItems : [
     {
+      id: 'default_0',
+      title: 'Grobaax Academic Network',
+      sponsorName: 'Grobaax',
+      logo: '🎓',
+      text: 'Grobaax - An Academic Network that connect students together.',
+      status: 'Active',
+      priority: 'Top',
+      destinationUrl: '#home',
+    },
+    {
       id: 'default_1',
       title: 'GUS Season 1 Registration Open',
       sponsorName: 'Grobaax Official',

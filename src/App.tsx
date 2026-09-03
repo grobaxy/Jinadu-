@@ -13,6 +13,9 @@ import { AcademicProfileCompletionScreen } from './components/Auth/AcademicProfi
 import { AdminPanelLayout } from './components/Admin/AdminPanelLayout';
 import { UpgradePromoPopup } from './components/Subscription/UpgradePromoPopup';
 import { InAppPushToast } from './components/Navigation/InAppPushToast';
+import { PWASplashScreen } from './components/PWA/PWASplashScreen';
+import { PWAInstallBanner } from './components/PWA/PWAInstallBanner';
+import { OfflineIndicator } from './components/PWA/OfflineIndicator';
 
 function MainLayout() {
   const { activeTab, firebaseUser, currentUser, isAuthModalOpen, setIsAuthModalOpen, authModalMode, login } = useApp();
@@ -94,7 +97,10 @@ function MainLayout() {
 export default function App() {
   return (
     <AppProvider>
+      <PWASplashScreen />
       <MainLayout />
+      <PWAInstallBanner />
+      <OfflineIndicator />
     </AppProvider>
   );
 }

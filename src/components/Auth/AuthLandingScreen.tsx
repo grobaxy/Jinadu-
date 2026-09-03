@@ -54,16 +54,21 @@ export const AuthLandingScreen: React.FC = () => {
       {/* Top Header Bar */}
       <header className="max-w-7xl w-full mx-auto px-4 sm:px-8 py-5 flex items-center justify-between relative z-10">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-900 flex items-center justify-center text-white shadow-md shadow-blue-950/40 border border-blue-700/50">
-            <GraduationCap className="w-5 h-5" />
-          </div>
+          <img
+            src="/pwa-192x192.png"
+            alt="Grobaax"
+            className="w-10 h-10 rounded-xl object-cover border border-blue-500/40 shadow-sm"
+          />
           <div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
               GROBAAX
               <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-300 border border-blue-300 dark:border-blue-800 uppercase tracking-widest hidden sm:inline">
-                VERIFIED ACADEMIC
+                ACADEMIC NETWORK
               </span>
             </h1>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden md:block">
+              An Academic Network that connect students together.
+            </p>
           </div>
         </div>
 
@@ -92,7 +97,7 @@ export const AuthLandingScreen: React.FC = () => {
         {/* Badge Pill */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-100 dark:bg-blue-950/80 border border-blue-300 dark:border-blue-900 text-blue-900 dark:text-blue-300 text-xs font-black tracking-wide shadow-xs">
           <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-300 animate-pulse" />
-          <span>Student Academic & Competition Platform</span>
+          <span>Grobaax • Academic Network</span>
         </div>
 
         {/* Branding Title */}
@@ -101,8 +106,12 @@ export const AuthLandingScreen: React.FC = () => {
             Grow Big & Excel
           </h2>
 
+          <p className="text-blue-600 dark:text-blue-400 text-base sm:text-xl font-bold tracking-tight">
+            An Academic Network that connect students together.
+          </p>
+
           <p className="text-slate-600 dark:text-slate-300 text-sm sm:text-base max-w-2xl mx-auto font-medium leading-relaxed">
-            Competitive challenge where students participate in live competitions, to test their knowledge and skills.
+            Discover verified academic knowledge, participate in live scholastic challenges, access student mini mart exchanges, and connect with fellow scholars across institutions.
           </p>
         </div>
 

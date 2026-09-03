@@ -88,6 +88,10 @@ export const HomeTab: React.FC = () => {
               Welcome to Grobaax
             </h1>
 
+            <p className="text-sm sm:text-base lg:text-lg font-bold text-blue-300">
+              An Academic Network that connect students together.
+            </p>
+
             <p className="text-xs sm:text-sm lg:text-base text-slate-300 max-w-3xl leading-relaxed font-medium">
               Grobaax is an education-focused platform where students discover useful academic information, test knowledge through <strong>Daily Ultimate Search</strong>, and connect with fellow scholars via the <strong>Campus Mini Mart & Skills Listing</strong>.
             </p>
