@@ -94,7 +94,7 @@ export function AdminDashboardView({ onNavigateTab }: AdminDashboardProps) {
               {activeAdminName}'s Master Administration System
             </h1>
             <p className="text-blue-200 text-sm mt-2 max-w-2xl">
-              Connected to existing Grobax Firebase backend. Monitor platform vitals, user wallets, institutional competitions, and role permissions.
+              Connected to existing Grobaax Firebase backend. Monitor platform vitals, user wallets, institutional competitions, and role permissions.
             </p>
           </div>
 

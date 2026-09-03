@@ -128,7 +128,7 @@ export function exportHandoutToPdf(
     const totalPages = doc.internal.pages.length - 1;
     doc.setFontSize(8);
     doc.setTextColor(140, 150, 165);
-    doc.text(`GROBAX ACADEMIC LIBRARY — ${handout.course || 'ACADEMIC REPOSITORY'}`, margin, 12);
+    doc.text(`GROBAAX ACADEMIC LIBRARY — ${handout.course || 'ACADEMIC REPOSITORY'}`, margin, 12);
     doc.text(`Page ${doc.getCurrentPageInfo().pageNumber}`, pageWidth - margin - 15, 12);
 
     doc.setDrawColor(220, 226, 235);
@@ -137,7 +137,7 @@ export function exportHandoutToPdf(
 
     // Footer
     doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
-    doc.text(`Generated on ${new Date().toLocaleDateString()} via Grobax Academic Learning Platform`, margin, pageHeight - 7);
+    doc.text(`Generated on ${new Date().toLocaleDateString()} via Grobaax Academic Learning Platform`, margin, pageHeight - 7);
   };
 
   // Header Banner
@@ -147,7 +147,7 @@ export function exportHandoutToPdf(
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
-  doc.text('GROBAX ACADEMIC LIBRARY — COMPREHENSIVE HANDOUT', margin + 8, cursorY + 11);
+  doc.text('GROBAAX ACADEMIC LIBRARY — COMPREHENSIVE HANDOUT', margin + 8, cursorY + 11);
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
@@ -761,7 +761,7 @@ export function exportHandoutToPdf(
   }
 
   // Clean filename
-  const cleanTitle = (handout.title || handout.topic || 'Grobax_Academic_Handout')
+  const cleanTitle = (handout.title || handout.topic || 'Grobaax_Academic_Handout')
     .replace(/[^a-zA-Z0-9_-]/g, '_')
     .substring(0, 40);
 

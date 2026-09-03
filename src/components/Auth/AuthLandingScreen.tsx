@@ -59,7 +59,7 @@ export const AuthLandingScreen: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-              GROBAX
+              GROBAAX
               <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-300 border border-blue-300 dark:border-blue-800 uppercase tracking-widest hidden sm:inline">
                 VERIFIED ACADEMIC
               </span>
@@ -179,7 +179,7 @@ export const AuthLandingScreen: React.FC = () => {
 
       {/* Footer info */}
       <footer className="max-w-7xl w-full mx-auto px-6 py-6 border-t border-blue-500/20 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400 relative z-10">
-        <div>©2023 Grobaxylimited • Inter-Institutional Arena</div>
+        <div>©2023 Grobaaxylimited • Inter-Institutional Arena</div>
         <div className="flex items-center gap-4">
           <button onClick={() => openAuthModal('LOGIN')} className="hover:text-blue-300 transition-colors cursor-pointer">
             Login

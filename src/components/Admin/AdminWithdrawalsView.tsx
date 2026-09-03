@@ -81,7 +81,7 @@ export function AdminWithdrawalsView() {
       await logManagerActivity({
         managerUid: userProfile?.id || PRIMARY_SUPER_ADMIN_UID,
         managerName: userProfile?.name || 'Wallet Manager',
-        managerEmail: userProfile?.username || 'admin@grobax.app',
+        managerEmail: userProfile?.username || 'admin@grobaax.app',
         role: userProfile?.role || 'WALLET_MANAGER',
         action: `WITHDRAWAL_${newStatus.toUpperCase()}`,
         target: 'withdrawals',

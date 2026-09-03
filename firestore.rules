@@ -565,7 +565,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // GROBAX SUG ELECTION SYSTEM RULES
+    // GROBAAX SUG ELECTION SYSTEM RULES
     // ==========================================
 
     // SUG Manager Requests
@@ -671,7 +671,7 @@ service cloud.firestore {
       allow update, delete: if isSuperAdmin();
     }
 
-    // Grobax Minimart Products
+    // Grobaax Minimart Products
     match /minimartProducts/{productId} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
@@ -679,27 +679,27 @@ service cloud.firestore {
       allow delete: if isManager() || (isSignedIn() && resource.data.sellerId == request.auth.uid);
     }
 
-    // Grobax Minimart Categories
+    // Grobaax Minimart Categories
     match /minimartCategories/{categoryId} {
       allow read: if true;
       allow write: if isManager();
     }
 
-    // Grobax Minimart Reports
+    // Grobaax Minimart Reports
     match /minimartReports/{reportId} {
       allow read: if isManager() || (isSignedIn() && resource.data.reportedBy == request.auth.uid);
       allow create: if isSignedIn() && request.resource.data.reportedBy == request.auth.uid;
       allow update, delete: if isManager();
     }
 
-    // Grobax Minimart Configuration
+    // Grobaax Minimart Configuration
     match /minimartConfig/{configId} {
       allow read: if true;
       allow write: if isManager();
     }
 
     // ==========================================
-    // GROBAX PAST QUESTIONS LIBRARY RULES
+    // GROBAAX PAST QUESTIONS LIBRARY RULES
     // ==========================================
 
     // Past Questions Collection
@@ -735,7 +735,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // GROBAX COMMUNITY CAMPUS RULES
+    // GROBAAX COMMUNITY CAMPUS RULES
     // ==========================================
 
     // Campus Memberships

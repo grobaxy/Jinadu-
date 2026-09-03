@@ -499,7 +499,7 @@ export const WalletModal: React.FC = () => {
               )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
-              Authoritative Grobax Scholar Profile, GP Wallet, Badges & Security.
+              Authoritative Grobaax Scholar Profile, GP Wallet, Badges & Security.
             </p>
           </div>
         </div>
@@ -1609,7 +1609,7 @@ export const WalletModal: React.FC = () => {
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
-                          Free Scholar tier members can earn GP in competitions and redeem their GP balance for <strong>Instant Airtime & Data VTU Recharges</strong>. Direct bank account withdrawals are exclusively reserved for upgraded scholar tiers (Scholar Starter, Champions Pro, or Grobax Titan VIP).
+                          Free Scholar tier members can earn GP in competitions and redeem their GP balance for <strong>Instant Airtime & Data VTU Recharges</strong>. Direct bank account withdrawals are exclusively reserved for upgraded scholar tiers (Scholar Starter, Champions Pro, or Grobaax Titan VIP).
                         </p>
                       </div>
                     </div>
@@ -2226,7 +2226,7 @@ export const WalletModal: React.FC = () => {
                       Scholar Membership Tiers
                     </h3>
                     <p className="text-xs sm:text-sm text-blue-100 max-w-2xl leading-relaxed">
-                      Upgrade your Grobax academic tier for 2x–3x GP multiplier boosts, verified profile badges, arena priority, and unlimited Minimart seller listings.
+                      Upgrade your Grobaax academic tier for 2x–3x GP multiplier boosts, verified profile badges, arena priority, and unlimited Minimart seller listings.
                     </p>
                   </div>
 
@@ -2662,7 +2662,7 @@ export const WalletModal: React.FC = () => {
       {isPaystackOpen && selectedPlanForUpgrade && (
         <PaystackGatewayModal
           plan={selectedPlanForUpgrade}
-          userEmail={currentUser.email || (currentUser as any).registeredEmail || (currentUser.username?.includes('@') ? currentUser.username : `${currentUser.username || 'scholar'}@grobax.org`)}
+          userEmail={currentUser.email || (currentUser as any).registeredEmail || (currentUser.username?.includes('@') ? currentUser.username : `${currentUser.username || 'scholar'}@grobaax.org`)}
           userId={currentUser.id || 'scholar'}
           userName={currentUser.name || currentUser.fullName || 'Scholar'}
           onSuccess={async (reference) => {
@@ -2704,7 +2704,7 @@ export const WalletModal: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              Are you sure you want to permanently erase your Grobax account? Your academic records, GP wallet balance ({currentUser.gpBalance || 0} GP), unlocked badges, and forum messages will be permanently deleted.
+              Are you sure you want to permanently erase your Grobaax account? Your academic records, GP wallet balance ({currentUser.gpBalance || 0} GP), unlocked badges, and forum messages will be permanently deleted.
             </p>
 
             {deleteError && (

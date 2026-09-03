@@ -16,7 +16,7 @@ import { grobaxDataService } from './dataAccess';
 
 /**
  * ============================================================================
- * GROBAX GLOBAL NOTIFICATION BADGE ENGINE
+ * GROBAAX GLOBAL NOTIFICATION BADGE ENGINE
  * ============================================================================
  * Centralized, high-performance, and persistent notification service.
  * Manages per-section independent unread counts for both User App and Admin Panel.
@@ -44,7 +44,7 @@ type NotificationSubscriber = (state: {
   admin: AdminSectionUnreadCounts;
 }) => void;
 
-class GrobaxNotificationService {
+class GrobaaxNotificationService {
   private subscribers: Set<NotificationSubscriber> = new Set();
   private lastReadState: SectionReadState = {};
   private currentUserId: string = 'guest';
@@ -591,5 +591,6 @@ class GrobaxNotificationService {
   }
 }
 
-export const grobaxNotificationService = new GrobaxNotificationService();
+export const grobaxNotificationService = new GrobaaxNotificationService();
+export const grobaaxNotificationService = grobaxNotificationService;
 export const NotificationService = grobaxNotificationService;

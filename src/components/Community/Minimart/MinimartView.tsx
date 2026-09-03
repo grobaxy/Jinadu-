@@ -140,7 +140,7 @@ export const MinimartView: React.FC = () => {
       : `234${cleanPhone}`;
 
     const messageText = encodeURIComponent(
-      `Hello ${product.sellerName || 'Scholar'}, I saw your listing for "${product.productName}" (₦${product.price.toLocaleString()}) on Grobax Minimart. Is it still available on campus?`
+      `Hello ${product.sellerName || 'Scholar'}, I saw your listing for "${product.productName}" (₦${product.price.toLocaleString()}) on Grobaax Minimart. Is it still available on campus?`
     );
     window.open(`https://wa.me/${waPhone}?text=${messageText}`, '_blank');
   };
@@ -156,7 +156,7 @@ export const MinimartView: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 flex items-center gap-1 shadow-xs">
                 <ShoppingBag className="w-3 h-3" />
-                <span>Grobax Minimart</span>
+                <span>Grobaax Minimart</span>
               </span>
               <span className="text-xs text-blue-200 font-medium">Campus Student Discovery</span>
             </div>
@@ -564,7 +564,7 @@ export const MinimartView: React.FC = () => {
                   Delete Listing?
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  This action will permanently remove this item from Grobax Minimart.
+                  This action will permanently remove this item from Grobaax Minimart.
                 </p>
               </div>
             </div>

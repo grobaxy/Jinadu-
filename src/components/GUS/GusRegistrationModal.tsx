@@ -166,7 +166,7 @@ export const GusRegistrationModal: React.FC<GusRegistrationModalProps> = ({
                   className="mt-0.5 rounded text-cyan-500 focus:ring-cyan-500 bg-slate-900 border-slate-700"
                 />
                 <span className="text-xs text-slate-300 leading-snug">
-                  I accept the Grobax Academic Fair Play Policy. Any use of external automation scripts or AI bots will forfeit all GP prize allocations.
+                  I accept the Grobaax Academic Fair Play Policy. Any use of external automation scripts or AI bots will forfeit all GP prize allocations.
                 </span>
               </label>
             </div>

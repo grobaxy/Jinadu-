@@ -209,7 +209,7 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
             </div>
             <div>
               <div className="font-black text-base text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5">
-                GROBAX <span className="text-blue-600 dark:text-blue-400">ADMIN</span>
+                GROBAAX <span className="text-blue-600 dark:text-blue-400">ADMIN</span>
               </div>
               <div className="text-[10px] text-slate-400 font-medium">Platform Management Dashboard</div>
             </div>
@@ -344,7 +344,7 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
           {/* Sidebar Footer */}
           <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
             <div className="text-[11px] text-slate-400 font-medium flex items-center justify-between">
-              <span>Grobax Core v4.0</span>
+              <span>Grobaax Core v4.0</span>
               <span className="text-emerald-500 font-bold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live System
               </span>

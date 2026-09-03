@@ -66,7 +66,7 @@ export function AdminSubscriptionsView() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Sync with subscriptionPlans collection via Grobax Data Access Layer
+  // Sync with subscriptionPlans collection via Grobaax Data Access Layer
   useEffect(() => {
     const unsubscribePlans = grobaxDataService.subscribe<SubscriptionPlan>(
       'subscriptionPlans',
@@ -135,7 +135,7 @@ export function AdminSubscriptionsView() {
           'Withdrawal Eligibility — Available',
           'AI Library — 5 Handout Generations',
           'Campus Minimart Products Listing (3 / Day)',
-          'No Grobax Pop-up Upgrade Ads',
+          'No Grobaax Pop-up Upgrade Ads',
           'Profile Verification Badge — Available',
           'Premium Badge — Available',
         ],
@@ -161,7 +161,7 @@ export function AdminSubscriptionsView() {
           'Withdrawal Eligibility — Available',
           'AI Library — 5 Handout Generations',
           'Campus Minimart Products Listing (3 / Day)',
-          'No Grobax Pop-up Upgrade Ads',
+          'No Grobaax Pop-up Upgrade Ads',
           '2x GP Reward Multiplier on all Competitions',
           'Profile Badge & Premium Badge — Available',
           'Priority Live Match Queue & Arena Access',
@@ -176,7 +176,7 @@ export function AdminSubscriptionsView() {
       },
       {
         planId: 'plan_titan_naira',
-        name: 'Grobax Titan Annual VIP',
+        name: 'Grobaax Titan Annual VIP',
         shortDescription: 'Ultimate academic VIP access for 1 Full Year',
         fullDescription: 'Comprehensive annual subscription for institution representatives and top scholars with full VIP status, 20 searches, unlimited handouts, 6 listings/day, and maximum rewards.',
         priceNaira: 25000,
@@ -188,7 +188,7 @@ export function AdminSubscriptionsView() {
           'Withdrawal Eligibility — Available (Zero Processing Fees)',
           'AI Library — Unlimited Handouts Generation',
           'Campus Minimart Products Listing (6 / Day)',
-          'No Grobax Pop-up Upgrade Ads',
+          'No Grobaax Pop-up Upgrade Ads',
           'Profile Badge & VIP Gold Crown Badge — Available',
           '3x GP Reward Multiplier across all League & GUS Rounds',
           'Instant Representative Fast-Track Review',
@@ -302,7 +302,7 @@ export function AdminSubscriptionsView() {
       await logManagerActivity({
         managerUid: userProfile?.id || PRIMARY_SUPER_ADMIN_UID,
         managerName: userProfile?.name || 'Super Admin',
-        managerEmail: userProfile?.username || 'admin@grobax.app',
+        managerEmail: userProfile?.username || 'admin@grobaax.app',
         role: userProfile?.role || 'SUPER_ADMIN',
         action: selectedPlan ? 'EDIT_SUBSCRIPTION_PLAN' : 'CREATE_SUBSCRIPTION_PLAN',
         target: 'subscriptionPlans',
@@ -365,7 +365,7 @@ export function AdminSubscriptionsView() {
       await logManagerActivity({
         managerUid: userProfile?.id || PRIMARY_SUPER_ADMIN_UID,
         managerName: userProfile?.name || 'Super Admin',
-        managerEmail: userProfile?.username || 'admin@grobax.app',
+        managerEmail: userProfile?.username || 'admin@grobaax.app',
         role: userProfile?.role || 'SUPER_ADMIN',
         action: plan.active ? 'DEACTIVATE_SUBSCRIPTION_PLAN' : 'ACTIVATE_SUBSCRIPTION_PLAN',
         target: 'subscriptionPlans',
@@ -408,7 +408,7 @@ export function AdminSubscriptionsView() {
       await logManagerActivity({
         managerUid: userProfile?.id || PRIMARY_SUPER_ADMIN_UID,
         managerName: userProfile?.name || 'Super Admin',
-        managerEmail: userProfile?.username || 'admin@grobax.app',
+        managerEmail: userProfile?.username || 'admin@grobaax.app',
         role: userProfile?.role || 'SUPER_ADMIN',
         action: 'DELETE_SUBSCRIPTION_PLAN',
         target: 'subscriptionPlans',
@@ -457,7 +457,7 @@ export function AdminSubscriptionsView() {
           <div>
             <div className="flex items-center space-x-2 mb-2">
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/30 text-blue-200 border border-blue-400/30 uppercase tracking-wider">
-                Grobax Monetization & Plans
+                Grobaax Monetization & Plans
               </span>
               <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                 Currency: ₦ (Naira)
@@ -468,7 +468,7 @@ export function AdminSubscriptionsView() {
               Subscription & Plan Management
             </h1>
             <p className="text-blue-200 text-sm mt-1 max-w-2xl">
-              Authoritative source for all Grobax user subscription plans. Changes made here synchronize live to the user-facing Upgrade Plan page in real time.
+              Authoritative source for all Grobaax user subscription plans. Changes made here synchronize live to the user-facing Upgrade Plan page in real time.
             </p>
           </div>
 
@@ -517,7 +517,7 @@ export function AdminSubscriptionsView() {
                 Firestore Free-Tier Daily Read Quota Reached
               </p>
               <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5 max-w-2xl leading-relaxed">
-                The database hit the daily Spark free read unit limit. Grobax has automatically switched to high-speed cached subscription plans so user checkouts and privileges continue smoothly. Quotas reset automatically at midnight PT.
+                The database hit the daily Spark free read unit limit. Grobaax has automatically switched to high-speed cached subscription plans so user checkouts and privileges continue smoothly. Quotas reset automatically at midnight PT.
               </p>
             </div>
           </div>
@@ -738,7 +738,7 @@ export function AdminSubscriptionsView() {
               <Zap className="w-10 h-10 text-slate-400 mx-auto mb-2" />
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No active user subscriptions yet</p>
               <p className="text-xs text-slate-500 mt-1">
-                When users upgrade their plans on the Grobax App, their records will automatically appear here.
+                When users upgrade their plans on the Grobaax App, their records will automatically appear here.
               </p>
             </div>
           ) : (
@@ -795,7 +795,7 @@ export function AdminSubscriptionsView() {
                   {selectedPlan ? 'Edit Subscription Plan' : 'Create Subscription Plan'}
                 </h3>
                 <p className="text-xs text-blue-200 mt-0.5">
-                  Set plan pricing in Nigerian Naira (₦) & customize features for Grobax users.
+                  Set plan pricing in Nigerian Naira (₦) & customize features for Grobaax users.
                 </p>
               </div>
               <button

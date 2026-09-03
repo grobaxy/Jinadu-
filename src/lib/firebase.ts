@@ -1145,7 +1145,7 @@ export const createUserProfileDoc = async (
     departmentId: data.departmentId || '',
     level: data.level || '100 Level',
     major: data.departmentName || 'Undergraduate',
-    bio: `Scholar in Grobax Academy`,
+    bio: `Scholar in Grobaax Academy`,
     verified: true,
     studentIdCardUrl: data.studentIdCardUrl || '',
     idVerificationStatus: data.studentIdCardUrl ? 'pending' : 'unsubmitted',
@@ -1245,7 +1245,7 @@ export const completeUserAcademicProfileDoc = async (
   const existingSnap = await getDoc(userDocRef);
   const existing = existingSnap.exists() ? existingSnap.data() : {};
 
-  const name = data.fullName || existing.fullName || existing.name || auth.currentUser?.displayName || 'Grobax Scholar';
+  const name = data.fullName || existing.fullName || existing.name || auth.currentUser?.displayName || 'Grobaax Scholar';
   const email = data.email || existing.email || auth.currentUser?.email || '';
   const avatar = data.profileImage || existing.profileImage || existing.avatar || auth.currentUser?.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(data.username)}`;
 
@@ -1293,7 +1293,7 @@ export const completeUserAcademicProfileDoc = async (
     departmentId: data.departmentId || '',
     level: data.level || '100 Level',
     major: data.departmentName || '',
-    bio: existing.bio || `Scholar at ${data.institutionName || 'Grobax Academy'}`,
+    bio: existing.bio || `Scholar at ${data.institutionName || 'Grobaax Academy'}`,
     verified: true,
     studentIdCardUrl,
     idVerificationStatus,
@@ -1417,8 +1417,8 @@ export const ensureUserInFirestore = async (
       authProvider: existing?.authProvider || (firebaseUser.photoURL ? 'google.com' : 'email_password'),
       accountStatus: existing?.accountStatus || fallbackDetails?.accountStatus || 'active',
       academicProfileCompleted: Boolean(existing?.academicProfileCompleted || fallbackDetails?.academicProfileCompleted),
-      institution: existing?.institutionName || existing?.institution || fallbackDetails?.institutionName || fallbackDetails?.institution || (isSuper ? 'Grobax Systems Administration' : 'Unassigned Institution'),
-      institutionName: existing?.institutionName || existing?.institution || fallbackDetails?.institutionName || fallbackDetails?.institution || (isSuper ? 'Grobax Systems Administration' : 'Unassigned Institution'),
+      institution: existing?.institutionName || existing?.institution || fallbackDetails?.institutionName || fallbackDetails?.institution || (isSuper ? 'Grobaax Systems Administration' : 'Unassigned Institution'),
+      institutionName: existing?.institutionName || existing?.institution || fallbackDetails?.institutionName || fallbackDetails?.institution || (isSuper ? 'Grobaax Systems Administration' : 'Unassigned Institution'),
       institutionId: existing?.institutionId || fallbackDetails?.institutionId || '',
       institutionCategory: existing?.institutionCategory || fallbackDetails?.institutionCategory || 'University',
       faculty: existing?.facultyName || existing?.faculty || fallbackDetails?.facultyName || fallbackDetails?.faculty || '',
@@ -1429,7 +1429,7 @@ export const ensureUserInFirestore = async (
       departmentId: existing?.departmentId || fallbackDetails?.departmentId || '',
       level: existing?.level || fallbackDetails?.level || (isSuper ? 'Executive Level' : '100 Level'),
       major: existing?.major || existing?.departmentName || fallbackDetails?.major || fallbackDetails?.departmentName || (isSuper ? 'Executive Administrator' : 'Undergraduate'),
-      bio: existing?.bio || fallbackDetails?.bio || (isSuper ? 'Primary Super Administrator of Grobax Box.' : 'Scholar in Grobax Academy'),
+      bio: existing?.bio || fallbackDetails?.bio || (isSuper ? 'Primary Super Administrator of Grobaax Box.' : 'Scholar in Grobaax Academy'),
       verified: existing?.verified !== undefined ? existing.verified : true,
       gpBalance: existing?.gpBalance !== undefined ? Number(existing.gpBalance) : (fallbackDetails?.gpBalance !== undefined ? Number(fallbackDetails.gpBalance) : 0),
       grbxTokens: existing?.grbxTokens !== undefined ? existing.grbxTokens : (fallbackDetails?.grbxTokens ?? 0),
@@ -1642,7 +1642,7 @@ export const rejectStudentVerificationRequest = async (
       reviewedAt: now,
       reviewedBy: reviewerUid,
       reviewedByName: reviewerName,
-      rejectionReason: reason || 'Document could not be verified by Grobax Admin.',
+      rejectionReason: reason || 'Document could not be verified by Grobaax Admin.',
       updatedAt: serverTimestamp(),
     },
     { merge: true }
@@ -4060,7 +4060,7 @@ export const updateSeasonStandingsAfterMatch = async (
 };
 
 // ==========================================
-// STEP 11: GUS (GROBAX ULTIMATE SEARCH) COMPETITION ENGINE
+// STEP 11: GUS (GROBAAX ULTIMATE SEARCH) COMPETITION ENGINE
 // ==========================================
 
 // Fetch All GUS Seasons from Firestore
@@ -4081,7 +4081,7 @@ export const fetchGusSeasonsFromFirestore = async (): Promise<GusSeason[]> => {
           competitionEndDate: data.competitionEndDate || '2026-08-25',
           prizePoolGP: data.prizePoolGP || 1000000,
           rules: data.rules || [
-            'All registered Grobax users are eligible.',
+            'All registered Grobaax users are eligible.',
             'Each participant gets one attempt per seasonal question.',
             'Incorrect answer or time expiry results in immediate elimination.',
             'Final surviving participants share or claim top GP prize pool tiers.',
@@ -4182,7 +4182,7 @@ export const saveGusSeasonToFirestore = async (
     competitionEndDate: seasonData.competitionEndDate || '2026-08-25',
     prizePoolGP: seasonData.prizePoolGP || 1000000,
     rules: seasonData.rules || [
-      'All registered Grobax users are eligible.',
+      'All registered Grobaax users are eligible.',
       'Each participant gets one attempt per seasonal question.',
       'Incorrect answer or time expiry results in immediate elimination.',
       'Final surviving participants share or claim top GP prize pool tiers.',
@@ -4344,7 +4344,7 @@ export const registerUserForGusSeasonInFirestore = async (
     userId: user.id,
     userName: user.name,
     userAvatar: user.avatar || '🎓',
-    institution: user.institution || 'Grobax Academy',
+    institution: user.institution || 'Grobaax Academy',
     department: user.department || 'General Studies',
     registrationStatus: 'REGISTERED',
     status: 'ACTIVE',
@@ -4711,7 +4711,7 @@ export const sendBroadcastNotificationToFirestore = async (
       actionUrl: notifData.actionUrl || '',
       isRead: false,
       senderAdminUid: adminUid || PRIMARY_SUPER_ADMIN_UID,
-      senderAdminName: adminName || 'Grobax Super Admin',
+      senderAdminName: adminName || 'Grobaax Super Admin',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       createdAtMillis: Date.now(),
       createdAt: serverTimestamp(),
@@ -4762,12 +4762,12 @@ export const DEFAULT_GP_CONVERSION: GpConversionConfig = {
     'Minimum cash out withdrawal threshold is 1,000 GP (₦1,000 NGN).',
     'Official Conversion Rate: 1 GP = ₦1 NGN.',
     'Withdrawal requests are processed directly to your verified Nigerian bank account within 24-48 business hours.',
-    'Bank account name must match your verified Grobax profile details.',
+    'Bank account name must match your verified Grobaax profile details.',
   ],
 };
 
 export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
-  platformName: 'Grobax Academic Competition Platform',
+  platformName: 'Grobaax Academic Competition Platform',
   maintenanceMode: false,
   allowNewRegistrations: true,
   publicLeagueVisibility: true,
@@ -5400,7 +5400,7 @@ export const createChatroomLiveQuestionInFirestore = async (
       userId: adminUid || 'admin_mod',
       userName: adminName ? `${adminName} 🛡️` : 'Community Manager 🛡️',
       userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      institution: 'Grobax Community Management',
+      institution: 'Grobaax Community Management',
       department: 'Head Moderator',
       level: 'Admin',
       isPremium: true,
@@ -5552,7 +5552,7 @@ export const closeChatroomLiveQuestionInFirestore = async (
     const completionMsg: ChatroomLiveMessage = {
       id: 'msg_q_closed_' + Date.now(),
       userId: 'grobax_arbiter',
-      userName: 'Grobax Arbiter 🎯',
+      userName: 'Grobaax Arbiter 🎯',
       userAvatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
       institution: 'Official Live Q&A Arbiter',
       isPremium: true,
@@ -5790,11 +5790,11 @@ export const evaluateAndProcessLiveAnswer = async (
 
     const winnerRecord = {
       userId: user.id,
-      userName: user.name || user.username || 'Grobax Scholar',
+      userName: user.name || user.username || 'Grobaax Scholar',
       userAvatar:
         user.avatar ||
         'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      institution: user.institution || 'Grobax Scholar',
+      institution: user.institution || 'Grobaax Scholar',
       isPremium: Boolean(user.isPremium || isUserVip),
       isVip: isUserVip,
       membershipTier: user.membershipTier || (isUserVip ? 'VIP SCHOLAR' : user.isPremium ? 'PREMIUM SCHOLAR' : undefined),
@@ -5835,7 +5835,7 @@ export const evaluateAndProcessLiveAnswer = async (
       await setDoc(doc(db, 'transactions', txId), {
         id: txId,
         userId: user.id,
-        userName: user.name || user.username || 'Grobax Scholar',
+        userName: user.name || user.username || 'Grobaax Scholar',
         type: 'CREDIT',
         source: 'LIVE_QA_REWARD',
         category: 'DAILY_QA',
@@ -5855,7 +5855,7 @@ export const evaluateAndProcessLiveAnswer = async (
       const congratsMessage: ChatroomLiveMessage = {
         id: 'msg_win_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         userId: 'grobax_arbiter',
-        userName: 'Grobax Arbiter 🎯',
+        userName: 'Grobaax Arbiter 🎯',
         userAvatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
         institution: 'Official Live Q&A Arbiter',
         isPremium: true,
@@ -5876,7 +5876,7 @@ export const evaluateAndProcessLiveAnswer = async (
         const fullAnnouncement: ChatroomLiveMessage = {
           id: 'msg_full_' + Date.now(),
           userId: 'grobax_arbiter',
-          userName: 'Grobax Arbiter 🎯',
+          userName: 'Grobaax Arbiter 🎯',
           userAvatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
           institution: 'Official Live Q&A Arbiter',
           isPremium: true,
@@ -5903,7 +5903,7 @@ export const evaluateAndProcessLiveAnswer = async (
           actionUrl: '#daily_qa',
         },
         'grobax_arbiter',
-        'Grobax Arbiter 🎯'
+        'Grobaax Arbiter 🎯'
       );
     } catch (notifErr) {
       console.warn('Error dispatching real-time push notification to winner:', notifErr);
@@ -5988,7 +5988,7 @@ export const evaluateMessageForLiveQuestions = async (message: ChatroomLiveMessa
     }
 
     if (targetQuestionId) {
-      const cleanName = (message.userName || 'Grobax Scholar')
+      const cleanName = (message.userName || 'Grobaax Scholar')
         .replace(/\s*(💎\s*\|\s*Moderator|🛡️|⭐|👑|⚡).*$/, '')
         .trim();
 
@@ -6241,7 +6241,7 @@ export const seedDefaultPlatformEventsIfEmpty = async () => {
         {
           id: 'ev_gus_championship_s1',
           eventId: 'ev_gus_championship_s1',
-          title: 'Grobax National Academic Championship Season 1',
+          title: 'Grobaax National Academic Championship Season 1',
           category: 'gus',
           categoryLabel: 'GUS National Championship',
           host: OFFICIAL_EVENT_HOST,
@@ -6251,7 +6251,7 @@ export const seedDefaultPlatformEventsIfEmpty = async () => {
           prizeReward: '50,000 GP Prize Pool',
           audience: 'all_users',
           status: 'Published',
-          description: 'The official Grobax National Academic Championship brings together Universities, Polytechnics, and Colleges of Education scholars across the nation in live synchronous academic speed challenges.',
+          description: 'The official Grobaax National Academic Championship brings together Universities, Polytechnics, and Colleges of Education scholars across the nation in live synchronous academic speed challenges.',
           imageUrl: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
           image: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
           date: '2026-09-01 to 2026-09-14',
@@ -6314,7 +6314,7 @@ export const seedDefaultPlatformEventsIfEmpty = async () => {
           prizeReward: '25,000 GP Daily Rewards',
           audience: 'all_users',
           status: 'Published',
-          description: 'Daily live fast-fingers trivia and academic rapid-fire in the Grobax Community Chatroom. First 5 verified answers to correctly solve questions earn direct GP drops into their wallets.',
+          description: 'Daily live fast-fingers trivia and academic rapid-fire in the Grobaax Community Chatroom. First 5 verified answers to correctly solve questions earn direct GP drops into their wallets.',
           imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80',
           image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80',
           date: '2026-08-15 to 2026-08-30',
@@ -6377,7 +6377,7 @@ export const seedDefaultPlatformEventsIfEmpty = async () => {
 };
 
 // ==========================================
-// GROBAX SUG ELECTION SYSTEM FIREBASE SERVICES
+// GROBAAX SUG ELECTION SYSTEM FIREBASE SERVICES
 // ==========================================
 
 /**
@@ -6521,7 +6521,7 @@ export const submitSugManagerRequest = async (
 
     return {
       success: true,
-      message: 'SUG Manager verification request submitted successfully for Grobax administrative review.',
+      message: 'SUG Manager verification request submitted successfully for Grobaax administrative review.',
       requestId,
     };
   } catch (err: any) {
@@ -6531,7 +6531,7 @@ export const submitSugManagerRequest = async (
 };
 
 /**
- * Approve a pending SUG Manager request (Grobax Admin Action)
+ * Approve a pending SUG Manager request (Grobaax Admin Action)
  */
 export const approveSugManagerRequest = async (
   requestId: string,
@@ -6571,7 +6571,7 @@ export const approveSugManagerRequest = async (
       reviewedAt: now,
       reviewedBy: reviewerUid,
       reviewedByName: reviewerName,
-      verificationNotes: verificationNotes || 'Verified and approved by Grobax Admin.',
+      verificationNotes: verificationNotes || 'Verified and approved by Grobaax Admin.',
       updatedAt: now,
     }));
 
@@ -6634,7 +6634,7 @@ export const approveSugManagerRequest = async (
 };
 
 /**
- * Reject a pending SUG Manager request (Grobax Admin Action)
+ * Reject a pending SUG Manager request (Grobaax Admin Action)
  */
 export const rejectSugManagerRequest = async (
   requestId: string,
@@ -6654,7 +6654,7 @@ export const rejectSugManagerRequest = async (
       reviewedAt: now,
       reviewedBy: reviewerUid,
       reviewedByName: reviewerName,
-      rejectionReason: rejectionReason || 'Information provided could not be verified by Grobax.',
+      rejectionReason: rejectionReason || 'Information provided could not be verified by Grobaax.',
       verificationNotes: verificationNotes || '',
       updatedAt: now,
     }));
@@ -6677,7 +6677,7 @@ export const rejectSugManagerRequest = async (
 };
 
 /**
- * Suspend or Revoke an active SUG Manager (Grobax Admin Action)
+ * Suspend or Revoke an active SUG Manager (Grobaax Admin Action)
  */
 export const updateSugManagerStatus = async (
   institutionId: string,
@@ -7311,7 +7311,7 @@ export const submitSugVoteInFirestore = async (votePayload: {
       throw new Error('Voting for this election campaign is closed.');
     }
     if (camp.status === 'Suspended') {
-      throw new Error('This election is currently suspended by Grobax administration.');
+      throw new Error('This election is currently suspended by Grobaax administration.');
     }
 
     // 2. Verify Academic Institution Match
@@ -7502,7 +7502,7 @@ export const finalizeSugPositionResults = async (
 };
 
 /**
- * Resolve an Election Tie (Grobax Admin Procedure)
+ * Resolve an Election Tie (Grobaax Admin Procedure)
  */
 export const resolveSugTieInFirestore = async (
   campaignId: string,
@@ -7595,7 +7595,7 @@ export const seedDefaultSugElectionsIfEmpty = async () => {
         institutionLogo: 'https://images.unsplash.com/photo-1592280771190-3e2e4d571952?w=200&auto=format&fit=crop&q=80',
         institutionCategory: 'University',
         createdBy: PRIMARY_SUPER_ADMIN_UID,
-        createdByName: 'Grobax Electoral Commission',
+        createdByName: 'Grobaax Electoral Commission',
         managerId: PRIMARY_SUPER_ADMIN_UID,
         title: 'UNILAG General Students Union Government & Faculty Elections 2026',
         campaignType: 'general_sug',
@@ -7758,7 +7758,7 @@ export const seedDefaultSugElectionsIfEmpty = async () => {
         profileImage: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=80',
         candidateNumber: '02',
         manifesto: 'Digital academic transparency, mental health support centers, and automated hostel maintenance tickets.',
-        biography: '400L Computer Science scholar, Grobax campus ambassador, and tech community lead.',
+        biography: '400L Computer Science scholar, Grobaax campus ambassador, and tech community lead.',
         department: 'Computer Science',
         level: '400L',
         status: 'active',
@@ -7823,7 +7823,7 @@ export const seedDefaultSugElectionsIfEmpty = async () => {
 };
 
 // =========================================================================
-// GROBAX MINIMART FIRESTORE OPERATIONS
+// GROBAAX MINIMART FIRESTORE OPERATIONS
 // =========================================================================
 
 export const fetchMinimartConfigFromFirestore = async (): Promise<MinimartConfig> => {
@@ -8350,7 +8350,7 @@ export const activateUserSubscriptionInFirestore = async (
     const isPro = !isTitanVip && (pId.includes('pro') || pName.includes('pro') || pName.includes('champion') || amount >= 2000);
 
     const effectivePlanId = isTitanVip ? 'plan_titan_naira' : isPro ? 'plan_pro_naira' : 'plan_basic_naira';
-    const effectivePlanName = isTitanVip ? 'Grobax Titan Annual VIP' : isPro ? 'Champions Pro Scholar' : 'Scholar Starter Plan';
+    const effectivePlanName = isTitanVip ? 'Grobaax Titan Annual VIP' : isPro ? 'Champions Pro Scholar' : 'Scholar Starter Plan';
     const durationDays = isTitanVip ? 365 : 30;
     const expiryDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
@@ -8394,7 +8394,7 @@ export const activateUserSubscriptionInFirestore = async (
     await setDoc(subRecordRef, {
       subscriptionId: `sub_${reference}`,
       userId: targetUid,
-      userName: userName || existingData.name || 'Grobax Scholar',
+      userName: userName || existingData.name || 'Grobaax Scholar',
       userEmail: userEmail || existingData.email || '',
       planId: effectivePlanId,
       planNameSnapshot: effectivePlanName,

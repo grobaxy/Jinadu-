@@ -178,7 +178,7 @@ campusRouter.post('/join', async (req: Request, res: Response) => {
 
     return res.json({
       success: true,
-      message: 'Successfully joined GROBAX Campus!',
+      message: 'Successfully joined GROBAAX Campus!',
       membership: membershipData,
     });
   } catch (err: any) {
@@ -366,7 +366,7 @@ campusRouter.get('/students', async (req: Request, res: Response) => {
             if (matchesFaculty && matchesDepartment && matchesSearch) {
               studentsMap.set(data.userId, {
                 id: data.userId,
-                name: 'Grobax Scholar',
+                name: 'Grobaax Scholar',
                 username: `@scholar_${data.userId.substring(0, 5)}`,
                 avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(data.userId)}`,
                 institution: data.institution,
@@ -928,7 +928,7 @@ campusRouter.post('/whatsapp-link', async (req: Request, res: Response) => {
       console.warn('Error reading requester name:', reqNameErr);
     }
 
-    const prefilledMessage = `Hi ${targetName}, I'm ${requesterName} from GROBAX Campus (${institution || 'our institution'}). Let's connect! 🎓`;
+    const prefilledMessage = `Hi ${targetName}, I'm ${requesterName} from GROBAAX Campus (${institution || 'our institution'}). Let's connect! 🎓`;
     const whatsappUrl = `https://wa.me/${digitsOnly}?text=${encodeURIComponent(prefilledMessage)}`;
 
     return res.json({

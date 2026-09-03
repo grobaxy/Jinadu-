@@ -53,7 +53,7 @@ export const UpgradePromoPopup: React.FC = () => {
               UPGRADE
             </span>
             <span className="text-xs font-semibold text-slate-400">
-              Grobax Scholar
+              Grobaax Scholar
             </span>
           </div>
 
@@ -74,10 +74,10 @@ export const UpgradePromoPopup: React.FC = () => {
             id="upgrade-popup-title"
             className="text-lg font-black text-white tracking-tight"
           >
-            Unlock more with Grobax.
+            Unlock more with Grobaax.
           </h3>
           <p className="text-xs text-slate-300 leading-relaxed">
-            Elevate your academic journey with 2x–3x GP multiplier boosts, priority competition arena entry, and full access to Grobax tools.
+            Elevate your academic journey with 2x–3x GP multiplier boosts, priority competition arena entry, and full access to Grobaax tools.
           </p>
         </div>
 

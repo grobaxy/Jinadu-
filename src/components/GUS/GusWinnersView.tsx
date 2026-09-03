@@ -87,7 +87,7 @@ export const GusWinnersView: React.FC<GusWinnersViewProps> = ({ season, onBack }
         <div>
           <h2 className="text-xl font-black tracking-tight">{season.title} Champions</h2>
           <p className="text-xs text-slate-300 mt-1">
-            Zero-knowledge grade verification and final elimination records certified on the Grobax ledger.
+            Zero-knowledge grade verification and final elimination records certified on the Grobaax ledger.
           </p>
         </div>
 

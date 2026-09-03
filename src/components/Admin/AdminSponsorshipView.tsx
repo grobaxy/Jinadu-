@@ -492,7 +492,7 @@ export function AdminSponsorshipView() {
                     <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
                       <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
                         <Shield className="w-3.5 h-3.5 text-blue-500" />
-                        Verified Grobax Institutional Ad
+                        Verified Grobaax Institutional Ad
                       </span>
 
                       {camp.destinationUrl && (

@@ -183,7 +183,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({ event, onC
               </div>
               <div>
                 <strong className="block text-slate-900 dark:text-white font-bold">{event.host || 'Global Academic Directorate'}</strong>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">Official Directorate of Grobax Academic Systems</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Official Directorate of Grobaax Academic Systems</span>
               </div>
             </div>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">

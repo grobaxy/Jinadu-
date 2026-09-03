@@ -141,7 +141,7 @@ export type ThemeMode = 'dark' | 'light' | 'system';
 export type TabType = 'home' | 'gus' | 'daily_qa' | 'library' | 'community';
 
 // ==========================================
-// GROBAX AI LIBRARY TYPES & SCHEMAS
+// GROBAAX AI LIBRARY TYPES & SCHEMAS
 // ==========================================
 export type HandoutOptionType = 'short_notes' | 'standard_handout' | 'detailed_handout' | 'exam_revision';
 
@@ -2181,7 +2181,7 @@ export interface DomeLiveClockState {
 }
 
 // ==========================================
-// GROBAX COMMUNITY CHATROOM LIVE INTERFACES
+// GROBAAX COMMUNITY CHATROOM LIVE INTERFACES
 // ==========================================
 
 export type ChatroomLiveMessageType =
@@ -2346,7 +2346,7 @@ export interface DailyChatResponseRecord {
 }
 
 // ==========================================
-// GROBAX SUG ELECTION SYSTEM INTERFACES
+// GROBAAX SUG ELECTION SYSTEM INTERFACES
 // ==========================================
 
 export type SugCampaignType = 'general_sug' | 'faculty' | 'departmental' | 'other';
@@ -2622,7 +2622,7 @@ export interface SectionNotificationEvent {
 }
 
 // ==========================================
-// GROBAX COMMUNITY CAMPUS TYPES
+// GROBAAX COMMUNITY CAMPUS TYPES
 // ==========================================
 
 export interface CampusMembership {

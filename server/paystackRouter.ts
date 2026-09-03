@@ -52,7 +52,7 @@ paystackRouter.post('/initialize', async (req, res) => {
       });
     }
 
-    const cleanEmail = email && email.includes('@') ? email : 'scholar@grobax.org';
+    const cleanEmail = email && email.includes('@') ? email : 'scholar@grobaax.org';
     const amountInKobo = Math.round(Number(amountNaira) * 100);
     const reference = `GRBX_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     const secretKey = getSecretKey();
@@ -85,7 +85,7 @@ paystackRouter.post('/initialize', async (req, res) => {
                 {
                   display_name: 'Plan Name',
                   variable_name: 'plan_name',
-                  value: planName || 'Grobax Membership',
+                  value: planName || 'Grobaax Membership',
                 },
                 {
                   display_name: 'Scholar UID',
@@ -166,7 +166,7 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
       });
     }
 
-    const cleanEmail = email && email.includes('@') ? email.trim().toLowerCase() : 'scholar@grobax.org';
+    const cleanEmail = email && email.includes('@') ? email.trim().toLowerCase() : 'scholar@grobaax.org';
     const amountInKobo = Math.round(Number(amountNaira) * 100);
     const reference = `GRBX_TRF_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
     const secretKey = getSecretKey();

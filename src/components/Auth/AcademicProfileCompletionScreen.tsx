@@ -291,7 +291,7 @@ export const AcademicProfileCompletionScreen: React.FC = () => {
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-              GROBAX
+              GROBAAX
               <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-300 border border-blue-300 dark:border-blue-800 uppercase tracking-widest">
                 ACADEMIC PROFILE
               </span>
@@ -800,7 +800,7 @@ export const AcademicProfileCompletionScreen: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <span>Complete Academic Setup & Enter Grobax</span>
+                    <span>Complete Academic Setup & Enter Grobaax</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -812,7 +812,7 @@ export const AcademicProfileCompletionScreen: React.FC = () => {
 
       {/* Footer */}
       <footer className="py-4 text-center text-[11px] text-slate-400 dark:text-slate-600 border-t border-slate-200/50 dark:border-slate-800/50">
-        ©2023 Grobaxylimited • Inter-Institutional Arena
+        ©2023 Grobaaxylimited • Inter-Institutional Arena
       </footer>
     </div>
   );

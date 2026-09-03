@@ -1,5 +1,5 @@
 /**
- * Academic Illustration & Visual Assets Engine for Grobax AI Library
+ * Academic Illustration & Visual Assets Engine for Grobaax AI Library
  * Provides high-resolution realistic textbook photography and crisp SVG vector figures
  * for all tertiary academic domains (Sciences, Tech, Health, Engineering, Law, Business, Education).
  */
@@ -33,7 +33,7 @@ const ACADEMIC_PHOTO_REGISTRY: Record<string, AcademicPhotoAsset[]> = {
     {
       url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
       caption: 'Digital Architecture, Binary Search Trees & Asymptotic Algorithmic Execution',
-      source: 'Grobax Computing Series',
+      source: 'Grobaax Computing Series',
       tags: ['code', 'data', 'algorithm', 'software', 'programming', 'binary', 'tree', 'graph', 'data structure', 'complexity'],
     },
     {

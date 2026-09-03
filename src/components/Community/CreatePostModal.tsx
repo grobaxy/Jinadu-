@@ -22,7 +22,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [postType, setPostType] = useState<'post' | 'product'>('post');
   const [content, setContent] = useState('');
   const [tagInput, setTagInput] = useState('');
-  const [tags, setTags] = useState<string[]>(['Academic', 'Grobax']);
+  const [tags, setTags] = useState<string[]>(['Academic', 'Grobaax']);
   const [imageUrl, setImageUrl] = useState('');
   const [showImageInput, setShowImageInput] = useState(false);
   const [error, setError] = useState('');
@@ -188,8 +188,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             </div>
             <div className="text-xs text-slate-500 dark:text-slate-400">
               {currentUser.privacy?.showAcademicInfoOnPosts !== false
-                ? `${currentUser.institution || 'Grobax Scholar'}${currentUser.department ? ` • ${currentUser.department}` : ''}`
-                : 'Verified Grobax Scholar'}
+                ? `${currentUser.institution || 'Grobaax Scholar'}${currentUser.department ? ` • ${currentUser.department}` : ''}`
+                : 'Verified Grobaax Scholar'}
             </div>
           </div>
         </div>
@@ -201,7 +201,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               rows={4}
               value={content}
               onChange={e => setContent(e.target.value)}
-              placeholder="What academic insight, question, or Grobax competition update do you want to share?"
+              placeholder="What academic insight, question, or Grobaax competition update do you want to share?"
               className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-blue-900 focus:outline-hidden resize-none"
             />
           </div>

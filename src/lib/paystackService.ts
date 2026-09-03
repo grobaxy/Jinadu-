@@ -1,5 +1,5 @@
 // Paystack Client Integration Service
-// Communicates strictly with Grobax backend API endpoints (/api/paystack/*)
+// Communicates strictly with Grobaax backend API endpoints (/api/paystack/*)
 // NEVER exposes Paystack Secret Key in browser
 
 export interface PaystackInitResponse {
@@ -98,7 +98,7 @@ async function safeParseResponse(res: Response, fallbackErrorMessage: string): P
   }
 }
 
-// Fallback Live Public Key for Grobax Network
+// Fallback Live Public Key for Grobaax Network
 export const PAYSTACK_LIVE_PUBLIC_KEY = 'pk_live_70e9ddbaca92590a8bfbd673b80abb40f083ac96';
 
 // Fetch public key from backend or fallback
@@ -225,7 +225,7 @@ export async function processPaystackPayment(params: {
     try {
       const handler = (window as any).PaystackPop.setup({
         key: initResult.publicKey,
-        email: params.email && params.email.includes('@') ? params.email : 'scholar@grobax.org',
+        email: params.email && params.email.includes('@') ? params.email : 'scholar@grobaax.org',
         amount: Math.round(params.amountNaira * 100),
         currency: 'NGN',
         ref: reference,

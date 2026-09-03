@@ -475,7 +475,7 @@ export function AirtimeDataPurchaseModal({ onClose, onNavigateToTab }: AirtimeDa
               </span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Convert your Grobax GP balance to instant Nigerian airtime & data
+              Convert your Grobaax GP balance to instant Nigerian airtime & data
             </p>
           </div>
         </div>
@@ -1089,7 +1089,7 @@ export function AirtimeDataPurchaseModal({ onClose, onNavigateToTab }: AirtimeDa
                 </p>
               </div>
               <div className="text-[11px] text-slate-400 font-mono">
-                Secure Grobax VTU Gateway Engine
+                Secure Grobaax VTU Gateway Engine
               </div>
             </div>
           )}

@@ -365,7 +365,7 @@ export function AdminEventsView() {
             <Calendar className="w-7 h-7 text-blue-400" /> Platform Events Management
           </h1>
           <p className="text-xs text-blue-200 mt-1 max-w-xl">
-            Create, publish, and manage official inter-institutional events, qualification events, competitions, and other Grobax events on the Home Page.
+            Create, publish, and manage official inter-institutional events, qualification events, competitions, and other Grobaax events on the Home Page.
           </p>
         </div>
 
@@ -622,7 +622,7 @@ export function AdminEventsView() {
                     {editingEvent ? 'Edit Platform Event' : 'Create Official Platform Event'}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Events published here appear in real-time on the Grobax Home Page.
+                    Events published here appear in real-time on the Grobaax Home Page.
                   </p>
                 </div>
               </div>
@@ -656,7 +656,7 @@ export function AdminEventsView() {
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Grobax Institutional League Season 1"
+                  placeholder="e.g. Grobaax Institutional League Season 1"
                   className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white focus:border-blue-500 focus:outline-hidden"
                 />
               </div>

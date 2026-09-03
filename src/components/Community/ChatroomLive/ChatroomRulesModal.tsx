@@ -55,7 +55,7 @@ export const ChatroomRulesModal: React.FC<ChatroomRulesModalProps> = ({
                 Official Schedule & Timing
               </div>
               <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                Live competitions are hosted every <span className="font-bold text-slate-900 dark:text-white">Monday through Friday at 7:00 PM (WAT)</span> directly inside this room. Questions are released dynamically by the Grobax Arbiter.
+                Live competitions are hosted every <span className="font-bold text-slate-900 dark:text-white">Monday through Friday at 7:00 PM (WAT)</span> directly inside this room. Questions are released dynamically by the Grobaax Arbiter.
               </p>
             </div>
           </div>
@@ -78,7 +78,7 @@ export const ChatroomRulesModal: React.FC<ChatroomRulesModalProps> = ({
                 <span>First 5 Eligible Winners</span>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                The automated Grobax Arbiter engine evaluates incoming answers chronologically down to the millisecond. The first 5 eligible answers secure the round victory.
+                The automated Grobaax Arbiter engine evaluates incoming answers chronologically down to the millisecond. The first 5 eligible answers secure the round victory.
               </p>
             </div>
 
@@ -111,7 +111,7 @@ export const ChatroomRulesModal: React.FC<ChatroomRulesModalProps> = ({
               </div>
               <div>
                 <div className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  Your Current Status: {isPremium ? '👑 Grobax Premium Active' : 'Free Scholar'}
+                  Your Current Status: {isPremium ? '👑 Grobaax Premium Active' : 'Free Scholar'}
                 </div>
                 <div className="text-[11px] text-slate-500">
                   {isPremium ? 'Eligible for all cash GP prizes & winner slots' : 'Upgrade to qualify for instant 200 GP rewards upon answering'}

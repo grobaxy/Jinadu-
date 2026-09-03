@@ -223,7 +223,7 @@ export const ChatroomLiveQuestionCard: React.FC<ChatroomLiveQuestionCardProps> =
                           {isWinnerPremium && (
                             <TwitterVerifiedBadge
                               className="w-3.5 h-3.5"
-                              title={isWinnerVip ? 'VIP Verified Grobax Scholar' : 'Verified Grobax Scholar'}
+                              title={isWinnerVip ? 'VIP Verified Grobaax Scholar' : 'Verified Grobaax Scholar'}
                             />
                           )}
                           {isWinnerPremium && (

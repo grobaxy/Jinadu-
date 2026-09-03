@@ -786,7 +786,7 @@ export function AdminAirtimeDataView() {
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="Enter Grobax Tx Reference (e.g. GBX_VTU_174...)"
+                placeholder="Enter Grobaax Tx Reference (e.g. GBX_VTU_174...)"
                 value={lookupId}
                 onChange={(e) => setLookupId(e.target.value)}
                 className="flex-1 px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white"

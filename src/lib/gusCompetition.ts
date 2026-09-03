@@ -1393,7 +1393,7 @@ export const registerForGusCompetition = async (
     userId: user.id,
     userName: user.name,
     userAvatar: user.avatar || '',
-    institution: user.institution || 'Grobax Academy',
+    institution: user.institution || 'Grobaax Academy',
     department: user.department || 'General Sciences',
     level: user.level || '300 Level',
     registrationStatus: 'REGISTERED',

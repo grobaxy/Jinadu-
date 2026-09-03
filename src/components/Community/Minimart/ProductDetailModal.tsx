@@ -60,7 +60,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     : `234${cleanPhone}`;
 
   const messageText = encodeURIComponent(
-    `Hello ${product.sellerName || 'Scholar'}, I saw your listing for "${product.productName}" (₦${product.price.toLocaleString()}) on Grobax Minimart. Is this still available on campus?`
+    `Hello ${product.sellerName || 'Scholar'}, I saw your listing for "${product.productName}" (₦${product.price.toLocaleString()}) on Grobaax Minimart. Is this still available on campus?`
   );
   const waUrl = `https://wa.me/${waPhone}?text=${messageText}`;
 
@@ -98,13 +98,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: `${product.productName} - Grobax Minimart`,
-        text: `Check out ${product.productName} for ₦${product.price.toLocaleString()} on Grobax Minimart!`,
+        title: `${product.productName} - Grobaax Minimart`,
+        text: `Check out ${product.productName} for ₦${product.price.toLocaleString()} on Grobaax Minimart!`,
         url: window.location.href,
       }).catch(() => {});
     } else {
       navigator.clipboard.writeText(
-        `Check out ${product.productName} for ₦${product.price.toLocaleString()} on Grobax Minimart!`
+        `Check out ${product.productName} for ₦${product.price.toLocaleString()} on Grobaax Minimart!`
       );
       alert('Product link copied to clipboard!');
     }
@@ -224,7 +224,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   )}
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {product.sellerInstitution || 'Grobax Scholar'} • {product.sellerDepartment || 'Student'}
+                  {product.sellerInstitution || 'Grobaax Scholar'} • {product.sellerDepartment || 'Student'}
                 </div>
               </div>
             </div>
@@ -306,7 +306,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             <div className="space-y-1">
               <span className="font-black">Campus Safety Tip:</span>
               <p className="text-[11px] leading-relaxed text-amber-800/90 dark:text-amber-300/90">
-                Grobax Minimart is for discovery only. Always meet in busy, well-lit campus areas (library, faculty quad, cafeteria). Never transfer money before inspecting items in person.
+                Grobaax Minimart is for discovery only. Always meet in busy, well-lit campus areas (library, faculty quad, cafeteria). Never transfer money before inspecting items in person.
               </p>
             </div>
           </div>

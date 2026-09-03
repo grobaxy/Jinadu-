@@ -173,7 +173,7 @@ export const EditPostModal: React.FC<EditPostModalProps> = ({ post, isOpen, onCl
               />
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-              {post.author.institution || 'Grobax Scholar'} • {post.timestamp || 'Published'}
+              {post.author.institution || 'Grobaax Scholar'} • {post.timestamp || 'Published'}
             </div>
           </div>
         </div>
@@ -198,7 +198,7 @@ export const EditPostModal: React.FC<EditPostModalProps> = ({ post, isOpen, onCl
               rows={4}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="What academic insight, question, or Grobax competition update do you want to share?"
+              placeholder="What academic insight, question, or Grobaax competition update do you want to share?"
               className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-600 focus:outline-hidden resize-none leading-relaxed"
             />
           </div>

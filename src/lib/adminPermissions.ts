@@ -22,7 +22,7 @@ export const ALL_MANAGER_ROLES: ManagerRole[] = [
 export const ROLE_LABELS: Record<ManagerRole, string> = {
   SUPER_ADMIN: 'Primary Super Admin',
   ADMIN: 'System Admin',
-  SUG_MANAGER: 'Grobax SUG Admin Manager',
+  SUG_MANAGER: 'Grobaax SUG Admin Manager',
   GUS_MANAGER: 'GUS Manager',
   GROUP_BATTLE_MANAGER: 'Group Battle Manager',
   WALLET_MANAGER: 'Wallet & Finance Manager',
@@ -43,7 +43,7 @@ export const ROLE_DESCRIPTIONS: Record<ManagerRole, string> = {
   GUS_MANAGER: 'Controls Global Ultimate Search seasons, elimination rounds, timers, and countdowns.',
   GROUP_BATTLE_MANAGER: 'Controls team search and group battle competitions and team rosters.',
   WALLET_MANAGER: 'Manages user GP wallets, manual adjustments, conversion rates, and withdrawal approvals.',
-  EVENTS_MANAGER: 'Creates, edits, and publishes platform events on the Grobax home page.',
+  EVENTS_MANAGER: 'Creates, edits, and publishes platform events on the Grobaax home page.',
   COMMUNITY_ANNOUNCEMENT_MANAGER: 'Oversees community posts, moderation, and official platform announcements.',
   SPONSORSHIP_AD_MANAGER: 'Manages sponsors, promotional banners, ticker campaigns, and ad schedules.',
   LIVE_COMPETITION_MANAGER: 'Executes live matches, real-time question releases, timers, and score sync.',
@@ -208,7 +208,7 @@ export async function logManagerActivity(activity: {
     const rawData = {
       managerUid: activity.managerUid || PRIMARY_SUPER_ADMIN_UID,
       managerName: activity.managerName || 'Manager',
-      managerEmail: activity.managerEmail || 'admin@grobax.app',
+      managerEmail: activity.managerEmail || 'admin@grobaax.app',
       role: activity.role || 'SUPER_ADMIN',
       action: activity.action || 'ACTION',
       target: activity.target || '',

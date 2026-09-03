@@ -339,7 +339,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
           <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
             {mode === 'LOGIN'
-              ? 'Sign In to Grobax Arena'
+              ? 'Sign In to Grobaax Arena'
               : mode === 'REGISTER'
               ? 'Create Scholar Account'
               : 'Reset Your Password'}

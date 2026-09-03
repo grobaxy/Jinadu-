@@ -379,7 +379,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       'Withdrawal Eligibility — Available',
       'AI Library — 5 Handout Generations',
       'Campus Minimart Products Listing (3 / Day)',
-      'No Grobax Pop-up Upgrade Ads',
+      'No Grobaax Pop-up Upgrade Ads',
       'Profile Verification Badge — Available',
       'Premium Badge — Available',
     ],
@@ -406,7 +406,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       'Withdrawal Eligibility — Available',
       'AI Library — 5 Handout Generations',
       'Campus Minimart Products Listing (3 / Day)',
-      'No Grobax Pop-up Upgrade Ads',
+      'No Grobaax Pop-up Upgrade Ads',
       '2x GP Reward Multiplier on all Competitions',
       'Profile Badge & Premium Badge — Available',
       'Priority Live Match Queue & Arena Access',
@@ -422,7 +422,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: 'plan_titan_naira',
     planId: 'plan_titan_naira',
-    name: 'Grobax Titan Annual VIP',
+    name: 'Grobaax Titan Annual VIP',
     shortDescription: 'Ultimate academic VIP access for 1 Full Year',
     fullDescription: 'Comprehensive annual subscription for institution representatives and top scholars with full VIP status, 20 searches, unlimited handouts, 6 listings/day, and maximum rewards.',
     priceNaira: 25000,
@@ -434,7 +434,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       'Withdrawal Eligibility — Available (Zero Processing Fees)',
       'AI Library — Unlimited Handouts Generation',
       'Campus Minimart Products Listing (6 / Day)',
-      'No Grobax Pop-up Upgrade Ads',
+      'No Grobaax Pop-up Upgrade Ads',
       'Profile Badge & VIP Gold Crown Badge — Available',
       '3x GP Reward Multiplier across all League & GUS Rounds',
       'Instant Representative Fast-Track Review',
@@ -873,8 +873,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     role: resolvedRole,
                     accountStatus: data.accountStatus || 'active',
                     academicProfileCompleted,
-                    institution: data.institutionName || data.institution || (isSuper ? 'Grobax Systems Administration' : (isPrevMock ? '' : prev.institution)),
-                    institutionName: data.institutionName || data.institution || (isSuper ? 'Grobax Systems Administration' : (isPrevMock ? '' : prev.institutionName)),
+                    institution: data.institutionName || data.institution || (isSuper ? 'Grobaax Systems Administration' : (isPrevMock ? '' : prev.institution)),
+                    institutionName: data.institutionName || data.institution || (isSuper ? 'Grobaax Systems Administration' : (isPrevMock ? '' : prev.institutionName)),
                     institutionCategory: data.institutionCategory || prev.institutionCategory || 'University',
                     faculty: data.facultyName || data.faculty || (isSuper ? 'HQ Overseer' : (isPrevMock ? '' : prev.faculty)),
                     facultyName: data.facultyName || data.faculty || (isSuper ? 'HQ Overseer' : (isPrevMock ? '' : prev.facultyName)),
@@ -1029,7 +1029,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [representativeAssignments, setRepresentativeAssignments] = useState<RepresentativeAssignment[]>([]);
   const [fixtures, setFixtures] = useState<LeagueFixture[]>(MOCK_FIXTURES);
 
-  // Grobax Minimart State
+  // Grobaax Minimart State
   const [minimartProducts, setMinimartProducts] = useState<MinimartProduct[]>(() => {
     try {
       const deletedIds = new Set(JSON.parse(localStorage.getItem('grobax_deleted_minimart_products') || '[]'));
@@ -1567,7 +1567,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
-  // Master Institutions Listener using Grobax Master Data Access Layer
+  // Master Institutions Listener using Grobaax Master Data Access Layer
   // Institutions & Academic Master Data - Cached single fetch with localStorage persistence
   useEffect(() => {
     try {
@@ -1593,7 +1593,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, []);
 
-  // System Settings & Platform Configuration using Grobax Master Data Engine
+  // System Settings & Platform Configuration using Grobaax Master Data Engine
   useEffect(() => {
     try {
       const unsubSettings = grobaxDataService.subscribeDoc<SystemSettings>(
@@ -1947,7 +1947,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   avatar: authData.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
                   role: authData.role || 'student',
                   isRepresentative: authData.isRepresentative,
-                  institution: authData.institution || 'Grobax Scholar',
+                  institution: authData.institution || 'Grobaax Scholar',
                   department: authData.department,
                   level: authData.level,
                   privacy: authData.privacy,
@@ -2120,7 +2120,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Real-Time Listeners for Grobax Minimart & Wallet Engine (Quota-Optimized & Scoped)
+  // Real-Time Listeners for Grobaax Minimart & Wallet Engine (Quota-Optimized & Scoped)
   useEffect(() => {
     seedInitialMinimartDataToFirestore();
 
@@ -2466,12 +2466,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newPost: Post = {
       id: 'post_' + nowMillis + '_' + Math.random().toString(36).substring(2, 6),
       author: {
-        name: currentUser.name || currentUser.fullName || 'Grobax Scholar',
+        name: currentUser.name || currentUser.fullName || 'Grobaax Scholar',
         username: currentUser.username || '@scholar',
         avatar: currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         role: currentUser.role || 'student',
         isRepresentative: currentUser.isRepresentative,
-        institution: currentUser.institution || currentUser.institutionName || 'Grobax Scholar',
+        institution: currentUser.institution || currentUser.institutionName || 'Grobaax Scholar',
         department: currentUser.department || currentUser.departmentName,
         level: currentUser.level,
         privacy: currentUser.privacy,
@@ -3017,7 +3017,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // =========================================================================
-  // GROBAX MINIMART HANDLERS
+  // GROBAAX MINIMART HANDLERS
   // =========================================================================
 
   const checkUserListingEligibility = (targetUserId?: string): UserListingEligibility => {
@@ -3116,7 +3116,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userTier: 'free',
         canCreateProduct: false,
         listingDurationHours: 0,
-        reason: 'Selling on Grobax Minimart is exclusive to Premium (3/day, 12hrs) and VIP (6/day, 12hrs) subscribers. Free accounts are discovery-only.',
+        reason: 'Selling on Grobaax Minimart is exclusive to Premium (3/day, 12hrs) and VIP (6/day, 12hrs) subscribers. Free accounts are discovery-only.',
       };
     }
 
@@ -3637,7 +3637,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           username: currentUser.username,
           avatar: currentUser.avatar,
           role: currentUser.role,
-          institution: currentUser.institution || 'Grobax Scholar',
+          institution: currentUser.institution || 'Grobaax Scholar',
           department: currentUser.department,
           equippedBadge: hasUpgradedPlan || isStaffOrAdmin || isCommunityManager ? currentUser.equippedBadge : undefined,
           membershipTier: effectiveTier,
@@ -4545,7 +4545,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addQuestionToDomeSession,
         adminControlDomeSession,
 
-        // Grobax Minimart & Chatroom
+        // Grobaax Minimart & Chatroom
         chatroomMessages,
         sendChatroomMessage,
         deleteChatroomMessage,

@@ -78,7 +78,7 @@ export const AdminCommunityView: React.FC<AdminCommunityViewProps> = ({
         userProfile?.avatar ||
         currentUser?.avatar ||
         'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      institution: 'Grobax Community Management',
+      institution: 'Grobaax Community Management',
       department: 'Head Moderator',
       level: 'Admin',
       isPremium: true,

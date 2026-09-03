@@ -8,7 +8,7 @@ import {
 const SETTINGS_DOC_ID = 'global_vtu_config';
 
 /**
- * Fetch VTU settings from Firestore with default fallback via Grobax Master Data Access
+ * Fetch VTU settings from Firestore with default fallback via Grobaax Master Data Access
  */
 export async function fetchVtuSettingsFromFirestore(): Promise<AirtimeDataSettings> {
   try {

@@ -46,7 +46,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
 }) => {
   // Channels: 'transfer' (default & recommended for Nigeria), 'card', 'ussd'
   const [activeChannel, setActiveChannel] = useState<'transfer' | 'card' | 'ussd'>('transfer');
-  const [email, setEmail] = useState(userEmail || 'scholar@grobax.org');
+  const [email, setEmail] = useState(userEmail || 'scholar@grobaax.org');
   const [reference, setReference] = useState('');
   const [authUrl, setAuthUrl] = useState('');
   const [publicKey, setPublicKey] = useState('');
@@ -103,7 +103,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
         planId: plan.planId,
         planName: plan.name,
         amountNaira: plan.priceNaira,
-        email: email && email.includes('@') ? email.trim() : 'scholar@grobax.org',
+        email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
         userId: userId || 'scholar',
         userName: userName || 'Scholar',
       });
@@ -167,7 +167,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
           planId: plan.planId,
           planName: plan.name,
           amountNaira: plan.priceNaira,
-          email: email && email.includes('@') ? email.trim() : 'scholar@grobax.org',
+          email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
           userId: userId || 'scholar',
           userName: userName || 'Scholar',
         });
@@ -298,7 +298,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
       if (scriptReady && (window as any).PaystackPop && publicKey) {
         const handler = (window as any).PaystackPop.setup({
           key: publicKey,
-          email: email && email.includes('@') ? email.trim() : 'scholar@grobax.org',
+          email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
           amount: Math.round(plan.priceNaira * 100),
           currency: 'NGN',
           ref: reference,
@@ -345,7 +345,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
           planId: plan.planId,
           planName: plan.name,
           amountNaira: plan.priceNaira,
-          email: email && email.includes('@') ? email.trim() : 'scholar@grobax.org',
+          email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
           userId: userId || 'scholar',
           userName: userName || 'Scholar',
         });
@@ -400,7 +400,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                     Live Gateway
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400">Grobax Academic Network</p>
+                <p className="text-[10px] text-slate-400">Grobaax Academic Network</p>
               </div>
             </div>
 

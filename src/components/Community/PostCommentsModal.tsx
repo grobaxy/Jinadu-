@@ -295,7 +295,7 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ post, onCl
 
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                     <span className="font-semibold text-slate-700 dark:text-slate-300">
-                      {post.author.institution || 'Grobax Scholar'}
+                      {post.author.institution || 'Grobaax Scholar'}
                     </span>
                     {post.author.department && (
                       <>

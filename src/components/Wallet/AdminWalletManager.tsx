@@ -74,7 +74,7 @@ export const AdminWalletManager: React.FC = () => {
           avatar: uData.profileImage || uData.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${d.id}`,
           profileImage: uData.profileImage || uData.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${d.id}`,
           role: uData.role || 'student',
-          institution: uData.institutionName || uData.institution || 'Grobax Academy',
+          institution: uData.institutionName || uData.institution || 'Grobaax Academy',
           department: uData.departmentName || uData.department || 'General',
           major: uData.major || uData.departmentName || uData.department || 'Undergraduate',
           level: uData.level || '100 Level',
@@ -669,7 +669,7 @@ export const AdminWalletManager: React.FC = () => {
                         @{target.username} {target.email ? `• ${target.email}` : ''}
                       </div>
                       <div className="text-[10px] text-slate-500 font-mono">
-                        {target.institution || 'Grobax Scholar'} • {target.department || 'Undergraduate'}
+                        {target.institution || 'Grobaax Scholar'} • {target.department || 'Undergraduate'}
                       </div>
                     </div>
                   </div>

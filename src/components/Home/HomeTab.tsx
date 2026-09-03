@@ -68,7 +68,7 @@ export const HomeTab: React.FC = () => {
   return (
     <div id="grobax-home-tab" className="pb-24 pt-4 space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* ======================================================== */}
-      {/* 1. PROFESSIONAL GROBAX WELCOME & PILLARS INTRO SECTION */}
+      {/* 1. PROFESSIONAL GROBAAX WELCOME & PILLARS INTRO SECTION */}
       {/* ======================================================== */}
       <section
         id="home-welcome-section"
@@ -85,11 +85,11 @@ export const HomeTab: React.FC = () => {
             </div>
 
             <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight text-white">
-              Welcome to Grobax
+              Welcome to Grobaax
             </h1>
 
             <p className="text-xs sm:text-sm lg:text-base text-slate-300 max-w-3xl leading-relaxed font-medium">
-              Grobax is an education-focused platform where students discover useful academic information, test knowledge through <strong>Daily Ultimate Search</strong>, and connect with fellow scholars via the <strong>Campus Mini Mart & Skills Listing</strong>.
+              Grobaax is an education-focused platform where students discover useful academic information, test knowledge through <strong>Daily Ultimate Search</strong>, and connect with fellow scholars via the <strong>Campus Mini Mart & Skills Listing</strong>.
             </p>
           </div>
 

@@ -233,7 +233,7 @@ vtuRouter.post('/purchase', async (req: Request, res: Response) => {
       });
     }
 
-    // 5. Generate Authoritative Grobax Transaction Reference
+    // 5. Generate Authoritative Grobaax Transaction Reference
     const transactionId = `GBX_VTU_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
 
     const transactionRecord: AirtimeDataTransaction = {

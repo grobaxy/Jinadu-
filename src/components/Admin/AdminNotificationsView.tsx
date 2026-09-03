@@ -47,7 +47,7 @@ export function AdminNotificationsView() {
           userId: targetUserId.trim() ? targetUserId.trim() : undefined,
         },
         firebaseUser?.uid || currentUser.id,
-        currentUser.name || 'Grobax Super Admin'
+        currentUser.name || 'Grobaax Super Admin'
       );
       setSentMsg(true);
       setTitle('');

@@ -520,7 +520,7 @@ function generateFallbackAcademicHandout(params: {
     references: [
       {
         title: `Comprehensive Higher Education Handbook on ${cleanTopic}`,
-        source: `University Academic Press & Grobax Educational Standards`,
+        source: `University Academic Press & Grobaax Educational Standards`,
         year: `2026`,
       },
       {
@@ -714,16 +714,16 @@ async function startServer() {
   // VTU Nigerian Airtime & Mobile Data API Routes
   app.use('/api/vtu', vtuRouter);
 
-  // Grobax Minimart Student Product Discovery API Routes
+  // Grobaax Minimart Student Product Discovery API Routes
   app.use('/api/minimart', minimartRouter);
 
   // Paystack Secure Nigerian Payment Gateway API Routes
   app.use('/api/paystack', paystackRouter);
 
-  // GROBAX Academic Past Questions Library API Routes
+  // GROBAAX Academic Past Questions Library API Routes
   app.use('/api/library', libraryRouter);
 
-  // GROBAX Community Campus Student Discovery API Routes
+  // GROBAAX Community Campus Student Discovery API Routes
   app.use('/api/campus', campusRouter);
 
   // AI Academic Library Handout Generation Route
@@ -1114,10 +1114,10 @@ REQUIREMENTS:
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Grobax Server running on http://localhost:${PORT}`);
+    console.log(`Grobaax Server running on http://localhost:${PORT}`);
   });
 }
 
 startServer().catch((err) => {
-  console.error('Failed to start Grobax server:', err);
+  console.error('Failed to start Grobaax server:', err);
 });

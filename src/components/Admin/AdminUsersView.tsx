@@ -107,7 +107,7 @@ export function AdminUsersView() {
 
         const isSuper = isPrimarySuperAdmin(docSnap.id, userEmail);
         const isMockName = (data.fullName === 'Alex Chen' || data.name === 'Alex Chen') && userEmail !== 'alex@mit.edu' && docSnap.id !== 'user_student';
-        const resolvedName = (!isMockName && (data.fullName || data.name || data.displayName)) || (userEmail ? userEmail.split('@')[0] : 'Grobax Scholar');
+        const resolvedName = (!isMockName && (data.fullName || data.name || data.displayName)) || (userEmail ? userEmail.split('@')[0] : 'Grobaax Scholar');
         const resolvedRole = isSuper ? 'admin' : (data.role || 'student');
 
         loadedUsers.push({
@@ -251,7 +251,7 @@ export function AdminUsersView() {
       await logManagerActivity({
         managerUid: currentUser?.id || PRIMARY_SUPER_ADMIN_UID,
         managerName: currentUser?.name || 'Super Admin',
-        managerEmail: currentUser?.username || 'admin@grobax.app',
+        managerEmail: currentUser?.username || 'admin@grobaax.app',
         role: currentUser?.role || 'SUPER_ADMIN',
         action: newSuspendedState ? 'SUSPEND_USER_ACCOUNT' : 'REACTIVATE_USER_ACCOUNT',
         target: 'users',
@@ -274,7 +274,7 @@ export function AdminUsersView() {
       await logManagerActivity({
         managerUid: reviewerUid,
         managerName: reviewerName,
-        managerEmail: currentUser?.username || 'admin@grobax.app',
+        managerEmail: currentUser?.username || 'admin@grobaax.app',
         role: currentUser?.role || 'SUPER_ADMIN',
         action: 'APPROVE_STUDENT_ID_VERIFICATION',
         target: 'users',
@@ -304,7 +304,7 @@ export function AdminUsersView() {
       await logManagerActivity({
         managerUid: reviewerUid,
         managerName: reviewerName,
-        managerEmail: currentUser?.username || 'admin@grobax.app',
+        managerEmail: currentUser?.username || 'admin@grobaax.app',
         role: currentUser?.role || 'SUPER_ADMIN',
         action: 'REJECT_STUDENT_ID_VERIFICATION',
         target: 'users',
@@ -328,7 +328,7 @@ export function AdminUsersView() {
       const delta = gpAction === 'add' ? gpAmount : -gpAmount;
       const adminUid = currentUser?.id || PRIMARY_SUPER_ADMIN_UID;
       const adminName = currentUser?.name || 'Super Admin';
-      const adminEmail = currentUser?.email || currentUser?.username || 'admin@grobax.app';
+      const adminEmail = currentUser?.email || currentUser?.username || 'admin@grobaax.app';
 
       const result = await adjustUserGpInFirestore(
         selectedUser.id,
@@ -402,7 +402,7 @@ export function AdminUsersView() {
       await logManagerActivity({
         managerUid: adminUid,
         managerName: adminName,
-        managerEmail: currentUser?.username || currentUser?.email || 'admin@grobax.app',
+        managerEmail: currentUser?.username || currentUser?.email || 'admin@grobaax.app',
         role: currentUser?.role || 'SUPER_ADMIN',
         action: 'DELETE_USER_RECORD',
         target: 'users',
@@ -481,7 +481,7 @@ export function AdminUsersView() {
         gusRank: 0,
         gusTier: 'Scholar',
         walletAddress: `0x${customUid.substring(0, 10)}`,
-        bio: 'Verified Grobax Scholar Profile',
+        bio: 'Verified Grobaax Scholar Profile',
         verified: true,
         idVerificationStatus: 'verified',
         accountStatus: 'active',

@@ -72,7 +72,7 @@ export const ChatroomLiveView: React.FC = () => {
     sponsorshipCampaigns,
   } = useApp();
 
-  // Grobax central subscription source of truth
+  // Grobaax central subscription source of truth
   const membership = (currentUser?.membershipTier || '').toLowerCase();
   const subTier = (currentUser?.subscriptionTier || '').toLowerCase();
   const plan = (((currentUser as any)?.subscriptionPlan || (currentUser as any)?.planId || (currentUser as any)?.tier || (currentUser as any)?.activePlanId) + '').toLowerCase();
@@ -349,7 +349,7 @@ export const ChatroomLiveView: React.FC = () => {
         ? `${currentUser.name} 💎 | Moderator`
         : currentUser.name,
       userAvatar: currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      institution: currentUser.institution || 'Grobax Scholar',
+      institution: currentUser.institution || 'Grobaax Scholar',
       department: currentUser.department,
       level: currentUser.level,
       isPremium: isVIP || isPremium || isStaffOrAdmin,
@@ -660,7 +660,7 @@ export const ChatroomLiveView: React.FC = () => {
                     <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                       <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
                         <Shield className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        <span className="truncate">Verified Grobax Institutional Ad</span>
+                        <span className="truncate">Verified Grobaax Institutional Ad</span>
                       </span>
 
                       {ad.destinationUrl && (
@@ -757,7 +757,7 @@ export const ChatroomLiveView: React.FC = () => {
                     <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                       <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
                         <Shield className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        <span className="truncate">Verified Grobax Institutional Ad</span>
+                        <span className="truncate">Verified Grobaax Institutional Ad</span>
                       </span>
 
                       {ad.destinationUrl && (

@@ -26,7 +26,7 @@ interface UserBadgeItemProps {
  */
 export const TwitterVerifiedBadge: React.FC<{ className?: string; title?: string }> = ({
   className = 'w-4 h-4',
-  title = 'Verified Grobax Scholar',
+  title = 'Verified Grobaax Scholar',
 }) => (
   <span className="inline-flex items-center shrink-0" title={title}>
     <svg
@@ -162,7 +162,7 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
         {/* Institution Line if requested */}
         {showInstitution && (institution || department) && (
           <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
-            {institution || 'Grobax Scholar'}
+            {institution || 'Grobaax Scholar'}
             {department ? ` • ${department}` : ''}
           </span>
         )}
@@ -191,7 +191,7 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
         {(verified || hasPremium || isVipUser) && (
           <TwitterVerifiedBadge
             className={badgeIconSize}
-            title={isVipUser ? 'VIP Verified Grobax Scholar' : 'Verified Grobax Scholar'}
+            title={isVipUser ? 'VIP Verified Grobaax Scholar' : 'Verified Grobaax Scholar'}
           />
         )}
 
@@ -232,7 +232,7 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
       {/* Institution Line if requested */}
       {showInstitution && (institution || department) && (
         <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
-          {institution || 'Grobax Scholar'}
+          {institution || 'Grobaax Scholar'}
           {department ? ` • ${department}` : ''}
         </span>
       )}

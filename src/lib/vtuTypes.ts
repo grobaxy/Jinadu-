@@ -51,7 +51,7 @@ export const DEFAULT_AIRTIME_DATA_SETTINGS: AirtimeDataSettings = {
 
 export interface AirtimeDataTransaction {
   id: string;
-  transactionId: string; // Grobax Reference (e.g. GBX_VTU_174000...)
+  transactionId: string; // Grobaax Reference (e.g. GBX_VTU_174000...)
   userId: string;
   userName: string;
   userEmail: string;

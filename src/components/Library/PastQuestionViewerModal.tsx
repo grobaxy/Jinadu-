@@ -212,7 +212,7 @@ export const PastQuestionViewerModal: React.FC<PastQuestionViewerModalProps> = (
             <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center overflow-hidden opacity-15">
               <div className="transform -rotate-25 text-center select-none">
                 <p className="text-xl sm:text-2xl font-black tracking-widest text-slate-300 uppercase whitespace-nowrap">
-                  GROBAX ACADEMIC VAULT
+                  GROBAAX ACADEMIC VAULT
                 </p>
                 <p className="text-xs sm:text-sm font-semibold tracking-wider text-slate-400 mt-1">
                   PREVIEW LICENSED TO: @{userIdentifier} • UID: {userUidPart}

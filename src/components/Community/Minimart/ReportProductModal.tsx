@@ -49,7 +49,7 @@ const REPORT_REASONS: { value: MinimartReportReason; label: string; description:
   {
     value: 'Other',
     label: 'Other Policy Violation',
-    description: 'Any other violation of Grobax community safety standards.',
+    description: 'Any other violation of Grobaax community safety standards.',
   },
 ];
 
@@ -102,7 +102,7 @@ export const ReportProductModal: React.FC<ReportProductModalProps> = ({
               <ShieldAlert className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold">Report Listing to Grobax Security</h3>
+              <h3 className="text-base font-bold">Report Listing to Grobaax Security</h3>
               <p className="text-xs text-rose-200 truncate max-w-xs">{product.productName}</p>
             </div>
           </div>
@@ -126,7 +126,7 @@ export const ReportProductModal: React.FC<ReportProductModalProps> = ({
           {success && (
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
-              <span>Report submitted. Grobax moderators will review this listing shortly.</span>
+              <span>Report submitted. Grobaax moderators will review this listing shortly.</span>
             </div>
           )}
 

@@ -64,8 +64,8 @@ export function AdminManagersView() {
         loadedManagers.push({
           id: docSnap.id,
           uid: data.uid || docSnap.id,
-          email: data.email || 'manager@grobax.app',
-          name: data.name || 'Grobax Manager',
+          email: data.email || 'manager@grobaax.app',
+          name: data.name || 'Grobaax Manager',
           avatar: data.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${docSnap.id}`,
           role: data.role || 'ADMIN',
           permissions: data.permissions || [],
@@ -83,7 +83,7 @@ export function AdminManagersView() {
         loadedManagers.unshift({
           id: PRIMARY_SUPER_ADMIN_UID,
           uid: PRIMARY_SUPER_ADMIN_UID,
-          email: 'superadmin@grobax.app',
+          email: 'superadmin@grobaax.app',
           name: 'Primary Super Admin',
           avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=superadmin',
           role: 'SUPER_ADMIN',
@@ -159,7 +159,7 @@ export function AdminManagersView() {
         {
           id: PRIMARY_SUPER_ADMIN_UID,
           uid: PRIMARY_SUPER_ADMIN_UID,
-          email: 'superadmin@grobax.app',
+          email: 'superadmin@grobaax.app',
           name: 'Primary Super Admin',
           avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=superadmin',
           role: 'SUPER_ADMIN',
@@ -194,7 +194,7 @@ export function AdminManagersView() {
     try {
       const managerData: Omit<ManagerAssignment, 'id'> = {
         uid: selectedUserForManager.id,
-        email: selectedUserForManager.username ? `${selectedUserForManager.username}@grobax.app` : 'user@grobax.app',
+        email: selectedUserForManager.username ? `${selectedUserForManager.username}@grobaax.app` : 'user@grobaax.app',
         name: selectedUserForManager.name,
         avatar: selectedUserForManager.avatar,
         role: assignedRole,
@@ -218,7 +218,7 @@ export function AdminManagersView() {
       await logManagerActivity({
         managerUid: currentUser?.id || PRIMARY_SUPER_ADMIN_UID,
         managerName: currentUser?.name || 'Primary Super Admin',
-        managerEmail: currentUser?.username || 'admin@grobax.app',
+        managerEmail: currentUser?.username || 'admin@grobaax.app',
         role: currentUser?.role || 'SUPER_ADMIN',
         action: 'ASSIGN_NEW_MANAGER',
         target: 'managerAssignments',
@@ -266,7 +266,7 @@ export function AdminManagersView() {
       await logManagerActivity({
         managerUid: currentUser?.id || PRIMARY_SUPER_ADMIN_UID,
         managerName: currentUser?.name || 'Primary Super Admin',
-        managerEmail: currentUser?.username || 'admin@grobax.app',
+        managerEmail: currentUser?.username || 'admin@grobaax.app',
         role: currentUser?.role || 'SUPER_ADMIN',
         action: 'CHANGE_MANAGER_ROLE',
         target: 'managerAssignments',
@@ -298,7 +298,7 @@ export function AdminManagersView() {
       await logManagerActivity({
         managerUid: currentUser?.id || PRIMARY_SUPER_ADMIN_UID,
         managerName: currentUser?.name || 'Primary Super Admin',
-        managerEmail: currentUser?.username || 'admin@grobax.app',
+        managerEmail: currentUser?.username || 'admin@grobaax.app',
         role: currentUser?.role || 'SUPER_ADMIN',
         action: newStatus === 'suspended' ? 'SUSPEND_MANAGER' : 'REACTIVATE_MANAGER',
         target: 'managerAssignments',
@@ -332,7 +332,7 @@ export function AdminManagersView() {
       await logManagerActivity({
         managerUid: currentUser?.id || PRIMARY_SUPER_ADMIN_UID,
         managerName: currentUser?.name || 'Primary Super Admin',
-        managerEmail: currentUser?.username || 'admin@grobax.app',
+        managerEmail: currentUser?.username || 'admin@grobaax.app',
         role: currentUser?.role || 'SUPER_ADMIN',
         action: 'REVOKE_MANAGER_ROLE',
         target: 'managerAssignments',
@@ -706,7 +706,7 @@ export function AdminManagersView() {
               <div>
                 <h3 className="text-xl font-bold">Assign Administrative Manager</h3>
                 <p className="text-xs text-blue-200 mt-0.5">
-                  Search existing registered Grobax users and grant role permissions.
+                  Search existing registered Grobaax users and grant role permissions.
                 </p>
               </div>
               <button
@@ -721,7 +721,7 @@ export function AdminManagersView() {
               {/* User Search Input */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  1. Search Registered Grobax User *
+                  1. Search Registered Grobaax User *
                 </label>
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

@@ -217,7 +217,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
           sellerName: currentUser.name,
           sellerUsername: currentUser.username,
           sellerAvatar: currentUser.avatar,
-          sellerInstitution: currentUser.institution || 'Grobax Campus',
+          sellerInstitution: currentUser.institution || 'Grobaax Campus',
           sellerDepartment: currentUser.department || 'Student',
           sellerVerified: currentUser.verified || false,
           locationCampus: locationCampus.trim(),
@@ -229,7 +229,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
           setLoading(false);
           return;
         }
-        setSuccessMsg('Product listed successfully on Grobax Minimart!');
+        setSuccessMsg('Product listed successfully on Grobaax Minimart!');
       }
 
       setTimeout(() => {
@@ -284,7 +284,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 Seller Subscription Required
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                To maintain a safe, trusted, and scam-free campus marketplace, listing products and services on Grobax Minimart is exclusive to active <strong className="text-amber-600 dark:text-amber-400">Premium</strong> and <strong className="text-amber-600 dark:text-amber-400">VIP</strong> scholars.
+                To maintain a safe, trusted, and scam-free campus marketplace, listing products and services on Grobaax Minimart is exclusive to active <strong className="text-amber-600 dark:text-amber-400">Premium</strong> and <strong className="text-amber-600 dark:text-amber-400">VIP</strong> scholars.
               </p>
             </div>
 

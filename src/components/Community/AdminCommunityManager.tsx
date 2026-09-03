@@ -69,7 +69,7 @@ export const AdminCommunityManager: React.FC = () => {
         category: annCategory,
         priority: annPriority,
         content: annContent,
-        author: 'Grobax Central Intelligence',
+        author: 'Grobaax Central Intelligence',
         authorRole: 'Administrator',
         authorAvatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
         important: annPriority === 'High' || annPriority === 'Urgent',

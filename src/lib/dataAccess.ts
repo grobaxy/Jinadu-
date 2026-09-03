@@ -24,7 +24,7 @@ import { db, auth } from './firebase';
 
 /**
  * ============================================================================
- * GROBAX MASTER UNIFIED DATA ACCESS & CRUD ARCHITECTURE
+ * GROBAAX MASTER UNIFIED DATA ACCESS & CRUD ARCHITECTURE
  * ============================================================================
  * Standardized, high-performance, cached, and secure data access engine
  * used globally across all User App and Admin Panel features.
@@ -90,9 +90,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path,
   };
   if (isQuotaExceededError(error)) {
-    console.warn(`[Grobax DataAccess] Daily free-tier Firestore quota limit reached on ${path}. Serving cached state.`, JSON.stringify(errInfo));
+    console.warn(`[Grobaax DataAccess] Daily free-tier Firestore quota limit reached on ${path}. Serving cached state.`, JSON.stringify(errInfo));
   } else {
-    console.warn(`[Grobax DataAccess] ${operationType.toUpperCase()} Notice on ${path}:`, JSON.stringify(errInfo));
+    console.warn(`[Grobaax DataAccess] ${operationType.toUpperCase()} Notice on ${path}:`, JSON.stringify(errInfo));
   }
 }
 
@@ -131,7 +131,7 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-class GrobaxDataEngine {
+class GrobaaxDataEngine {
   private cache = new Map<string, CacheEntry<any>>();
   private inFlightRequests = new Map<string, Promise<any>>();
   private defaultTtlMs = 60 * 1000; // 1 minute default cache for read optimizations
@@ -571,7 +571,9 @@ class GrobaxDataEngine {
 }
 
 // Global Singleton Instance
-export const grobaxDataService = new GrobaxDataEngine();
+export const grobaxDataService = new GrobaaxDataEngine();
+export const grobaaxDataService = grobaxDataService;
+export const GrobaaxDataAccess = grobaxDataService;
 export const GrobaxDataAccess = grobaxDataService;
 
 // ---------------------------------------------------------------------------

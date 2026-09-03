@@ -101,7 +101,7 @@ function calculateUserListingEligibility(userId: string, userTier: 'free' | 'pre
       userTier: 'free',
       canCreateProduct: false,
       listingDurationHours: 0,
-      reason: 'Selling on Grobax Minimart is exclusive to Premium and VIP scholars.',
+      reason: 'Selling on Grobaax Minimart is exclusive to Premium and VIP scholars.',
     };
   }
 

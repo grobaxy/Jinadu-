@@ -25,9 +25,9 @@ export const AdvertisementTicker: React.FC = () => {
     {
       id: 'default_1',
       title: 'GUS Season 1 Registration Open',
-      sponsorName: 'Grobax Official',
+      sponsorName: 'Grobaax Official',
       logo: '🏆',
-      text: 'MTN presents Grobax GUS Season 1 • GUS registration is open • Institutional League begins Friday',
+      text: 'MTN presents Grobaax GUS Season 1 • GUS registration is open • Institutional League begins Friday',
       status: 'Active',
       priority: 'Top',
       destinationUrl: '#league',

@@ -22,7 +22,7 @@ import {
 
 /**
  * ============================================================================
- * GROBAX COMMUNITY CAMPUS SERVICE
+ * GROBAAX COMMUNITY CAMPUS SERVICE
  * ============================================================================
  * Direct Firestore-first service with robust offline / Vercel static support.
  * Handles academic student discovery, institutional isolation, WhatsApp
@@ -198,7 +198,7 @@ export async function getCampusMembership(userId: string): Promise<CampusMembers
 /**
  * 2. Join Campus
  */
-export async function joinGrobaxCampus(params: {
+export async function joinGrobaaxCampus(params: {
   userId: string;
   whatsappNumber: string;
   institution: string;
@@ -277,10 +277,12 @@ export async function joinGrobaxCampus(params: {
 
     return { success: true, membership };
   } catch (err: any) {
-    console.error('Error joining Grobax Campus:', err);
+    console.error('Error joining Grobaax Campus:', err);
     return { success: false, error: err?.message || 'Failed to join Campus.' };
   }
 }
+
+export const joinGrobaxCampus = joinGrobaaxCampus;
 
 /**
  * 3. Update WhatsApp Number
@@ -612,7 +614,7 @@ export async function sendCampusChatRequest(
       // Also create in-app notification doc for the recipient
       await addDoc(collection(db, 'notifications'), {
         title: 'New Campus Connection Request',
-        message: `${newRequestPayload.senderName} wants to connect with you on GROBAX Campus.`,
+        message: `${newRequestPayload.senderName} wants to connect with you on GROBAAX Campus.`,
         type: 'campus',
         targetUserId: recipientStudent.id,
         userId: recipientStudent.id,
@@ -846,7 +848,7 @@ export async function getSecureWhatsAppLink(
 
     const cleanNumber = targetPhone.replace(/[^0-9]/g, '');
     const welcomeMsg = encodeURIComponent(
-      `Hi ${targetName}! I connected with you on GROBAX Campus. Let's collaborate!`
+      `Hi ${targetName}! I connected with you on GROBAAX Campus. Let's collaborate!`
     );
     const whatsappUrl = `https://wa.me/${cleanNumber}?text=${welcomeMsg}`;
 

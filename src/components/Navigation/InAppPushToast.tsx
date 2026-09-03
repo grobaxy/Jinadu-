@@ -94,7 +94,7 @@ export const InAppPushToast: React.FC = () => {
       // Native browser notification if allowed
       try {
         if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(latest.title || 'Grobax Alert', {
+          new Notification(latest.title || 'Grobaax Alert', {
             body: latest.message,
             icon: '/icon.png',
           });

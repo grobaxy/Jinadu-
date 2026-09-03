@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile, InstitutionCategory } from '../../../types';
-import { joinGrobaxCampus } from '../../../lib/campusService';
+import { joinGrobaaxCampus } from '../../../lib/campusService';
 import {
   GraduationCap,
   Phone,
@@ -71,7 +71,7 @@ export const CampusJoinScreen: React.FC<CampusJoinScreenProps> = ({
 
     setIsSubmitting(true);
     try {
-      const res = await joinGrobaxCampus({
+      const res = await joinGrobaaxCampus({
         userId: currentUser.id,
         whatsappNumber: cleaned,
         institution: institutionName,
@@ -103,10 +103,10 @@ export const CampusJoinScreen: React.FC<CampusJoinScreenProps> = ({
 
         <div className="space-y-1">
           <span className="px-3 py-1 text-[11px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded-full">
-            GROBAX CAMPUS
+            GROBAAX CAMPUS
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            JOIN GROBAX CAMPUS
+            JOIN GROBAAX CAMPUS
           </h2>
           <p className="text-sm font-medium text-slate-600 dark:text-slate-400 max-w-md">
             Connect with students from your institution.

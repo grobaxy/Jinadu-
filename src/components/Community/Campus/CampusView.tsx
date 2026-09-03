@@ -185,7 +185,7 @@ export const CampusView: React.FC = () => {
       updatedAt: new Date().toISOString(),
       status: 'active',
     });
-    showToast('🎉 Welcome to GROBAX Campus! Your profile is verified.');
+    showToast('🎉 Welcome to GROBAAX Campus! Your profile is verified.');
   };
 
   // Handle Send Chat Request
@@ -253,7 +253,7 @@ export const CampusView: React.FC = () => {
       <div className="flex flex-col items-center justify-center p-12 space-y-3">
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-          Connecting to GROBAX Campus...
+          Connecting to GROBAAX Campus...
         </p>
       </div>
     );
@@ -620,7 +620,7 @@ export const CampusView: React.FC = () => {
                     <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                       {searchQuery
                         ? 'Try searching with a different name, faculty, or department keyword.'
-                        : `Be the first scholar in ${selectedDepartment || 'this department'} to connect on GROBAX Campus!`}
+                        : `Be the first scholar in ${selectedDepartment || 'this department'} to connect on GROBAAX Campus!`}
                     </p>
                   </div>
                 </div>

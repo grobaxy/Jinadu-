@@ -134,7 +134,7 @@ export const GusTab: React.FC = () => {
         userId: currentUser.id,
         userName: currentUser.name,
         userAvatar: currentUser.avatar || '',
-        institution: currentUser.institution || 'Grobax Academy',
+        institution: currentUser.institution || 'Grobaax Academy',
         department: currentUser.department || 'General Sciences',
         level: currentUser.level || '300 Level',
         registrationStatus: 'REGISTERED',
