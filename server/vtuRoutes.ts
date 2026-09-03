@@ -510,6 +510,38 @@ vtuRouter.get('/admin/overview', async (_req: Request, res: Response) => {
 });
 
 /**
+ * GET & POST /api/vtu/admin/sync-provider
+ * Explicit provider synchronization endpoint for live wallet balance and status
+ */
+const syncProviderHandler = async (_req: Request, res: Response) => {
+  try {
+    const balanceInfo = await vtuProvider.getProviderBalance(currentSettings.providerEnvironment);
+    return res.json({
+      success: true,
+      message: 'Pairgate provider wallet synchronized successfully',
+      environment: currentSettings.providerEnvironment,
+      provider: 'Pairgate VTU Gateway',
+      providerConnected: balanceInfo.success,
+      providerBalanceNGN: balanceInfo.balanceNGN,
+      balanceNGN: balanceInfo.balanceNGN,
+      currency: balanceInfo.currency || 'NGN',
+      retrievedAt: balanceInfo.retrievedAt || new Date().toISOString(),
+      balanceInfo,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err?.message || 'Failed to sync provider balance',
+    });
+  }
+};
+
+vtuRouter.get('/admin/sync-provider', syncProviderHandler);
+vtuRouter.post('/admin/sync-provider', syncProviderHandler);
+vtuRouter.get('/admin/balance', syncProviderHandler);
+vtuRouter.get('/balance', syncProviderHandler);
+
+/**
  * POST /api/vtu/admin/settings
  * Admin settings update
  */

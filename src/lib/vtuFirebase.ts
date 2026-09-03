@@ -119,3 +119,59 @@ export async function updateVtuTransactionInFirestore(
     return false;
   }
 }
+
+const PROVIDER_STATUS_DOC_ID = 'pairgate_live_sync';
+
+export interface VtuProviderSyncRecord {
+  provider: string;
+  environment: 'sandbox' | 'live';
+  providerBalanceNGN: number;
+  lastSyncedAt: string;
+  providerConnected: boolean;
+  syncedBy?: string;
+  raw?: any;
+}
+
+/**
+ * Save VTU Provider sync balance & state to Firestore
+ */
+export async function saveVtuProviderStatusToFirestore(
+  status: Partial<VtuProviderSyncRecord>
+): Promise<boolean> {
+  try {
+    await grobaxDataService.create(
+      'vtuProviderStatus',
+      {
+        provider: 'Pairgate VTU Gateway',
+        environment: 'live',
+        providerBalanceNGN: 17.00,
+        providerConnected: true,
+        lastSyncedAt: new Date().toISOString(),
+        ...status,
+      },
+      PROVIDER_STATUS_DOC_ID
+    );
+    return true;
+  } catch (err) {
+    console.warn('Notice: saveVtuProviderStatusToFirestore error:', err);
+    return false;
+  }
+}
+
+/**
+ * Fetch last synchronized VTU provider state from Firestore
+ */
+export async function fetchVtuProviderStatusFromFirestore(): Promise<VtuProviderSyncRecord | null> {
+  try {
+    const data = await grobaxDataService.get<VtuProviderSyncRecord>(
+      'vtuProviderStatus',
+      PROVIDER_STATUS_DOC_ID,
+      { useCache: true, ttlMs: 30000 }
+    );
+    return data || null;
+  } catch (err) {
+    console.warn('Notice: fetchVtuProviderStatusFromFirestore error:', err);
+    return null;
+  }
+}
+
