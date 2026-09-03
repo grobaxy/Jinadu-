@@ -189,22 +189,69 @@ export async function checkUserDailyUploadLimit(userId: string): Promise<{
 }
 
 /**
- * Check for duplicate past questions
+ * Check for duplicate past questions (enforcing session uniqueness per course)
  */
-export async function checkDuplicatePastQuestion(compositeKey: string): Promise<{
+export async function checkDuplicatePastQuestion(
+  compositeKey: string,
+  extraCheck?: {
+    institutionId?: string;
+    courseCode?: string;
+    academicSession?: string;
+    departmentName?: string;
+  }
+): Promise<{
   isDuplicate: boolean;
   existingQuestion?: PastQuestion;
+  message?: string;
 }> {
   try {
-    const q = query(
-      collection(db, PAST_QUESTIONS_COLLECTION),
-      where('compositeKey', '==', compositeKey)
-    );
-    const snap = await getDocs(q);
-    for (const docSnap of snap.docs) {
-      const data = { id: docSnap.id, ...docSnap.data() } as PastQuestion;
-      if (data.status !== 'rejected') {
-        return { isDuplicate: true, existingQuestion: data };
+    // 1. Primary check by compositeKey
+    if (compositeKey) {
+      const q = query(
+        collection(db, PAST_QUESTIONS_COLLECTION),
+        where('compositeKey', '==', compositeKey)
+      );
+      const snap = await getDocs(q);
+      for (const docSnap of snap.docs) {
+        const data = { id: docSnap.id, ...docSnap.data() } as PastQuestion;
+        if (data.status !== 'rejected') {
+          return {
+            isDuplicate: true,
+            existingQuestion: data,
+            message: `A past question for ${data.courseCode} (${data.academicSession}) already exists. You cannot upload for this session; please enter another session.`,
+          };
+        }
+      }
+    }
+
+    // 2. Extra check: Course Code + Session match within the institution
+    if (extraCheck?.courseCode && extraCheck?.academicSession) {
+      const normCourse = extraCheck.courseCode.trim().toUpperCase().replace(/\s+/g, '');
+      const normSession = extraCheck.academicSession.trim().replace(/\s+/g, '');
+
+      const q = query(collection(db, PAST_QUESTIONS_COLLECTION), limit(150));
+      const snap = await getDocs(q);
+      for (const docSnap of snap.docs) {
+        const data = { id: docSnap.id, ...docSnap.data() } as PastQuestion;
+        if (data.status === 'rejected') continue;
+
+        const docCourse = (data.courseCode || '').trim().toUpperCase().replace(/\s+/g, '');
+        const docSession = (data.academicSession || '').trim().replace(/\s+/g, '');
+
+        if (docCourse === normCourse && docSession === normSession) {
+          const instMatch =
+            !extraCheck.institutionId ||
+            !data.institutionId ||
+            extraCheck.institutionId.toLowerCase() === data.institutionId.toLowerCase();
+
+          if (instMatch) {
+            return {
+              isDuplicate: true,
+              existingQuestion: data,
+              message: `A past question for ${data.courseCode} for the ${data.academicSession} session has already been uploaded. Duplicate uploads for this session are not allowed. Please input another session.`,
+            };
+          }
+        }
       }
     }
   } catch (err) {
@@ -214,7 +261,7 @@ export async function checkDuplicatePastQuestion(compositeKey: string): Promise<
 }
 
 /**
- * Submit a Past Question by Student (Enforces weekly upload limit, registered institution/faculty/department, and duplicate prevention)
+ * Submit a Past Question by Student (Enforces weekly upload limit and duplicate session prevention)
  */
 export async function submitPastQuestion(data: {
   institutionId: string;
@@ -257,38 +304,7 @@ export async function submitPastQuestion(data: {
       };
     }
 
-    // 2. Enforce Institution, Faculty & Department lockdown against registered user profile
-    if (data.userProfile) {
-      const regInst = (data.userProfile.institution || data.userProfile.institutionName || '').trim();
-      const regFac = (data.userProfile.faculty || data.userProfile.facultyName || '').trim();
-      const regDept = (data.userProfile.department || data.userProfile.departmentName || '').trim();
-
-      if (regInst && data.institutionName) {
-        const instMatch =
-          data.institutionName.toLowerCase().includes(regInst.toLowerCase()) ||
-          regInst.toLowerCase().includes(data.institutionName.toLowerCase());
-        if (!instMatch) {
-          return {
-            success: false,
-            error: `Upload restricted: You can only upload past questions under your registered institution (${regInst}). You cannot upload for another institution.`,
-          };
-        }
-      }
-
-      if (regDept && data.departmentName) {
-        const deptMatch =
-          data.departmentName.toLowerCase().includes(regDept.toLowerCase()) ||
-          regDept.toLowerCase().includes(data.departmentName.toLowerCase());
-        if (!deptMatch) {
-          return {
-            success: false,
-            error: `Upload restricted: You can only upload past questions under your registered department (${regDept}).`,
-          };
-        }
-      }
-    }
-
-    // 3. Generate composite key & verify duplicate
+    // 2. Generate composite key & verify session duplicate
     const compositeKey = generateCompositeKey(
       data.institutionId,
       data.departmentName,
@@ -298,12 +314,19 @@ export async function submitPastQuestion(data: {
       data.semester
     );
 
-    const dupCheck = await checkDuplicatePastQuestion(compositeKey);
+    const dupCheck = await checkDuplicatePastQuestion(compositeKey, {
+      institutionId: data.institutionId,
+      courseCode: data.courseCode,
+      academicSession: data.academicSession,
+      departmentName: data.departmentName,
+    });
+
     if (dupCheck.isDuplicate) {
-      const statusText = dupCheck.existingQuestion?.status === 'approved' ? 'already verified in the library' : 'currently pending admin review';
       return {
         success: false,
-        error: `A past question for ${data.courseCode.toUpperCase()} (${data.academicSession} - ${data.semester}) is ${statusText}. Please upload questions for a different course or session.`,
+        error:
+          dupCheck.message ||
+          `A past question for ${data.courseCode.toUpperCase()} (${data.academicSession}) has already been uploaded. You cannot upload for this session; please enter another session.`,
       };
     }
 

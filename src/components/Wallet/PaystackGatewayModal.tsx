@@ -112,6 +112,15 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
         setTransferAccount(res);
         if (res.reference) {
           setReference(res.reference);
+          try {
+            localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
+              reference: res.reference,
+              plan,
+              userId,
+              userName,
+              timestamp: Date.now(),
+            }));
+          } catch {}
         }
         if (res.authorization_url) {
           setAuthUrl(res.authorization_url);
@@ -121,6 +130,15 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
         setAuthUrl(res.authorization_url);
         if (res.reference) {
           setReference(res.reference);
+          try {
+            localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
+              reference: res.reference,
+              plan,
+              userId,
+              userName,
+              timestamp: Date.now(),
+            }));
+          } catch {}
         }
       } else {
         setErrorMsg(res.error || 'Could not retrieve transfer account from Paystack. Please try again.');

@@ -47,6 +47,7 @@ interface PastQuestionUploadModalProps {
     department?: string;
     level?: string;
   } | null;
+  existingQuestions?: any[];
 }
 
 export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = ({
@@ -54,6 +55,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
   onClose,
   onUploadSuccess,
   currentUser,
+  existingQuestions = [],
 }) => {
   // Form State
   const [selectedCategory, setSelectedCategory] = useState<InstitutionCategory>('University');
@@ -90,7 +92,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
   const [courseSuggestions, setCourseSuggestions] = useState<{ code: string; title: string }[]>([]);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
-  // Available sessions
+  // Suggested sessions quick pills
   const SESSION_OPTIONS = [
     '2024/2025',
     '2023/2024',
@@ -99,12 +101,8 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
     '2020/2021',
     '2019/2020',
     '2018/2019',
+    '2017/2018',
   ];
-
-  // User registered status
-  const hasRegisteredInstitution = Boolean(currentUser?.institution);
-  const hasRegisteredFaculty = Boolean(currentUser?.faculty);
-  const hasRegisteredDepartment = Boolean(currentUser?.department);
 
   // Available levels for current category
   const activeCategoryMeta = INSTITUTION_CATEGORIES.find((c) => c.id === selectedCategory) || INSTITUTION_CATEGORIES[0];
@@ -116,7 +114,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
   const activeFacultyObj = categoryFaculties.find((f) => f.faculty === facultyName) || categoryFaculties[0];
   const availableDepartments = activeFacultyObj ? activeFacultyObj.departments : [];
 
-  // Initialize from user profile on open
+  // Initialize and auto-assign from user academic profile on modal open
   useEffect(() => {
     if (isOpen && currentUser) {
       setError(null);
@@ -133,29 +131,47 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
         setWeeklyUploadCheck(res);
       });
 
-      // Auto-populate and lock to user's registered academic profile
-      if (currentUser.institution) {
-        setInstitutionName(currentUser.institution);
-        setInstitutionId(currentUser.institution.toLowerCase().replace(/[^a-z0-9]/g, ''));
+      // 1. Automatically assign School / Institution
+      const userInst = currentUser.institution?.trim() || '';
+      if (userInst) {
+        setInstitutionName(userInst);
+        setInstitutionId(userInst.toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+        // Auto-assign category
+        const lower = userInst.toLowerCase();
+        if (lower.includes('polytechnic') || lower.includes('poly')) {
+          setSelectedCategory('Polytechnic');
+        } else if (lower.includes('college of education')) {
+          setSelectedCategory('College of Education');
+        } else if (lower.includes('monotechnic')) {
+          setSelectedCategory('Monotechnic');
+        } else {
+          setSelectedCategory('University');
+        }
       } else {
         const defaultInst = NIGERIAN_INSTITUTIONS[0]?.name || 'University of Lagos (UNILAG)';
         setInstitutionName(defaultInst);
         setInstitutionId('unilag');
       }
 
-      if (currentUser.faculty) {
-        setFacultyName(currentUser.faculty);
+      // 2. Automatically assign Faculty
+      if (currentUser.faculty?.trim()) {
+        setFacultyName(currentUser.faculty.trim());
       } else if (categoryFaculties.length > 0) {
         setFacultyName(categoryFaculties[0].faculty);
       }
 
-      if (currentUser.department) {
-        setDepartmentName(currentUser.department);
+      // 3. Automatically assign Department
+      if (currentUser.department?.trim()) {
+        setDepartmentName(currentUser.department.trim());
       } else if (categoryFaculties.length > 0 && categoryFaculties[0].departments.length > 0) {
         setDepartmentName(categoryFaculties[0].departments[0].name);
       }
 
-      if (activeCategoryMeta.levels.length > 0) {
+      // 4. Automatically assign Level
+      if (currentUser.level?.trim()) {
+        setLevel(currentUser.level.trim());
+      } else if (activeCategoryMeta.levels.length > 0) {
         setLevel(activeCategoryMeta.levels[0]);
       }
     }
@@ -200,28 +216,61 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
     }
   }, [courseCode, selectedCategory]);
 
-  // Check duplicate when academic fields change
+  // Check duplicate when academic fields change: Any user cannot upload the same past question for that session
   useEffect(() => {
-    if (institutionId && departmentName && level && courseCode && academicSession && semester) {
+    const cleanCourse = courseCode.trim().toUpperCase().replace(/\s+/g, '');
+    const cleanSession = academicSession.trim().replace(/\s+/g, '');
+
+    if (cleanCourse.length >= 2 && cleanSession.length >= 4) {
+      // 1. Instant check against in-memory approved past questions
+      if (existingQuestions && existingQuestions.length > 0) {
+        const foundLocal = existingQuestions.find((q: any) => {
+          if (q.status === 'rejected') return false;
+          const qCourse = (q.courseCode || '').toUpperCase().replace(/\s+/g, '');
+          const qSession = (q.academicSession || '').replace(/\s+/g, '');
+          const qInst = (q.institutionName || q.institutionId || '').toLowerCase();
+          const curInst = (institutionName || institutionId || '').toLowerCase();
+          const isInstMatch = !curInst || !qInst || qInst.includes(curInst) || curInst.includes(qInst);
+          return qCourse === cleanCourse && qSession === cleanSession && isInstMatch;
+        });
+
+        if (foundLocal) {
+          setDuplicateWarning(
+            `⚠️ A past question for ${cleanCourse} has already been uploaded for the ${academicSession.trim()} session! Duplicate past questions for the same session are not allowed. Please enter another session (e.g. previous year) to upload.`
+          );
+          return;
+        }
+      }
+
+      // 2. Async check against Firestore
       const compositeKey = generateCompositeKey(
-        institutionId,
+        institutionId || institutionName,
         departmentName,
         level,
-        courseCode,
-        academicSession,
+        cleanCourse,
+        academicSession.trim(),
         semester
       );
-      checkDuplicatePastQuestion(compositeKey).then((res) => {
+
+      checkDuplicatePastQuestion(compositeKey, {
+        institutionId: institutionId || institutionName,
+        courseCode: cleanCourse,
+        academicSession: academicSession.trim(),
+        departmentName,
+      }).then((res) => {
         if (res.isDuplicate) {
           setDuplicateWarning(
-            `A past question for ${courseCode.toUpperCase()} (${academicSession} - ${semester}) already exists in the system.`
+            res.message ||
+              `⚠️ A past question for ${cleanCourse} (${academicSession.trim()}) already exists in the system. Please input another session to contribute.`
           );
         } else {
           setDuplicateWarning(null);
         }
       });
+    } else {
+      setDuplicateWarning(null);
     }
-  }, [institutionId, departmentName, level, courseCode, academicSession, semester]);
+  }, [institutionId, institutionName, departmentName, level, courseCode, academicSession, semester, existingQuestions]);
 
   // File handling
   const handleFileSelect = (files: FileList | null) => {
@@ -269,19 +318,18 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
       return;
     }
 
-    // Verify academic lockdown
-    if (currentUser.institution && institutionName) {
-      const isMatch =
-        institutionName.toLowerCase().includes(currentUser.institution.toLowerCase()) ||
-        currentUser.institution.toLowerCase().includes(institutionName.toLowerCase());
-      if (!isMatch) {
-        setError(`Upload restricted: You can only upload past questions for your registered institution (${currentUser.institution}). You cannot upload for another institution.`);
-        return;
-      }
+    if (!institutionName.trim()) {
+      setError('Please provide the institution / school name.');
+      return;
     }
 
-    if (currentUser.department && departmentName && departmentName.toLowerCase() !== currentUser.department.toLowerCase()) {
-      setError(`Upload restricted: You can only upload past questions for your registered department (${currentUser.department}).`);
+    if (!departmentName.trim()) {
+      setError('Please provide the academic department.');
+      return;
+    }
+
+    if (!academicSession.trim()) {
+      setError('Please fill in the academic session (e.g., 2023/2024).');
       return;
     }
 
@@ -301,7 +349,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
     }
 
     if (duplicateWarning) {
-      setError('Cannot upload duplicate past question. Please provide questions for a different course or session.');
+      setError(`Cannot upload duplicate past question for session ${academicSession}. Please input another session to contribute.`);
       return;
     }
 
@@ -314,14 +362,14 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
 
       const res = await submitPastQuestion({
         institutionId: institutionId || institutionName.toLowerCase().replace(/[^a-z0-9]/g, ''),
-        institutionName,
+        institutionName: institutionName.trim(),
         institutionCategory: selectedCategory,
-        facultyName,
-        departmentName,
-        level,
+        facultyName: facultyName.trim(),
+        departmentName: departmentName.trim(),
+        level: level.trim(),
         courseCode: courseCode.trim().toUpperCase(),
         courseTitle: courseTitle.trim(),
-        academicSession,
+        academicSession: academicSession.trim(),
         semester,
         examType,
         fileUrl: primaryFile.url,
@@ -351,9 +399,10 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
       setTimeout(() => {
         onUploadSuccess();
         onClose();
-      }, 2000);
+      }, 1800);
     } catch (err: any) {
-      setError(err?.message || 'An unexpected error occurred during upload.');
+      console.error('Error submitting past question:', err);
+      setError(err?.message || 'Network error occurred while submitting.');
       setIsLoading(false);
     }
   };
@@ -413,19 +462,6 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
             </div>
           </div>
 
-          {/* Academic Profile Lock Notice */}
-          {hasRegisteredInstitution && (
-            <div className="px-6 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-400 flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-bold text-[10px]">
-                Registered Profile
-              </span>
-              <span>
-                Uploads are restricted to your registered institution: <strong className="text-slate-900 dark:text-slate-100">{currentUser.institution}</strong>
-                {currentUser.department ? ` • ${currentUser.department}` : ''}
-              </span>
-            </div>
-          )}
-
           {/* Scrollable Form Body */}
           <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 flex-1">
             {/* Error Message */}
@@ -480,129 +516,142 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
               {/* Institution */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>Institution Name</span>
-                  {hasRegisteredInstitution && (
-                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">Locked</span>
+                  <span>Institution / School <span className="text-rose-500">*</span></span>
+                  {currentUser?.institution && (
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Auto-assigned</span>
                   )}
                 </label>
-                {hasRegisteredInstitution ? (
-                  <input
-                    type="text"
-                    value={currentUser.institution}
-                    readOnly
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-semibold cursor-not-allowed"
-                  />
-                ) : (
-                  <select
-                    value={institutionName}
-                    onChange={(e) => {
-                      setInstitutionName(e.target.value);
-                      setInstitutionId(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''));
-                    }}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {NIGERIAN_INSTITUTIONS.map((inst) => (
-                      <option key={inst.id} value={inst.name}>
-                        {inst.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <input
+                  type="text"
+                  value={institutionName}
+                  onChange={(e) => {
+                    setInstitutionName(e.target.value);
+                    setInstitutionId(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''));
+                  }}
+                  list="institutions-datalist"
+                  placeholder="e.g. University of Lagos (UNILAG)"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <datalist id="institutions-datalist">
+                  {NIGERIAN_INSTITUTIONS.map((inst) => (
+                    <option key={inst.id} value={inst.name} />
+                  ))}
+                </datalist>
               </div>
 
               {/* Faculty */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>{activeCategoryMeta.facultyNomenclature}</span>
-                  {hasRegisteredFaculty && (
-                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">Locked</span>
+                  <span>{activeCategoryMeta.facultyNomenclature} <span className="text-rose-500">*</span></span>
+                  {currentUser?.faculty && (
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Auto-assigned</span>
                   )}
                 </label>
-                {hasRegisteredFaculty ? (
-                  <input
-                    type="text"
-                    value={currentUser.faculty}
-                    readOnly
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-semibold cursor-not-allowed"
-                  />
-                ) : (
-                  <select
-                    value={facultyName}
-                    onChange={(e) => handleFacultyChange(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {categoryFaculties.map((f) => (
-                      <option key={f.faculty} value={f.faculty}>
-                        {f.faculty}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <input
+                  type="text"
+                  value={facultyName}
+                  onChange={(e) => handleFacultyChange(e.target.value)}
+                  list="faculties-datalist"
+                  placeholder="e.g. Faculty of Science"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <datalist id="faculties-datalist">
+                  {categoryFaculties.map((f) => (
+                    <option key={f.faculty} value={f.faculty} />
+                  ))}
+                </datalist>
               </div>
 
               {/* Department */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>Department</span>
-                  {hasRegisteredDepartment && (
-                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">Locked</span>
+                  <span>Department <span className="text-rose-500">*</span></span>
+                  {currentUser?.department && (
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Auto-assigned</span>
                   )}
                 </label>
-                {hasRegisteredDepartment ? (
-                  <input
-                    type="text"
-                    value={currentUser.department}
-                    readOnly
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-semibold cursor-not-allowed"
-                  />
-                ) : (
-                  <select
-                    value={departmentName}
-                    onChange={(e) => setDepartmentName(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {availableDepartments.map((d) => (
-                      <option key={d.name} value={d.name}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <input
+                  type="text"
+                  value={departmentName}
+                  onChange={(e) => setDepartmentName(e.target.value)}
+                  list="departments-datalist"
+                  placeholder="e.g. Computer Science"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <datalist id="departments-datalist">
+                  {availableDepartments.map((d) => (
+                    <option key={d.name} value={d.name} />
+                  ))}
+                </datalist>
               </div>
             </div>
 
             {/* 3. Level, Session, Semester, Exam Type */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               {/* Level */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Academic Level</label>
-                <select
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                  <span>Academic Level</span>
+                  {currentUser?.level && (
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Auto-assigned</span>
+                  )}
+                </label>
+                <input
+                  type="text"
                   value={level}
                   onChange={(e) => setLevel(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
+                  list="levels-datalist"
+                  placeholder="e.g. 200 Level"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <datalist id="levels-datalist">
                   {activeCategoryMeta.levels.map((lvl) => (
                     <option key={lvl} value={lvl}>
                       {lvl}
                     </option>
                   ))}
-                </select>
+                </datalist>
               </div>
 
-              {/* Academic Session */}
+              {/* Academic Session - Direct input by user with quick suggestions */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Academic Session</label>
-                <select
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                  <span>Academic Session <span className="text-rose-500">*</span></span>
+                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">Fill session</span>
+                </label>
+                <input
+                  type="text"
                   value={academicSession}
                   onChange={(e) => setAcademicSession(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {SESSION_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
+                  placeholder="e.g. 2023/2024"
+                  className={`w-full px-3 py-2 text-xs rounded-xl border font-semibold ${
+                    duplicateWarning
+                      ? 'border-rose-400 dark:border-rose-600 focus:ring-rose-500 bg-rose-50/20'
+                      : 'border-slate-300 dark:border-slate-700 focus:ring-blue-500 bg-white dark:bg-slate-800'
+                  } text-slate-900 dark:text-slate-100 focus:ring-2`}
+                  required
+                />
+                {/* Quick session buttons */}
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {SESSION_OPTIONS.map((sess) => (
+                    <button
+                      key={sess}
+                      type="button"
+                      onClick={() => setAcademicSession(sess)}
+                      className={`px-1.5 py-0.5 text-[10px] rounded font-medium border transition-colors ${
+                        academicSession.trim() === sess
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {sess}
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
 
               {/* Semester */}
@@ -816,6 +865,11 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Submitting...
+                  </>
+                ) : duplicateWarning ? (
+                  <>
+                    <AlertCircle className="w-4 h-4" />
+                    Choose Another Session
                   </>
                 ) : (
                   <>

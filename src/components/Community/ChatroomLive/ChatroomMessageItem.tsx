@@ -61,7 +61,21 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
     message.userId.includes('admin') ||
     message.userId.includes('barns');
 
+  const tierString = (
+    (message as any).membershipTier ||
+    (message as any).tierName ||
+    (message as any).subscriptionTier ||
+    ''
+  ).toLowerCase();
+
+  const isVip =
+    Boolean((message as any).isVip) ||
+    tierString.includes('vip') ||
+    tierString.includes('titan') ||
+    tierString.includes('annual');
+
   const hasPremium =
+    isVip ||
     Boolean(message.isPremium) ||
     Boolean(
       (message as any).membershipTier &&
@@ -129,7 +143,11 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
               name={message.userName}
               verified={hasPremium || isStaffOrAdmin || (message as any).verified}
               isPremium={hasPremium}
-              membershipTier={(message as any).membershipTier || (isStaffOrAdmin ? 'VIP SCHOLAR' : hasPremium ? 'PREMIUM' : undefined)}
+              isVip={isVip}
+              membershipTier={
+                (message as any).membershipTier ||
+                (isVip ? 'VIP SCHOLAR' : isStaffOrAdmin ? 'VIP SCHOLAR' : hasPremium ? 'PREMIUM' : undefined)
+              }
               equippedBadge={(message as any).equippedBadge}
               role={(message as any).role}
               isStaffOrAdmin={isStaffOrAdmin}

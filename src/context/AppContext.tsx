@@ -910,6 +910,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                       (!data.subscriptionExpiry || new Date(data.subscriptionExpiry).getTime() > Date.now()) &&
                       (data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free')) || (data.membershipTier && !data.membershipTier.toLowerCase().includes('free') && data.membershipTier.toLowerCase() !== 'starter scholar') || prev.isPremium)
                     ),
+                    isVip: isSuper || Boolean(
+                      (!data.subscriptionExpiry || new Date(data.subscriptionExpiry).getTime() > Date.now()) &&
+                      (data.isVip === true ||
+                       (data.membershipTier && (data.membershipTier.toLowerCase().includes('vip') || data.membershipTier.toLowerCase().includes('titan') || data.membershipTier.toLowerCase().includes('annual'))) ||
+                       (data.activePlanId && (data.activePlanId.toLowerCase().includes('titan') || data.activePlanId.toLowerCase().includes('vip'))) ||
+                       (data.subscriptionTier && (data.subscriptionTier.toLowerCase().includes('vip') || data.subscriptionTier.toLowerCase().includes('titan'))) ||
+                       data.gusTier === 'Titan' ||
+                       prev.isVip)
+                    ),
+                    verified: isSuper || Boolean(
+                      data.verified ||
+                      data.isVip ||
+                      data.isPremium ||
+                      prev.verified ||
+                      (data.activePlanId && !data.activePlanId.toLowerCase().includes('free'))
+                    ),
                     subscriptionExpiry: data.subscriptionExpiry || prev.subscriptionExpiry || '',
                     subscription: data.subscription || prev.subscription || undefined,
                     privacy: data.privacy || prev.privacy || {
@@ -4214,8 +4230,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       // Determine new tier attributes
+      const isTitanVip = Boolean(
+        (plan.planId && (plan.planId.toLowerCase().includes('titan') || plan.planId.toLowerCase().includes('vip'))) ||
+        (plan.name && (plan.name.toLowerCase().includes('titan') || plan.name.toLowerCase().includes('vip') || plan.name.toLowerCase().includes('annual'))) ||
+        plan.priceNaira >= 20000
+      );
+
       const gusTier =
-        plan.priceNaira >= 20000 ? 'Titan' : plan.priceNaira >= 2000 ? 'Master' : 'Scholar';
+        isTitanVip ? 'Titan' : plan.priceNaira >= 2000 ? 'Master' : 'Scholar';
 
       // Update currentUser state
       const updatedUserPatch: Partial<UserProfile> = {
@@ -4228,6 +4250,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         plan: plan.name,
         isSubscribed: true,
         isPremium: true,
+        isVip: isTitanVip,
         gusTier: gusTier as any,
         subscriptionExpiry: expiryDate,
         subscription: {
@@ -4262,7 +4285,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Update userSubscriptions local state immediately
       setUserSubscriptions(prev => [
-        { ...subRecord, id: subRecord.subscriptionId },
+        { ...subRecord, id: subRecord.subscriptionId, isVip: isTitanVip },
         ...prev.filter(s => s.planId !== plan.planId)
       ]);
 
@@ -4278,11 +4301,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } catch (uErr) {
           console.warn('Updating user profile with subscription notice:', uErr);
         }
+
+        // Also trigger background server activation for full database sync
+        if (finalReference) {
+          fetch('/api/paystack/activate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reference: finalReference,
+              userId: targetUid,
+              userEmail: currentUser.email || firebaseUser?.email || '',
+              userName: currentUser.name || currentUser.fullName || '',
+              planId: plan.planId,
+              planName: plan.name,
+              amountNaira: plan.priceNaira,
+            }),
+          }).catch(actErr => console.warn('Notice calling server activation:', actErr));
+        }
       }
 
       // Send in-app celebration notification specifically to this user
       sendNotification({
-        title: `🎉 Upgraded to ${plan.name}!`,
+        title: isTitanVip ? `👑 VIP Scholar Status Activated!` : `🎉 Upgraded to ${plan.name}!`,
         message: `Your membership has been upgraded to ${plan.name} (${plan.durationValue} ${plan.durationUnit}). Enjoy boosted multipliers, pro verified badge, and priority features!`,
         type: 'system',
         targetUserId: targetUid,
@@ -4377,8 +4417,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     checkPendingPaystackPayment();
 
+    const handleFocus = () => {
+      checkPendingPaystackPayment();
+    };
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        checkPendingPaystackPayment();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [isAuthReady, currentUser.id, subscriptionPlans]);
 

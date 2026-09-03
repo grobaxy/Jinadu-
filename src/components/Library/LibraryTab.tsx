@@ -782,7 +782,17 @@ export const LibraryTab: React.FC = () => {
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onUploadSuccess={loadLibraryData}
-        currentUser={currentUser as any}
+        currentUser={{
+          uid: currentUser?.uid || '',
+          username: (userProfile as any)?.username || (currentUser as any)?.username,
+          fullName: (userProfile as any)?.fullName || (currentUser as any)?.fullName || (currentUser as any)?.displayName,
+          email: currentUser?.email || '',
+          institution: (userProfile as any)?.institution || (currentUser as any)?.institution || (userProfile as any)?.school,
+          faculty: (userProfile as any)?.faculty || (currentUser as any)?.faculty,
+          department: (userProfile as any)?.department || (currentUser as any)?.department,
+          level: (userProfile as any)?.level || (currentUser as any)?.level,
+        }}
+        existingQuestions={approvedQuestions}
       />
 
       {/* Quota Exceeded Modal */}

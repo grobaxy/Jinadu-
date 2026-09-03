@@ -6,6 +6,7 @@ interface UserBadgeItemProps {
   name: string;
   verified?: boolean;
   isPremium?: boolean;
+  isVip?: boolean;
   membershipTier?: string;
   subscriptionExpiry?: string;
   institution?: string;
@@ -45,33 +46,40 @@ export const TwitterVerifiedBadge: React.FC<{ className?: string; title?: string
  */
 export const PremiumPackageBadge: React.FC<{
   tier?: string;
+  isVip?: boolean;
   className?: string;
-}> = ({ tier = 'PREMIUM', className = '' }) => {
-  const isVip = tier.toUpperCase().includes('VIP') || tier.toUpperCase().includes('TITAN');
-  const isStarter = tier.toUpperCase().includes('STARTER');
+}> = ({ tier = 'PREMIUM', isVip: explicitVip, className = '' }) => {
+  const upper = (tier || '').toUpperCase();
+  const isVip = explicitVip || upper.includes('VIP') || upper.includes('TITAN') || upper.includes('ANNUAL');
+  const isStarter = upper.includes('STARTER');
+  const isPro = upper.includes('PRO') || upper.includes('CHAMPION');
 
   const label = isVip
     ? 'VIP SCHOLAR'
     : isStarter
     ? 'STARTER SCHOLAR'
-    : tier.toUpperCase().includes('PRO')
+    : isPro
     ? 'PRO SCHOLAR'
-    : 'PREMIUM';
+    : 'PREMIUM SCHOLAR';
+
+  if (isVip) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 text-slate-950 border border-amber-300 ring-1 ring-amber-400/50 ${className}`}
+        title={`Active VIP Package: ${tier}`}
+      >
+        <Crown className="w-2.5 h-2.5 text-slate-950 fill-amber-950 shrink-0" />
+        <span className="truncate">{label}</span>
+      </span>
+    );
+  }
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-xs ${
-        isVip
-          ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 border border-amber-400/40'
-          : 'bg-blue-950 text-blue-300 border border-blue-700/60 dark:bg-blue-900/90 dark:text-blue-200'
-      } ${className}`}
-      title={`Active Package: ${tier}`}
+      className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-xs bg-gradient-to-r from-blue-900 to-indigo-900 text-blue-200 border border-blue-600/70 dark:bg-gradient-to-r dark:from-blue-950 dark:to-indigo-900 dark:text-blue-100 dark:border-blue-500/60 ${className}`}
+      title={`Active Premium Package: ${tier}`}
     >
-      {isVip ? (
-        <Crown className="w-2.5 h-2.5 text-slate-950 shrink-0" />
-      ) : (
-        <Sparkles className="w-2.5 h-2.5 text-amber-400 shrink-0" />
-      )}
+      <Sparkles className="w-2.5 h-2.5 text-cyan-300 shrink-0" />
       <span className="truncate">{label}</span>
     </span>
   );
@@ -81,6 +89,7 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
   name,
   verified = false,
   isPremium = false,
+  isVip = false,
   membershipTier,
   subscriptionExpiry,
   institution,
@@ -110,9 +119,17 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
     ? new Date(subscriptionExpiry).getTime() <= Date.now()
     : false;
 
+  const rawTierUpper = (membershipTier || '').toUpperCase();
+  const isVipUser =
+    Boolean(isVip) ||
+    rawTierUpper.includes('VIP') ||
+    rawTierUpper.includes('TITAN') ||
+    rawTierUpper.includes('ANNUAL');
+
   const hasPremium =
     !isExpired &&
-    (Boolean(isPremium) ||
+    (isVipUser ||
+      Boolean(isPremium) ||
       Boolean(
         membershipTier &&
         !membershipTier.toLowerCase().includes('free') &&
@@ -162,18 +179,26 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
               ? 'text-amber-500 dark:text-amber-400'
               : isStaff
               ? 'text-blue-900 dark:text-blue-300'
+              : isVipUser
+              ? 'text-amber-600 dark:text-amber-300'
               : 'text-slate-900 dark:text-slate-100'
           } ${textSizeClass}`}
         >
           {name}
         </span>
 
-        {/* Twitter-style Verified Blue Badge for upgraded users / staff */}
-        {(verified || hasPremium) && <TwitterVerifiedBadge className={badgeIconSize} />}
+        {/* Twitter-style Verified Blue Badge for upgraded users (both VIP and Premium) & staff */}
+        {(verified || hasPremium || isVipUser) && (
+          <TwitterVerifiedBadge
+            className={badgeIconSize}
+            title={isVipUser ? 'VIP Verified Grobax Scholar' : 'Verified Grobax Scholar'}
+          />
+        )}
 
-        {/* Premium Package Badge */}
+        {/* Distinctive Package Badge: VIP vs Premium */}
         <PremiumPackageBadge
-          tier={membershipTier || (isStaff || isCm ? 'VIP SCHOLAR' : 'PREMIUM')}
+          tier={membershipTier || (isVipUser ? 'VIP SCHOLAR' : isStaff || isCm ? 'VIP SCHOLAR' : 'PREMIUM')}
+          isVip={isVipUser}
         />
 
         {/* Custom Equipped Badge if equipped */}

@@ -1943,6 +1943,12 @@ export const updateUserProfileInFirestore = async (
   if ((updates as any).isSubscribed !== undefined) {
     payload.isSubscribed = (updates as any).isSubscribed;
   }
+  if ((updates as any).isVip !== undefined) {
+    payload.isVip = (updates as any).isVip;
+  }
+  if ((updates as any).verified !== undefined) {
+    payload.verified = (updates as any).verified;
+  }
   if (updates.privacy !== undefined) {
     payload.privacy = {
       ...(existing.privacy || DEFAULT_PRIVACY),
@@ -5662,6 +5668,9 @@ export const evaluateAndProcessLiveAnswer = async (
     avatar?: string;
     institution?: string;
     isPremium?: boolean;
+    isVip?: boolean;
+    membershipTier?: string;
+    gusTier?: string;
     gpBalance?: number;
   },
   submittedAnswerText: string
@@ -5773,6 +5782,12 @@ export const evaluateAndProcessLiveAnswer = async (
     const winnerRank = currentWinners.length + 1;
     const gpAward = Math.max(1, Number(question.gpRewardPerWinner) || 50);
 
+    const isUserVip = Boolean(
+      user.isVip ||
+      (user.membershipTier && (user.membershipTier.toLowerCase().includes('vip') || user.membershipTier.toLowerCase().includes('titan'))) ||
+      user.gusTier === 'Titan'
+    );
+
     const winnerRecord = {
       userId: user.id,
       userName: user.name || user.username || 'Grobax Scholar',
@@ -5780,7 +5795,9 @@ export const evaluateAndProcessLiveAnswer = async (
         user.avatar ||
         'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       institution: user.institution || 'Grobax Scholar',
-      isPremium: Boolean(user.isPremium),
+      isPremium: Boolean(user.isPremium || isUserVip),
+      isVip: isUserVip,
+      membershipTier: user.membershipTier || (isUserVip ? 'VIP SCHOLAR' : user.isPremium ? 'PREMIUM SCHOLAR' : undefined),
       submittedAt: now,
       gpAwarded: gpAward,
       submittedAnswer: submittedAnswerText.trim(),
@@ -8265,6 +8282,163 @@ export const deleteUserFromFirestore = async (
   } catch (err: any) {
     console.error('Error deleting user from Firestore:', err);
     return { success: false, error: err?.message || 'Failed to delete user document from Firestore' };
+  }
+};
+
+export interface ActivateSubscriptionOptions {
+  reference: string;
+  userId: string;
+  userEmail?: string;
+  userName?: string;
+  planId?: string;
+  planName?: string;
+  amountNaira?: number;
+  channel?: string;
+  durationDays?: number;
+}
+
+export const activateUserSubscriptionInFirestore = async (
+  options: ActivateSubscriptionOptions
+): Promise<{ success: boolean; planName?: string; isVip?: boolean; expiryDate?: string; error?: string }> => {
+  try {
+    const {
+      reference,
+      userId,
+      userEmail,
+      userName,
+      planId: rawPlanId,
+      planName: rawPlanName,
+      amountNaira = 0,
+      channel = 'paystack',
+    } = options;
+
+    if (!userId && !userEmail) {
+      throw new Error('Either userId or userEmail is required to activate subscription.');
+    }
+
+    let targetUid = userId;
+
+    // If userId not provided or looks like placeholder, lookup by email
+    if (!targetUid || targetUid === 'guest' || targetUid === 'unknown') {
+      if (userEmail) {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', userEmail.trim().toLowerCase()), limit(1));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          targetUid = qSnap.docs[0].id;
+        }
+      }
+    }
+
+    if (!targetUid) {
+      throw new Error(`Target scholar could not be identified for email ${userEmail}`);
+    }
+
+    // Determine plan specifics
+    const amount = Number(amountNaira || 0);
+    const pId = (rawPlanId || '').toLowerCase();
+    const pName = (rawPlanName || '').toLowerCase();
+
+    const isTitanVip =
+      pId.includes('titan') ||
+      pId.includes('vip') ||
+      pName.includes('titan') ||
+      pName.includes('vip') ||
+      pName.includes('annual') ||
+      amount >= 20000;
+
+    const isPro = !isTitanVip && (pId.includes('pro') || pName.includes('pro') || pName.includes('champion') || amount >= 2000);
+
+    const effectivePlanId = isTitanVip ? 'plan_titan_naira' : isPro ? 'plan_pro_naira' : 'plan_basic_naira';
+    const effectivePlanName = isTitanVip ? 'Grobax Titan Annual VIP' : isPro ? 'Champions Pro Scholar' : 'Scholar Starter Plan';
+    const durationDays = isTitanVip ? 365 : 30;
+    const expiryDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+
+    // 1. Update user profile document in Firestore
+    const userDocRef = doc(db, 'users', targetUid);
+    const userSnap = await getDoc(userDocRef);
+    const existingData = userSnap.exists() ? userSnap.data() : {};
+
+    const userUpdates: any = {
+      activePlanId: effectivePlanId,
+      membershipTier: effectivePlanName,
+      subscriptionTier: effectivePlanName,
+      subscriptionPlan: effectivePlanName,
+      planId: effectivePlanId,
+      tier: effectivePlanName,
+      plan: effectivePlanName,
+      isSubscribed: true,
+      isPremium: true,
+      isVip: isTitanVip,
+      gusTier: isTitanVip ? 'Titan' : isPro ? 'Master' : 'Scholar',
+      subscriptionExpiry: expiryDate,
+      verified: true,
+      subscription: {
+        planId: effectivePlanId,
+        name: effectivePlanName,
+        price: amount > 0 ? amount : (isTitanVip ? 25000 : isPro ? 2500 : 500),
+        currency: 'NGN',
+        duration: isTitanVip ? '365 Days' : '30 Days',
+        startDate: new Date().toISOString(),
+        expiryDate,
+        status: 'active',
+        paymentReference: reference,
+      },
+      updatedAt: serverTimestamp(),
+    };
+
+    await setDoc(userDocRef, userUpdates, { merge: true });
+
+    // 2. Write permanent record into userSubscriptions
+    const subRecordRef = doc(db, 'userSubscriptions', `sub_${reference}`);
+    await setDoc(subRecordRef, {
+      subscriptionId: `sub_${reference}`,
+      userId: targetUid,
+      userName: userName || existingData.name || 'Grobax Scholar',
+      userEmail: userEmail || existingData.email || '',
+      planId: effectivePlanId,
+      planNameSnapshot: effectivePlanName,
+      priceSnapshot: amount > 0 ? amount : (isTitanVip ? 25000 : isPro ? 2500 : 500),
+      currencySnapshot: 'NGN',
+      durationSnapshot: isTitanVip ? '365 Days' : '30 Days',
+      startDate: new Date().toISOString(),
+      expiryDate,
+      status: 'active',
+      paymentReference: reference,
+      channel,
+      isVip: isTitanVip,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+
+    // 3. Create celebration notification for scholar
+    try {
+      const notifRef = doc(collection(db, 'notifications'));
+      await setDoc(notifRef, {
+        id: notifRef.id,
+        userId: targetUid,
+        title: isTitanVip ? '👑 VIP Scholar Status Activated!' : '✨ Premium Plan Activated!',
+        message: `Your payment was confirmed. You are now upgraded to ${effectivePlanName} with full platform privileges active immediately.`,
+        type: 'subscription',
+        read: false,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (nErr) {
+      console.warn('Notice writing activation notification:', nErr);
+    }
+
+    return {
+      success: true,
+      planName: effectivePlanName,
+      isVip: isTitanVip,
+      expiryDate,
+    };
+  } catch (err: any) {
+    console.error('Error activating user subscription in Firestore:', err);
+    return {
+      success: false,
+      error: err?.message || 'Failed to activate subscription.',
+    };
   }
 };
 

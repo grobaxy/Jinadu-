@@ -3,6 +3,7 @@ import {
   ChatroomLiveQuestion,
   UserRole,
 } from '../../../types';
+import { TwitterVerifiedBadge, PremiumPackageBadge } from '../../ui/UserBadgeItem';
 import {
   Flame,
   Clock,
@@ -197,6 +198,12 @@ export const ChatroomLiveQuestionCard: React.FC<ChatroomLiveQuestionCardProps> =
             {Array.from({ length: maxWinners }).map((_, idx) => {
               const winner = winners[idx];
               if (winner) {
+                const isWinnerVip = Boolean(
+                  winner.isVip ||
+                  (winner.membershipTier && (winner.membershipTier.toLowerCase().includes('vip') || winner.membershipTier.toLowerCase().includes('titan')))
+                );
+                const isWinnerPremium = Boolean(isWinnerVip || winner.isPremium || winner.membershipTier);
+
                 return (
                   <div
                     key={`winner-${winner.userId}-${idx}`}
@@ -209,9 +216,22 @@ export const ChatroomLiveQuestionCard: React.FC<ChatroomLiveQuestionCardProps> =
                         className="w-7 h-7 rounded-full object-cover ring-2 ring-amber-400 shrink-0"
                       />
                       <div className="min-w-0 truncate">
-                        <div className="text-xs font-black text-white truncate flex items-center gap-1">
-                          <span>{winner.userName}</span>
-                          <Crown className="w-3 h-3 text-amber-400 shrink-0" />
+                        <div className="text-xs font-black text-white truncate flex items-center gap-1 flex-wrap">
+                          <span className={isWinnerVip ? 'text-amber-300 font-black' : 'text-white'}>
+                            {winner.userName}
+                          </span>
+                          {isWinnerPremium && (
+                            <TwitterVerifiedBadge
+                              className="w-3.5 h-3.5"
+                              title={isWinnerVip ? 'VIP Verified Grobax Scholar' : 'Verified Grobax Scholar'}
+                            />
+                          )}
+                          {isWinnerPremium && (
+                            <PremiumPackageBadge
+                              tier={winner.membershipTier || (isWinnerVip ? 'VIP SCHOLAR' : 'PREMIUM')}
+                              isVip={isWinnerVip}
+                            />
+                          )}
                         </div>
                         <div className="text-[10px] text-amber-300/80 truncate">
                           {winner.institution}

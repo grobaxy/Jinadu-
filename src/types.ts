@@ -733,6 +733,7 @@ export interface UserProfile {
   plan?: string;
   isSubscribed?: boolean;
   isPremium?: boolean;
+  isVip?: boolean;
   dailyQaUsage?: {
     date: string;
     count: number;
@@ -2198,6 +2199,8 @@ export interface ChatroomLiveMessage {
   department?: string;
   level?: string;
   isPremium: boolean;
+  isVip?: boolean;
+  membershipTier?: string;
   equippedBadge?: UserEquippedBadge;
   messageText: string;
   timestamp: number; // ms
@@ -2227,6 +2230,8 @@ export interface ChatroomLiveMessage {
       userAvatar?: string;
       institution?: string;
       isPremium?: boolean;
+      isVip?: boolean;
+      membershipTier?: string;
       submittedAt?: number;
       gpAwarded?: number;
     }>;

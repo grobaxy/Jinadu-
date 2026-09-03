@@ -33,6 +33,7 @@ import {
   Shield,
   ArrowUpRight,
   HelpCircle,
+  Crown,
 } from 'lucide-react';
 
 // Web Audio API synthesizer for message chimes
@@ -92,13 +93,17 @@ export const ChatroomLiveView: React.FC = () => {
 
   const isVIP =
     !isStaffOrAdmin &&
-    (membership.includes('vip') ||
+    Boolean(
+      currentUser?.isVip ||
+      currentUser?.gusTier === 'Titan' ||
+      membership.includes('vip') ||
       membership.includes('titan') ||
       subTier.includes('vip') ||
       subTier.includes('titan') ||
       plan.includes('vip') ||
       plan.includes('titan') ||
-      plan.includes('annual'));
+      plan.includes('annual')
+    );
 
   const isPremium =
     !isStaffOrAdmin &&
@@ -348,6 +353,8 @@ export const ChatroomLiveView: React.FC = () => {
       department: currentUser.department,
       level: currentUser.level,
       isPremium: isVIP || isPremium || isStaffOrAdmin,
+      isVip: isVIP,
+      membershipTier: isVIP ? 'VIP SCHOLAR' : isPremium ? 'PREMIUM SCHOLAR' : isStaffOrAdmin ? 'VIP SCHOLAR' : undefined,
       messageText: text,
       timestamp: Date.now(),
       type: 'normal',
@@ -412,12 +419,28 @@ export const ChatroomLiveView: React.FC = () => {
           <div className={`hidden lg:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition ${
             isStaffOrAdmin
               ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20'
+              : isVIP
+              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+              : isPremium
+              ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30'
               : isLimitReached
               ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30'
               : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
           }`}>
             {isStaffOrAdmin ? (
               <span>Unlimited responses (Admin)</span>
+            ) : isVIP ? (
+              <span className="flex items-center gap-1">
+                <Crown className="w-3 h-3 text-amber-500 shrink-0" />
+                <span className="font-bold text-amber-600 dark:text-amber-400">VIP Scholar:</span>
+                <span>{dailyResponseCount} / {maxDailyLimit} today</span>
+              </span>
+            ) : isPremium ? (
+              <span className="flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-blue-500 shrink-0" />
+                <span className="font-bold text-blue-600 dark:text-blue-400">Premium:</span>
+                <span>{dailyResponseCount} / {maxDailyLimit} today</span>
+              </span>
             ) : (
               <span>
                 {dailyResponseCount} / {maxDailyLimit} responses used today

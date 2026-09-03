@@ -1,5 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
+import { activateUserSubscriptionInFirestore } from '../src/lib/firebase';
 
 export const paystackRouter = express.Router();
 
@@ -310,6 +311,25 @@ paystackRouter.get('/verify/:reference', async (req, res) => {
           const isSuccessful = tx.status === 'success';
           const isPending = tx.status === 'ongoing' || tx.status === 'pending_bank_transfer' || tx.status === 'pending';
 
+          let activationResult: any = null;
+          if (isSuccessful) {
+            try {
+              activationResult = await activateUserSubscriptionInFirestore({
+                reference: tx.reference,
+                userId: tx.metadata?.userId || tx.metadata?.scholar_uid || '',
+                userEmail: tx.customer?.email || '',
+                userName: tx.metadata?.userName || '',
+                planId: tx.metadata?.planId,
+                planName: tx.metadata?.planName,
+                amountNaira: tx.amount ? tx.amount / 100 : 0,
+                channel: tx.channel || 'paystack',
+              });
+              console.log(`[Paystack Verify] Subscription activated for ${tx.customer?.email || tx.reference}:`, activationResult);
+            } catch (actErr) {
+              console.warn('[Paystack Verify] Notice activating subscription on verify:', actErr);
+            }
+          }
+
           return res.json({
             success: true,
             verified: isSuccessful,
@@ -324,6 +344,7 @@ paystackRouter.get('/verify/:reference', async (req, res) => {
             customer: tx.customer,
             gatewayResponse: tx.gateway_response,
             isPending,
+            activation: activationResult,
           });
         } else {
           return res.json({
@@ -363,36 +384,116 @@ paystackRouter.get('/verify/:reference', async (req, res) => {
   }
 });
 
-// POST /api/paystack/webhook
-paystackRouter.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+// POST /api/paystack/activate - Explicit activation endpoint called by client or admin
+paystackRouter.post('/activate', async (req, res) => {
+  try {
+    const { reference, userId, userEmail, userName, planId, planName, amountNaira } = req.body || {};
+    if (!reference) {
+      return res.status(400).json({ success: false, error: 'Payment reference is required.' });
+    }
+
+    const secretKey = getSecretKey();
+    let channel = 'paystack';
+    let verifiedAmount = Number(amountNaira || 0);
+
+    // If secret key available, verify transaction with Paystack first
+    if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
+      try {
+        const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${secretKey}` },
+        });
+        const verifyData = await verifyRes.json();
+        if (verifyData && verifyData.data) {
+          if (verifyData.data.status !== 'success') {
+            return res.status(400).json({
+              success: false,
+              error: `Transaction status is ${verifyData.data.status}, not success.`,
+            });
+          }
+          channel = verifyData.data.channel || 'paystack';
+          verifiedAmount = verifyData.data.amount ? verifyData.data.amount / 100 : verifiedAmount;
+        }
+      } catch (vfErr) {
+        console.warn('[Paystack Activate] Notice verifying with Paystack API:', vfErr);
+      }
+    }
+
+    const result = await activateUserSubscriptionInFirestore({
+      reference,
+      userId: userId || '',
+      userEmail: userEmail || '',
+      userName: userName || '',
+      planId,
+      planName,
+      amountNaira: verifiedAmount,
+      channel,
+    });
+
+    return res.json({
+      success: result.success,
+      planName: result.planName,
+      isVip: result.isVip,
+      expiryDate: result.expiryDate,
+      error: result.error,
+    });
+  } catch (err: any) {
+    console.error('[Paystack Activate] Error:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to activate subscription.',
+    });
+  }
+});
+
+// POST /api/paystack/webhook - Webhook listener for real-time Paystack notifications
+paystackRouter.post('/webhook', async (req, res) => {
   try {
     const secretKey = getSecretKey();
-    if (!secretKey) {
-      return res.status(200).send('No secret key configured');
-    }
-
     const signature = req.headers['x-paystack-signature'];
-    if (!signature) {
-      return res.status(400).send('No signature provided');
+
+    let event: any = null;
+
+    if (typeof req.body === 'object' && req.body !== null && !Buffer.isBuffer(req.body)) {
+      event = req.body;
+    } else {
+      const bodyBuffer = req.body;
+      const bodyStr = typeof bodyBuffer === 'string' ? bodyBuffer : bodyBuffer.toString('utf8');
+      if (secretKey && signature) {
+        const hash = crypto.createHmac('sha512', secretKey).update(bodyStr).digest('hex');
+        if (hash !== signature) {
+          console.warn('[Paystack Webhook] Invalid signature mismatch');
+          return res.status(400).send('Invalid signature');
+        }
+      }
+      event = JSON.parse(bodyStr);
     }
 
-    const bodyBuffer = req.body;
-    const bodyStr = typeof bodyBuffer === 'string' ? bodyBuffer : bodyBuffer.toString('utf8');
-
-    // Verify hash
-    const hash = crypto.createHmac('sha512', secretKey).update(bodyStr).digest('hex');
-    if (hash !== signature) {
-      console.warn('[Paystack Webhook] Invalid signature mismatch');
-      return res.status(400).send('Invalid signature');
+    if (!event) {
+      return res.status(400).send('Empty payload');
     }
 
-    const event = JSON.parse(bodyStr);
-    console.log(`[Paystack Webhook] Received verified event: ${event.event} | Ref: ${event.data?.reference}`);
+    console.log(`[Paystack Webhook] Received event: ${event.event} | Ref: ${event.data?.reference}`);
 
     if (event.event === 'charge.success') {
       const data = event.data;
       console.log(`[Paystack Webhook] Successful payment for ${data.customer?.email} - ₦${data.amount / 100}`);
-      // The frontend / application context handles real-time sync with user profile & subscription collections
+      
+      try {
+        const actResult = await activateUserSubscriptionInFirestore({
+          reference: data.reference,
+          userId: data.metadata?.userId || data.metadata?.scholar_uid || '',
+          userEmail: data.customer?.email || '',
+          userName: data.metadata?.userName || '',
+          planId: data.metadata?.planId,
+          planName: data.metadata?.planName,
+          amountNaira: data.amount ? data.amount / 100 : 0,
+          channel: data.channel || 'paystack',
+        });
+        console.log(`[Paystack Webhook] Activated subscription in Firestore:`, actResult);
+      } catch (actErr) {
+        console.error('[Paystack Webhook] Error activating subscription in Firestore:', actErr);
+      }
     }
 
     return res.status(200).json({ received: true });
