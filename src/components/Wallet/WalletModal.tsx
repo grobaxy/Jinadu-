@@ -689,20 +689,6 @@ export const WalletModal: React.FC = () => {
                     <Edit className="w-3.5 h-3.5" />
                     <span>{isEditingProfile ? 'Close Editor' : 'Edit Profile'}</span>
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const achievementEl = document.getElementById('scholar-achievements-section');
-                      if (achievementEl) {
-                        achievementEl.scrollIntoView({ behavior: 'smooth' });
-                      }
-                    }}
-                    className="flex-1 md:flex-initial px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                    <span>View Honours</span>
-                  </button>
                 </div>
               </div>
 
@@ -896,113 +882,6 @@ export const WalletModal: React.FC = () => {
                           className="text-blue-600 dark:text-blue-400 font-black hover:underline cursor-pointer"
                         >
                           Edit Details →
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* PILLAR 3: Daily Ultimate Search (GUS) & Arena Standing */}
-                    <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[260px] space-y-4">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-xs font-black uppercase tracking-wider">
-                            <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                            <span>GUS Arena & Campus League</span>
-                          </div>
-                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 text-[10px] font-black uppercase">
-                            Season Live
-                          </span>
-                        </div>
-
-                        <div>
-                          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                            {currentUser.gusTier || 'Diamond Scholar Tier'}
-                          </div>
-                          <div className="text-xs font-bold text-amber-600 dark:text-amber-400 mt-0.5">
-                            #{currentUser.gusRank || 1} Institutional Campus Rank
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-2.5 text-center">
-                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Accuracy</div>
-                            <div className="text-sm font-black text-emerald-600 dark:text-emerald-400 mt-0.5">98.4%</div>
-                          </div>
-                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Dome Sessions</div>
-                            <div className="text-sm font-black text-blue-600 dark:text-blue-400 mt-0.5">24 Matches</div>
-                          </div>
-                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Active Streak</div>
-                            <div className="text-sm font-black text-amber-600 dark:text-amber-400 mt-0.5">7 Days</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
-                        <span className="text-slate-500 dark:text-slate-400 font-medium">Inter-university qualification matches open</span>
-                        <button
-                          type="button"
-                          onClick={() => setIsWalletModalOpen(false)}
-                          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-700 cursor-pointer"
-                        >
-                          Enter Quizzes
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* PILLAR 4: Academic Privileges & Membership Tier */}
-                    <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[260px] space-y-4">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-800 text-xs font-black uppercase tracking-wider">
-                            <Crown className="w-3.5 h-3.5 text-purple-500" />
-                            <span>Scholar Privileges & Membership</span>
-                          </div>
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                            isUserSubscribed
-                              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                          }`}>
-                            {currentUser.membershipTier || 'Free Scholar'}
-                          </span>
-                        </div>
-
-                        <div>
-                          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                            {isUserSubscribed ? 'Premium Academic Standing' : 'Standard Scholar Plan'}
-                          </div>
-                          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
-                            {isUserSubscribed ? 'Active verified campus benefits and high-speed cash-out access.' : 'Upgrade to Pro or Master to unlock 2x Quiz GP Multipliers.'}
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 font-semibold">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                            <span>{isUserSubscribed ? '2.0x GP Reward Multiplier on all correct quizzes' : '1.0x Base GP Quiz Rewards'}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                            <span>Instant Zero-Fee VTU Airtime & MTN/GLO Data access</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                            <span>Equippable Trophy Cabinet & Public Leaderboard badges</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                          {isUserSubscribed ? 'Plan Active & Synced' : 'Ready for advancement'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setActiveTab('upgrade')}
-                          className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                        >
-                          <Crown className="w-3.5 h-3.5" />
-                          <span>{isUserSubscribed ? 'Manage Tier' : 'Upgrade Plan'}</span>
                         </button>
                       </div>
                     </div>
@@ -1214,33 +1093,8 @@ export const WalletModal: React.FC = () => {
                   const progressToMinWithdraw = Math.min(100, Math.round((rawGp / effectiveMinGp) * 100));
 
                   return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {/* Milestone 1: GUS Arena Record */}
-                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
-                            <Trophy className="w-3.5 h-3.5" />
-                            GUS Arena
-                          </span>
-                          <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-[10px] font-black">
-                            Season Live
-                          </span>
-                        </div>
-                        <div>
-                          <div className="text-lg font-black text-slate-900 dark:text-white">
-                            {currentUser.gusTier || 'Scholar Tier'}
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-                            #{currentUser.gusRank || 1} Campus League Rank
-                          </div>
-                        </div>
-                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1 font-medium">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                          <span>100% Verified Quiz Accuracy</span>
-                        </div>
-                      </div>
-
-                      {/* Milestone 2: GP Treasury & Cash Out Qualification */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* Milestone 1: GP Treasury & Cash Out Qualification */}
                       <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">

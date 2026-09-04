@@ -70,6 +70,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
   const [copiedAccount, setCopiedAccount] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
   const [copiedUssd, setCopiedUssd] = useState(false);
+  const [hasLaunchedCheckout, setHasLaunchedCheckout] = useState(false);
 
   // Real Dedicated Bank Transfer Account from Paystack API
   const [transferAccount, setTransferAccount] = useState<PaystackTransferAccountResponse | null>(null);
@@ -264,16 +265,15 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
     };
   }, [plan.planId, plan.name, stopPolling]);
 
-  // Background Verification Polling: automatically checks every 3.5 seconds across all active transaction refs
+  // Background Verification Polling: automatically checks every 2.5s and on window focus/visibility
   useEffect(() => {
     const targetRefs = Array.from(
       new Set([reference, cardRef, transferAccount?.reference].filter(Boolean) as string[])
     );
     if (targetRefs.length === 0 || paymentStep === 'success') return;
 
-    const interval = setInterval(async () => {
+    const checkAllRefs = async () => {
       if (!isPollingRef.current) return;
-
       for (const curRef of targetRefs) {
         try {
           const verifyRes = await verifyPaystackTransaction(curRef);
@@ -295,12 +295,29 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
           // Polling checks silently fail without blocking UI
         }
       }
-    }, 3500);
+    };
 
+    // Fast 2.5s polling loop
+    const interval = setInterval(checkAllRefs, 2500);
     pollTimerRef.current = interval;
+
+    // Instant verification when user returns from Paystack browser window
+    const handleFocus = () => {
+      checkAllRefs();
+    };
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        checkAllRefs();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [reference, cardRef, transferAccount?.reference, paymentStep, onSuccess, stopPolling]);
 
@@ -443,8 +460,10 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
 
       if (initRes.authorization_url) {
         setAuthUrl(initRes.authorization_url);
+        setHasLaunchedCheckout(true);
         window.open(initRes.authorization_url, '_blank', 'noopener,noreferrer');
       } else if (authUrl) {
+        setHasLaunchedCheckout(true);
         window.open(authUrl, '_blank', 'noopener,noreferrer');
       } else {
         setErrorMsg('Could not open Paystack checkout window. Please try Bank Transfer or refresh.');
@@ -452,6 +471,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
     } catch (err: any) {
       console.warn('Card popup launcher error, opening hosted window:', err);
       if (authUrl) {
+        setHasLaunchedCheckout(true);
         window.open(authUrl, '_blank', 'noopener,noreferrer');
       } else {
         setErrorMsg('Could not open Paystack popup. Please use Bank Transfer or click the Web Checkout button.');
@@ -902,33 +922,90 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                 </p>
               </div>
 
-              {/* Card Launch Button */}
-              <button
-                type="button"
-                onClick={handleLaunchCardCheckout}
-                disabled={isLaunchingPopup || isVerifying}
-                className="w-full py-4 rounded-xl bg-[#00C3F7] hover:bg-[#00a8d6] text-[#011b33] text-xs font-black shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-60"
-              >
-                {isLaunchingPopup ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Opening Paystack Secure Checkout...</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    <span>Pay ₦{plan.priceNaira.toLocaleString()}.00 with Card</span>
-                  </>
-                )}
-              </button>
+              {/* Live Payment Verification Sensor Box (Shown once checkout is launched) */}
+              {hasLaunchedCheckout ? (
+                <div className="p-4 rounded-2xl bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/30 space-y-3 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      </span>
+                      <span className="text-xs font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">
+                        Live Payment Detector Active
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                      Auto-Checking
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                    Complete your payment on the Paystack checkout window. Once paid, this screen will automatically detect it and instantly activate your <strong>{plan.name}</strong> subscription!
+                  </p>
+
+                  {/* Primary Verify Button */}
+                  <button
+                    type="button"
+                    onClick={handleManualVerify}
+                    disabled={isVerifying}
+                    className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-60"
+                  >
+                    {isVerifying ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                        <span>Verifying with Paystack...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                        <span>I Have Completed Payment (Verify Now)</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Secondary Reopen Button */}
+                  <button
+                    type="button"
+                    onClick={handleLaunchCardCheckout}
+                    disabled={isLaunchingPopup || isVerifying}
+                    className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Reopen Paystack Checkout Window</span>
+                  </button>
+                </div>
+              ) : (
+                /* Card Launch Button */
+                <button
+                  type="button"
+                  onClick={handleLaunchCardCheckout}
+                  disabled={isLaunchingPopup || isVerifying}
+                  className="w-full py-4 rounded-xl bg-[#00C3F7] hover:bg-[#00a8d6] text-[#011b33] text-xs font-black shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-60"
+                >
+                  {isLaunchingPopup ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Opening Paystack Secure Checkout...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Pay ₦{plan.priceNaira.toLocaleString()}.00 with Card</span>
+                    </>
+                  )}
+                </button>
+              )}
 
               {/* Fallback Hosted Link */}
-              {authUrl && (
+              {authUrl && !hasLaunchedCheckout && (
                 <div className="text-center">
                   <button
                     type="button"
-                    onClick={() => window.open(authUrl, '_blank', 'noopener,noreferrer')}
-                    className="text-xs text-slate-500 dark:text-slate-400 hover:text-[#00C3F7] inline-flex items-center gap-1 transition"
+                    onClick={() => {
+                      setHasLaunchedCheckout(true);
+                      window.open(authUrl, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="text-xs text-slate-500 dark:text-slate-400 hover:text-[#00C3F7] inline-flex items-center gap-1 transition cursor-pointer"
                   >
                     <span>Prefer Paystack's full browser window?</span>
                     <ExternalLink className="w-3 h-3" />
