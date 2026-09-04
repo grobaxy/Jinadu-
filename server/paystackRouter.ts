@@ -58,6 +58,17 @@ paystackRouter.post('/initialize', async (req, res) => {
     const secretKey = getSecretKey();
     const publicKey = getPublicKey();
 
+    // Determine return callback URL so Paystack redirects back to the app with the verified reference
+    let resolvedCallback = callbackUrl;
+    if (!resolvedCallback) {
+      try {
+        const clientOrigin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : '');
+        if (clientOrigin) {
+          resolvedCallback = `${clientOrigin}/?reference=${reference}&planId=${encodeURIComponent(planId || '')}`;
+        }
+      } catch {}
+    }
+
     // If live/test secret key is provided, initialize directly with Paystack API
     if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
       try {
@@ -72,20 +83,23 @@ paystackRouter.post('/initialize', async (req, res) => {
             amount: amountInKobo,
             reference,
             currency: 'NGN',
-            callback_url: callbackUrl || undefined,
+            callback_url: resolvedCallback || undefined,
             channels: ['card', 'bank', 'bank_transfer', 'ussd', 'qr', 'mobile_money'],
             metadata: {
-              userId,
-              userName,
-              planId,
-              planName,
+              userId: userId || 'scholar',
+              scholar_uid: userId || 'scholar',
+              userName: userName || 'Scholar',
+              userEmail: cleanEmail,
+              planId: planId || 'premium_1m',
+              planName: planName || 'Premium',
               amountNaira: Number(amountNaira),
               platform: 'grobax_web',
+              timestamp: Date.now(),
               custom_fields: [
                 {
                   display_name: 'Plan Name',
                   variable_name: 'plan_name',
-                  value: planName || 'Grobaax Membership',
+                  value: planName || 'Premium',
                 },
                 {
                   display_name: 'Scholar UID',
@@ -195,12 +209,15 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
             account_expires_at: null,
           },
           metadata: {
-            userId,
-            userName,
-            planId,
-            planName,
+            userId: userId || 'scholar',
+            scholar_uid: userId || 'scholar',
+            userName: userName || 'Scholar',
+            userEmail: cleanEmail,
+            planId: planId || 'premium_1m',
+            planName: planName || 'Premium',
             amountNaira: Number(amountNaira),
             platform: 'grobax_web',
+            timestamp: Date.now(),
           },
         }),
       });
@@ -247,12 +264,15 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
         currency: 'NGN',
         channels: ['bank_transfer', 'card', 'bank', 'ussd'],
         metadata: {
-          userId,
-          userName,
-          planId,
-          planName,
+          userId: userId || 'scholar',
+          scholar_uid: userId || 'scholar',
+          userName: userName || 'Scholar',
+          userEmail: cleanEmail,
+          planId: planId || 'premium_1m',
+          planName: planName || 'Premium',
           amountNaira: Number(amountNaira),
           platform: 'grobax_web',
+          timestamp: Date.now(),
         },
       }),
     });
@@ -500,5 +520,71 @@ paystackRouter.post('/webhook', async (req, res) => {
   } catch (err: any) {
     console.error('[Paystack Webhook] Error:', err);
     return res.status(500).send('Webhook handler error');
+  }
+});
+
+// GET /api/paystack/sensor-status?reference=...&email=...&userId=...
+paystackRouter.get('/sensor-status', async (req, res) => {
+  try {
+    const reference = ((req.query.reference as string) || '').trim();
+    const email = ((req.query.email as string) || '').trim();
+    const userId = ((req.query.userId as string) || '').trim();
+
+    if (reference) {
+      const secretKey = getSecretKey();
+      if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
+        try {
+          const resp = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+            headers: {
+              Authorization: `Bearer ${secretKey}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          const json = await resp.json();
+          if (json && json.status && json.data) {
+            const tx = json.data;
+            const isSuccess = tx.status === 'success';
+            let activationResult = null;
+            if (isSuccess) {
+              try {
+                activationResult = await activateUserSubscriptionInFirestore({
+                  reference: tx.reference,
+                  userId: tx.metadata?.userId || tx.metadata?.scholar_uid || userId || '',
+                  userEmail: tx.customer?.email || email || '',
+                  userName: tx.metadata?.userName || '',
+                  planId: tx.metadata?.planId,
+                  planName: tx.metadata?.planName,
+                  amountNaira: tx.amount ? tx.amount / 100 : 0,
+                  channel: tx.channel || 'paystack',
+                });
+              } catch (actErr) {
+                console.warn('[Sensor Status] Firestore activation notice:', actErr);
+              }
+            }
+            return res.json({
+              success: true,
+              verified: isSuccess,
+              status: tx.status,
+              reference: tx.reference,
+              amountNaira: tx.amount ? tx.amount / 100 : 0,
+              planId: tx.metadata?.planId,
+              planName: tx.metadata?.planName,
+              customer: tx.customer,
+              activation: activationResult,
+            });
+          }
+        } catch (e: any) {
+          console.warn('[Paystack Sensor Status] Verify error:', e);
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      verified: false,
+      status: 'idle',
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });

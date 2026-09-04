@@ -1692,7 +1692,7 @@ export const MOCK_GP_CONVERSION: GpConversionConfig = {
   maximumWithdrawalGP: 500000,
   withdrawalFeeGP: 0,
   rules: [
-    'Minimum cash out withdrawal threshold is 1,000 GP (₦1,000 NGN).',
+    'Minimum cash out withdrawal threshold is 1,000 GP.',
     'Official Platform Conversion Rate: 1 GP = ₦1 NGN.',
     'Withdrawal requests are processed directly to your verified Nigerian bank account within 24-48 business hours.',
     'Bank account name must match your verified Grobaax profile details.',

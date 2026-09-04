@@ -4759,7 +4759,7 @@ export const DEFAULT_GP_CONVERSION: GpConversionConfig = {
   maximumWithdrawalGP: 500000,
   withdrawalFeeGP: 0,
   rules: [
-    'Minimum cash out withdrawal threshold is 1,000 GP (₦1,000 NGN).',
+    'Minimum cash out withdrawal threshold is 1,000 GP.',
     'Official Conversion Rate: 1 GP = ₦1 NGN.',
     'Withdrawal requests are processed directly to your verified Nigerian bank account within 24-48 business hours.',
     'Bank account name must match your verified Grobaax profile details.',
@@ -8319,25 +8319,29 @@ export const activateUserSubscriptionInFirestore = async (
     let targetUid = userId;
 
     // If userId not provided or looks like placeholder, lookup by email
-    if (!targetUid || targetUid === 'guest' || targetUid === 'unknown') {
+    if (!targetUid || targetUid === 'guest' || targetUid === 'unknown' || targetUid === 'scholar') {
       if (userEmail) {
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('email', '==', userEmail.trim().toLowerCase()), limit(1));
-        const qSnap = await getDocs(q);
-        if (!qSnap.empty) {
-          targetUid = qSnap.docs[0].id;
+        try {
+          const usersRef = collection(db, 'users');
+          const q = query(usersRef, where('email', '==', userEmail.trim().toLowerCase()), limit(1));
+          const qSnap = await getDocs(q);
+          if (!qSnap.empty) {
+            targetUid = qSnap.docs[0].id;
+          }
+        } catch (findErr) {
+          console.warn('[Firebase] Notice looking up user by email:', findErr);
         }
       }
     }
 
-    if (!targetUid) {
-      throw new Error(`Target scholar could not be identified for email ${userEmail}`);
+    if (!targetUid || targetUid === 'guest' || targetUid === 'unknown') {
+      targetUid = userId || (userEmail ? userEmail.replace(/[^a-zA-Z0-9]/g, '_') : 'scholar');
     }
 
     // Determine plan specifics
     const amount = Number(amountNaira || 0);
-    const pId = (rawPlanId || '').toLowerCase();
-    const pName = (rawPlanName || '').toLowerCase();
+    const pId = (rawPlanId || '').toLowerCase().trim();
+    const pName = (rawPlanName || '').toLowerCase().trim();
 
     const isTitanVip =
       pId.includes('titan') ||
@@ -8349,15 +8353,29 @@ export const activateUserSubscriptionInFirestore = async (
 
     const isPro = !isTitanVip && (pId.includes('pro') || pName.includes('pro') || pName.includes('champion') || amount >= 2000);
 
-    const effectivePlanId = isTitanVip ? 'plan_titan_naira' : isPro ? 'plan_pro_naira' : 'plan_basic_naira';
-    const effectivePlanName = isTitanVip ? 'Grobaax Titan Annual VIP' : isPro ? 'Champions Pro Scholar' : 'Scholar Starter Plan';
-    const durationDays = isTitanVip ? 365 : 30;
+    // CRITICAL: Preserve exact plan name and ID if provided by user/admin/catalog
+    const effectivePlanId = rawPlanId && rawPlanId.trim() !== ''
+      ? rawPlanId.trim()
+      : isTitanVip ? 'plan_titan_naira' : isPro ? 'plan_pro_naira' : 'plan_premium';
+
+    const effectivePlanName = rawPlanName && rawPlanName.trim() !== ''
+      ? rawPlanName.trim()
+      : isTitanVip ? 'VIP' : isPro ? 'Champions Pro Scholar' : 'Premium';
+
+    const durationDays = isTitanVip && (pName.includes('annual') || pId.includes('annual') || amount >= 20000) ? 365 : 30;
     const expiryDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
     // 1. Update user profile document in Firestore
     const userDocRef = doc(db, 'users', targetUid);
-    const userSnap = await getDoc(userDocRef);
-    const existingData = userSnap.exists() ? userSnap.data() : {};
+    let existingData: any = {};
+    try {
+      const userSnap = await getDoc(userDocRef);
+      if (userSnap.exists()) {
+        existingData = userSnap.data();
+      }
+    } catch (getErr) {
+      console.warn('[Firebase] Notice fetching existing user doc:', getErr);
+    }
 
     const userUpdates: any = {
       activePlanId: effectivePlanId,
@@ -8376,9 +8394,9 @@ export const activateUserSubscriptionInFirestore = async (
       subscription: {
         planId: effectivePlanId,
         name: effectivePlanName,
-        price: amount > 0 ? amount : (isTitanVip ? 25000 : isPro ? 2500 : 500),
+        price: amount > 0 ? amount : (isTitanVip ? 800 : isPro ? 2500 : 100),
         currency: 'NGN',
-        duration: isTitanVip ? '365 Days' : '30 Days',
+        duration: isTitanVip && (pName.includes('annual') || amount >= 20000) ? '365 Days' : '1 Months',
         startDate: new Date().toISOString(),
         expiryDate,
         status: 'active',
@@ -8398,9 +8416,9 @@ export const activateUserSubscriptionInFirestore = async (
       userEmail: userEmail || existingData.email || '',
       planId: effectivePlanId,
       planNameSnapshot: effectivePlanName,
-      priceSnapshot: amount > 0 ? amount : (isTitanVip ? 25000 : isPro ? 2500 : 500),
+      priceSnapshot: amount > 0 ? amount : (isTitanVip ? 800 : isPro ? 2500 : 100),
       currencySnapshot: 'NGN',
-      durationSnapshot: isTitanVip ? '365 Days' : '30 Days',
+      durationSnapshot: isTitanVip && (pName.includes('annual') || amount >= 20000) ? '365 Days' : '1 Months',
       startDate: new Date().toISOString(),
       expiryDate,
       status: 'active',

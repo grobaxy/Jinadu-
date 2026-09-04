@@ -19,6 +19,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { SubscriptionPlan } from '../../types';
+import { useApp } from '../../context/AppContext';
 import {
   initializePaystackTransaction,
   verifyPaystackTransaction,
@@ -44,10 +45,12 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
   onSuccess,
   onClose,
 }) => {
+  const { registerPendingPayment, triggerSubscriptionSensorCheck } = useApp();
   // Channels: 'transfer' (default & recommended for Nigeria), 'card', 'ussd'
   const [activeChannel, setActiveChannel] = useState<'transfer' | 'card' | 'ussd'>('transfer');
   const [email, setEmail] = useState(userEmail || 'scholar@grobaax.org');
   const [reference, setReference] = useState('');
+  const [cardRef, setCardRef] = useState('');
   const [authUrl, setAuthUrl] = useState('');
   const [publicKey, setPublicKey] = useState('');
 
@@ -112,6 +115,14 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
         setTransferAccount(res);
         if (res.reference) {
           setReference(res.reference);
+          registerPendingPayment({
+            reference: res.reference,
+            plan,
+            userId,
+            userName,
+            userEmail: email,
+            channel: 'bank_transfer',
+          });
           try {
             localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
               reference: res.reference,
@@ -130,6 +141,14 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
         setAuthUrl(res.authorization_url);
         if (res.reference) {
           setReference(res.reference);
+          registerPendingPayment({
+            reference: res.reference,
+            plan,
+            userId,
+            userName,
+            userEmail: email,
+            channel: 'bank_transfer_url',
+          });
           try {
             localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
               reference: res.reference,
@@ -148,7 +167,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
     } finally {
       setIsGeneratingAccount(false);
     }
-  }, [plan.planId, plan.name, plan.priceNaira, email, userId, userName]);
+  }, [plan, email, userId, userName, registerPendingPayment]);
 
   // Initialize transaction and load Paystack script on mount
   useEffect(() => {
@@ -175,12 +194,21 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
         if (isMounted) {
           if (initRes.success && initRes.reference) {
             setReference(initRes.reference);
+            setCardRef(initRes.reference);
             if (initRes.authorization_url) {
               setAuthUrl(initRes.authorization_url);
             }
             if (initRes.publicKey) {
               setPublicKey(initRes.publicKey);
             }
+            registerPendingPayment({
+              reference: initRes.reference,
+              plan,
+              userId,
+              userName,
+              userEmail: email,
+              channel: 'init',
+            });
             try {
               localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
                 reference: initRes.reference,
@@ -211,31 +239,61 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
       isMounted = false;
       stopPolling();
     };
-  }, [plan.planId, plan.priceNaira, fetchLiveTransferAccount, stopPolling]);
+  }, [plan, fetchLiveTransferAccount, stopPolling, registerPendingPayment, email, userId, userName]);
 
-  // Background Verification Polling: automatically checks every 3.5 seconds
+  // Global event listener: when AppContext Active Subscription Plan Sensor confirms activation, reflect immediately!
   useEffect(() => {
-    if (!reference || paymentStep === 'success') return;
+    const handleActivated = (evt: any) => {
+      const actPlan = evt?.detail?.plan;
+      if (!actPlan) return;
+      if (
+        actPlan.planId === plan.planId ||
+        actPlan.id === plan.planId ||
+        actPlan.name?.toLowerCase() === plan.name?.toLowerCase()
+      ) {
+        stopPolling();
+        setPaymentStep('success');
+        if (evt?.detail?.reference) {
+          setReference(evt.detail.reference);
+        }
+      }
+    };
+    window.addEventListener('paystack_subscription_activated', handleActivated);
+    return () => {
+      window.removeEventListener('paystack_subscription_activated', handleActivated);
+    };
+  }, [plan.planId, plan.name, stopPolling]);
+
+  // Background Verification Polling: automatically checks every 3.5 seconds across all active transaction refs
+  useEffect(() => {
+    const targetRefs = Array.from(
+      new Set([reference, cardRef, transferAccount?.reference].filter(Boolean) as string[])
+    );
+    if (targetRefs.length === 0 || paymentStep === 'success') return;
 
     const interval = setInterval(async () => {
       if (!isPollingRef.current) return;
 
-      try {
-        const verifyRes = await verifyPaystackTransaction(reference);
-        if (verifyRes && (verifyRes.verified || verifyRes.status === 'success')) {
-          stopPolling();
-          setPaymentStep('success');
-          try {
-            localStorage.removeItem('grobax_pending_paystack_sub');
-          } catch {}
-          try {
-            await onSuccess(reference);
-          } catch (onErr) {
-            console.warn('onSuccess activation notice:', onErr);
+      for (const curRef of targetRefs) {
+        try {
+          const verifyRes = await verifyPaystackTransaction(curRef);
+          if (verifyRes && (verifyRes.verified || verifyRes.status === 'success')) {
+            stopPolling();
+            setPaymentStep('success');
+            setReference(curRef);
+            try {
+              localStorage.removeItem('grobax_pending_paystack_sub');
+            } catch {}
+            try {
+              await onSuccess(curRef);
+            } catch (onErr) {
+              console.warn('onSuccess activation notice:', onErr);
+            }
+            break;
           }
+        } catch {
+          // Polling checks silently fail without blocking UI
         }
-      } catch {
-        // Polling checks silently fail without blocking UI
       }
     }, 3500);
 
@@ -244,7 +302,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
     return () => {
       clearInterval(interval);
     };
-  }, [reference, paymentStep, onSuccess, stopPolling]);
+  }, [reference, cardRef, transferAccount?.reference, paymentStep, onSuccess, stopPolling]);
 
   // Countdown timer
   useEffect(() => {
@@ -257,28 +315,42 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
 
   // Manual check payment status
   const handleManualVerify = async () => {
-    if (!reference) return;
+    const targetRefs = Array.from(
+      new Set([reference, cardRef, transferAccount?.reference].filter(Boolean) as string[])
+    );
+    if (targetRefs.length === 0) return;
     setIsVerifying(true);
     setErrorMsg('');
 
     try {
-      const verifyRes = await verifyPaystackTransaction(reference);
+      // Trigger AppContext background sensor check immediately as well
+      triggerSubscriptionSensorCheck().catch(() => {});
 
-      if (verifyRes && (verifyRes.verified || verifyRes.status === 'success')) {
-        stopPolling();
-        setPaymentStep('success');
-        try {
-          localStorage.removeItem('grobax_pending_paystack_sub');
-        } catch {}
-        try {
-          await onSuccess(reference);
-        } catch (onErr) {
-          console.warn('onSuccess activation notice:', onErr);
+      let foundSuccess = false;
+      for (const ref of targetRefs) {
+        const verifyRes = await verifyPaystackTransaction(ref);
+
+        if (verifyRes && (verifyRes.verified || verifyRes.status === 'success')) {
+          foundSuccess = true;
+          stopPolling();
+          setPaymentStep('success');
+          setReference(ref);
+          try {
+            localStorage.removeItem('grobax_pending_paystack_sub');
+          } catch {}
+          try {
+            await onSuccess(ref);
+          } catch (onErr) {
+            console.warn('onSuccess activation notice:', onErr);
+          }
+          break;
+        } else if (verifyRes && (verifyRes.isPending || verifyRes.status === 'ongoing' || verifyRes.status === 'pending_bank_transfer')) {
+          setErrorMsg('We are still waiting to receive the deposit from your bank. Bank transfers typically reflect in 10–60 seconds. We are continuing to check automatically in the background.');
         }
-      } else if (verifyRes.isPending || verifyRes.status === 'ongoing' || verifyRes.status === 'pending_bank_transfer') {
-        setErrorMsg('We are still waiting to receive the deposit from your bank. Bank transfers typically reflect in 10–60 seconds. We are continuing to check automatically in the background.');
-      } else {
-        setErrorMsg('Transfer could not be confirmed yet. Please verify that you transferred the exact amount to the account displayed.');
+      }
+
+      if (!foundSuccess && !errorMsg) {
+        setErrorMsg('Transfer could not be confirmed yet. Please ensure you sent the exact amount to the account displayed, or allow a few moments for inter-bank clearing.');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Verification connection check failed. Please check your internet connection.');
@@ -296,12 +368,13 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
       const scriptReady = await loadPaystackInlineScript();
 
       if (scriptReady && (window as any).PaystackPop && publicKey) {
+        const currentRef = cardRef || reference;
         const handler = (window as any).PaystackPop.setup({
           key: publicKey,
           email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
           amount: Math.round(plan.priceNaira * 100),
           currency: 'NGN',
-          ref: reference,
+          ref: currentRef || undefined,
           channels: ['card', 'bank', 'bank_transfer', 'ussd', 'qr'],
           metadata: {
             planId: plan.planId,
@@ -311,7 +384,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
             userName,
           },
           callback: async (response: any) => {
-            const finalRef = response?.reference || response?.trxref || reference;
+            const finalRef = response?.reference || response?.trxref || currentRef;
             stopPolling();
             setPaymentStep('success');
             setIsVerifying(false);
@@ -336,23 +409,45 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
         return;
       }
 
-      // If iframe / popup is restricted or script failed, open hosted checkout
-      if (authUrl) {
+      // Initialize a fresh checkout session to ensure valid reference & URL
+      const initRes = await initializePaystackTransaction({
+        planId: plan.planId,
+        planName: plan.name,
+        amountNaira: plan.priceNaira,
+        email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
+        userId: userId || 'scholar',
+        userName: userName || 'Scholar',
+      });
+
+      if (initRes.reference) {
+        setCardRef(initRes.reference);
+        setReference(initRes.reference);
+        registerPendingPayment({
+          reference: initRes.reference,
+          plan,
+          userId,
+          userName,
+          userEmail: email,
+          channel: 'card',
+        });
+        try {
+          localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
+            reference: initRes.reference,
+            plan,
+            userId,
+            userName,
+            timestamp: Date.now(),
+          }));
+        } catch {}
+      }
+
+      if (initRes.authorization_url) {
+        setAuthUrl(initRes.authorization_url);
+        window.open(initRes.authorization_url, '_blank', 'noopener,noreferrer');
+      } else if (authUrl) {
         window.open(authUrl, '_blank', 'noopener,noreferrer');
       } else {
-        // Initialize and open
-        const initRes = await initializePaystackTransaction({
-          planId: plan.planId,
-          planName: plan.name,
-          amountNaira: plan.priceNaira,
-          email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
-          userId: userId || 'scholar',
-          userName: userName || 'Scholar',
-        });
-        if (initRes.authorization_url) {
-          setAuthUrl(initRes.authorization_url);
-          window.open(initRes.authorization_url, '_blank', 'noopener,noreferrer');
-        }
+        setErrorMsg('Could not open Paystack checkout window. Please try Bank Transfer or refresh.');
       }
     } catch (err: any) {
       console.warn('Card popup launcher error, opening hosted window:', err);
@@ -493,6 +588,34 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-5 overflow-y-auto space-y-4 flex-1">
+          {/* Active Payment Sensor Status Radar */}
+          {paymentStep === 'checkout' && (
+            <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-left flex items-center justify-between gap-3 shadow-inner">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-black text-emerald-400 flex items-center gap-1.5 uppercase tracking-wide">
+                    <span>Active Subscription Plan Sensor</span>
+                  </div>
+                  <div className="text-[11px] text-slate-300 truncate">
+                    Listening for deposit & card completion to auto-activate {plan.name}...
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleManualVerify}
+                disabled={isVerifying}
+                className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[10px] font-black border border-emerald-500/40 shrink-0 transition cursor-pointer"
+              >
+                {isVerifying ? 'Checking...' : 'Check Sensor'}
+              </button>
+            </div>
+          )}
+
           {/* Error Message banner */}
           {errorMsg && (
             <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-start gap-2.5 animate-in fade-in">
@@ -503,23 +626,34 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
 
           {/* SUCCESS STEP */}
           {paymentStep === 'success' ? (
-            <div className="py-8 text-center space-y-4 animate-in zoom-in-95">
+            <div className="py-8 text-center space-y-5 animate-in zoom-in-95">
               <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center shadow-lg shadow-emerald-500/20">
                 <CheckCheck className="w-8 h-8 animate-bounce" />
               </div>
-              <div className="space-y-1">
-                <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                  Payment Verified Successfully!
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Subscription Plan Sensor: ACTIVATED</span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                  Welcome to {plan.name}!
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Your academic subscription upgrade to <strong>{plan.name}</strong> is now being activated.
+                <p className="text-xs text-slate-600 dark:text-slate-300 max-w-sm mx-auto leading-relaxed">
+                  Your academic plan is now active with all multiplier boosts, verified badge, and priority privileges applied.
                 </p>
                 {reference && (
-                  <p className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold mt-2">
-                    Ref: {reference}
+                  <p className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                    Transaction Ref: {reference}
                   </p>
                 )}
               </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-sm shadow-md shadow-emerald-500/25 transition cursor-pointer"
+              >
+                Access Active Plan Benefits
+              </button>
             </div>
           ) : activeChannel === 'transfer' ? (
             /* CHANNEL 1: REAL BANK TRANSFER (LIVE PAYSTACK DEDICATED ACCOUNT) */

@@ -178,6 +178,21 @@ interface AppContextType {
     paymentMethod?: 'GP' | 'CARD' | 'TRANSFER',
     paymentReference?: string
   ) => Promise<{ success: boolean; message: string }>;
+  registerPendingPayment: (data: {
+    reference: string;
+    plan: SubscriptionPlan;
+    userId?: string;
+    userName?: string;
+    userEmail?: string;
+    channel?: string;
+  }) => void;
+  activePaymentSensor: {
+    isMonitoring: boolean;
+    pendingReference: string | null;
+    planName: string | null;
+    lastCheckedAt: number | null;
+  };
+  triggerSubscriptionSensorCheck: () => Promise<void>;
   isUserSubscribed: boolean;
   isUpgradePromoVisible: boolean;
   dismissUpgradePromo: () => void;
@@ -662,6 +677,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch {}
     return DEFAULT_SUBSCRIPTION_PLANS;
+  });
+
+  // Active Subscription Plan Sensor state (tracks background polling for Paystack payments)
+  const [activePaymentSensor, setActivePaymentSensor] = useState<{
+    isMonitoring: boolean;
+    pendingReference: string | null;
+    planName: string | null;
+    lastCheckedAt: number | null;
+  }>({
+    isMonitoring: false,
+    pendingReference: null,
+    planName: null,
+    lastCheckedAt: null,
   });
 
   // Balance privacy visibility state (persisted locally)
@@ -4457,6 +4485,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         actionUrl: '#profile',
       });
 
+      // Dispatch real-time global event so all open modals (WalletModal, PaystackGatewayModal) update synchronously
+      if (typeof window !== 'undefined') {
+        try {
+          window.dispatchEvent(
+            new CustomEvent('paystack_subscription_activated', {
+              detail: { plan, reference: finalReference, amountNaira: plan.priceNaira },
+            })
+          );
+        } catch {}
+      }
+
       return {
         success: true,
         message: `Successfully upgraded to ${plan.name}! All privileges are now active.`,
@@ -4470,87 +4509,201 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Automatic Paystack Payment Verification & Activation for pending transactions and redirect callbacks
-  useEffect(() => {
-    if (!isAuthReady || !currentUser.id) return;
+  // Register a pending Paystack payment for continuous background sensor monitoring
+  const registerPendingPayment = useCallback((data: {
+    reference: string;
+    plan: SubscriptionPlan;
+    userId?: string;
+    userName?: string;
+    userEmail?: string;
+    channel?: string;
+  }) => {
+    if (!data.reference) return;
+    try {
+      const payload = {
+        reference: data.reference,
+        plan: data.plan,
+        userId: data.userId || currentUser.id || 'scholar',
+        userName: data.userName || currentUser.name || 'Scholar',
+        userEmail: data.userEmail || currentUser.email || '',
+        channel: data.channel || 'paystack',
+        timestamp: Date.now(),
+      };
+      localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify(payload));
 
-    let isMounted = true;
+      const rawRefs = localStorage.getItem('grobax_pending_references');
+      const refs: string[] = rawRefs ? JSON.parse(rawRefs) : [];
+      if (!refs.includes(data.reference)) {
+        refs.push(data.reference);
+        localStorage.setItem('grobax_pending_references', JSON.stringify(refs.slice(-6)));
+      }
 
-    async function checkPendingPaystackPayment() {
+      setActivePaymentSensor({
+        isMonitoring: true,
+        pendingReference: data.reference,
+        planName: data.plan.name,
+        lastCheckedAt: Date.now(),
+      });
+      console.log(`[Sensor] Registered pending payment reference: ${data.reference} (${data.plan.name})`);
+    } catch (err) {
+      console.warn('Error registering pending payment in sensor:', err);
+    }
+  }, [currentUser.id, currentUser.name, currentUser.email]);
+
+  // Active Subscription Plan Sensor:
+  // Continuous real-time listener and poller that detects customer payments (Bank Transfer & Card Checkout)
+  // and immediately activates their subscription across the application and Firestore.
+  const runSubscriptionSensorCheck = useCallback(async () => {
+    try {
+      // 1. Check URL search parameters (?reference=..., ?trxref=..., ?paystack_verify=...)
+      let urlRef = '';
+      let urlPlanId = '';
+      if (typeof window !== 'undefined' && window.location && window.location.search) {
+        const params = new URLSearchParams(window.location.search);
+        urlRef = params.get('reference') || params.get('trxref') || params.get('paystack_verify') || '';
+        urlPlanId = params.get('planId') || '';
+      }
+
+      // 2. Check localStorage pending item
+      let pendingData: any = null;
       try {
-        // 1. Check URL search parameters (e.g. redirect callback from Paystack: ?reference=... or ?trxref=...)
-        let urlRef = '';
-        if (typeof window !== 'undefined' && window.location && window.location.search) {
-          const params = new URLSearchParams(window.location.search);
-          urlRef = params.get('reference') || params.get('trxref') || '';
+        const raw = localStorage.getItem('grobax_pending_paystack_sub');
+        if (raw) {
+          pendingData = JSON.parse(raw);
         }
+      } catch {}
 
-        // 2. Check localStorage for pending checkout
-        let pendingData: any = null;
+      // 3. Check list of recent references
+      let recentRefs: string[] = [];
+      try {
+        const rawRefs = localStorage.getItem('grobax_pending_references');
+        if (rawRefs) recentRefs = JSON.parse(rawRefs);
+      } catch {}
+
+      const refsToTest = Array.from(
+        new Set([urlRef, pendingData?.reference, ...recentRefs].filter(Boolean) as string[])
+      );
+
+      if (refsToTest.length === 0) {
+        setActivePaymentSensor(prev => (prev.isMonitoring ? { ...prev, isMonitoring: false } : prev));
+        return;
+      }
+
+      setActivePaymentSensor({
+        isMonitoring: true,
+        pendingReference: refsToTest[0],
+        planName: pendingData?.plan?.name || 'Academic Plan',
+        lastCheckedAt: Date.now(),
+      });
+
+      for (const ref of refsToTest) {
         try {
-          const raw = localStorage.getItem('grobax_pending_paystack_sub');
-          if (raw) {
-            pendingData = JSON.parse(raw);
-          }
-        } catch {}
+          const verifyRes = await verifyPaystackTransaction(ref);
+          if (verifyRes && (verifyRes.verified || verifyRes.status === 'success')) {
+            console.log(`[Active Payment Sensor] Verified payment for ref ${ref}:`, verifyRes);
 
-        const refToVerify = urlRef || pendingData?.reference;
-        if (!refToVerify) return;
+            // Match plan
+            const targetPlanId = verifyRes.planId || urlPlanId || pendingData?.plan?.planId || pendingData?.plan?.id;
+            const targetPlanName = verifyRes.planName || pendingData?.plan?.name;
 
-        const verifyRes = await verifyPaystackTransaction(refToVerify);
-
-        if (isMounted && verifyRes && (verifyRes.verified || verifyRes.status === 'success')) {
-          // Find the matching plan
-          const targetPlanId = verifyRes.planId || pendingData?.plan?.planId || pendingData?.plan?.id;
-          const targetPlanName = verifyRes.planName || pendingData?.plan?.name;
-
-          let matchedPlan = subscriptionPlans.find(
-            p => (targetPlanId && (p.planId === targetPlanId || p.id === targetPlanId)) ||
-                 (targetPlanName && p.name.toLowerCase() === targetPlanName.toLowerCase())
-          );
-
-          if (!matchedPlan) {
-            matchedPlan = DEFAULT_SUBSCRIPTION_PLANS.find(
+            let matchedPlan = subscriptionPlans.find(
               p => (targetPlanId && (p.planId === targetPlanId || p.id === targetPlanId)) ||
                    (targetPlanName && p.name.toLowerCase() === targetPlanName.toLowerCase())
             );
-          }
 
-          if (!matchedPlan && pendingData?.plan) {
-            matchedPlan = pendingData.plan;
-          }
+            if (!matchedPlan) {
+              matchedPlan = DEFAULT_SUBSCRIPTION_PLANS.find(
+                p => (targetPlanId && (p.planId === targetPlanId || p.id === targetPlanId)) ||
+                     (targetPlanName && p.name.toLowerCase() === targetPlanName.toLowerCase())
+              );
+            }
 
-          if (!matchedPlan) {
-            matchedPlan = DEFAULT_SUBSCRIPTION_PLANS[0];
-          }
+            if (!matchedPlan && pendingData?.plan) {
+              matchedPlan = pendingData.plan;
+            }
 
-          if (matchedPlan) {
-            await subscribeToPlan(matchedPlan, 'CARD', refToVerify);
+            if (!matchedPlan) {
+              matchedPlan = {
+                id: targetPlanId || 'plan_premium',
+                planId: targetPlanId || 'plan_premium',
+                name: targetPlanName || 'Premium',
+                shortDescription: 'Upgraded Academic Scholar Membership',
+                priceNaira: verifyRes.amountNaira || 100,
+                currency: 'NGN',
+                durationValue: 1,
+                durationUnit: 'Months',
+                featured: true,
+                benefits: ['Unlimited Quiz Access', 'Priority Support', 'Full Verification'],
+                features: ['Active Scholar Pro', 'Ad-Free Experience'],
+              };
+            }
 
-            // Clean up URL and localStorage
+            // Immediately activate the subscription in state and Firestore
+            await subscribeToPlan(matchedPlan, 'CARD', ref);
+
+            // Dispatch global event for instant UI celebration and modal state transition
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('paystack_subscription_activated', {
+                  detail: { plan: matchedPlan, reference: ref, amountNaira: verifyRes.amountNaira },
+                })
+              );
+            }
+
+            // Clean up verified reference
             try {
               localStorage.removeItem('grobax_pending_paystack_sub');
+              const remainingRefs = recentRefs.filter(r => r !== ref);
+              localStorage.setItem('grobax_pending_references', JSON.stringify(remainingRefs));
               if (urlRef && window.history && window.history.replaceState) {
                 const cleanUrl = window.location.pathname + window.location.hash;
                 window.history.replaceState({}, document.title, cleanUrl);
               }
             } catch {}
-          }
-        }
-      } catch (err) {
-        console.warn('Pending Paystack payment check notice:', err);
-      }
-    }
 
-    checkPendingPaystackPayment();
+            setActivePaymentSensor({
+              isMonitoring: false,
+              pendingReference: null,
+              planName: null,
+              lastCheckedAt: Date.now(),
+            });
+
+            break; // Stop after successfully activating
+          }
+        } catch (itemErr) {
+          console.warn(`[Sensor] Check failed for ref ${ref}:`, itemErr);
+        }
+      }
+    } catch (err) {
+      console.warn('[Sensor] Sensor loop notice:', err);
+    }
+  }, [subscriptionPlans, subscribeToPlan]);
+
+  const triggerSubscriptionSensorCheck = useCallback(async () => {
+    await runSubscriptionSensorCheck();
+  }, [runSubscriptionSensorCheck]);
+
+  // Automatic Continuous Sensor Polling Loop
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    let isMounted = true;
+    runSubscriptionSensorCheck();
+
+    // Poll every 3.5 seconds while pending payments exist
+    const interval = setInterval(() => {
+      if (isMounted) {
+        runSubscriptionSensorCheck();
+      }
+    }, 3500);
 
     const handleFocus = () => {
-      checkPendingPaystackPayment();
+      if (isMounted) runSubscriptionSensorCheck();
     };
 
     const handleVisibility = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        checkPendingPaystackPayment();
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        runSubscriptionSensorCheck();
       }
     };
 
@@ -4559,10 +4712,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => {
       isMounted = false;
+      clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [isAuthReady, currentUser.id, subscriptionPlans]);
+  }, [isAuthReady, runSubscriptionSensorCheck]);
 
   return (
     <AppContext.Provider
@@ -4590,6 +4744,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subscriptionPlans,
         activeSubscriptionPlans: subscriptionPlans.filter(p => p.active !== false),
         subscribeToPlan,
+        registerPendingPayment,
+        activePaymentSensor,
+        triggerSubscriptionSensorCheck,
         isUserSubscribed,
         isUpgradePromoVisible,
         dismissUpgradePromo,

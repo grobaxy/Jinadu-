@@ -29,6 +29,8 @@ import {
   Compass,
   Building2,
   Users,
+  BookOpen,
+  Smartphone,
 } from 'lucide-react';
 
 export const HomeTab: React.FC = () => {
@@ -39,6 +41,7 @@ export const HomeTab: React.FC = () => {
     currentUser,
     navigateToCommunitySubTab,
     navigateToEventChannel,
+    openWalletModal,
   } = useApp();
 
   // Clear home notification badge when user views Home tab
@@ -102,13 +105,13 @@ export const HomeTab: React.FC = () => {
             </p>
 
             <p className="text-xs sm:text-sm lg:text-base text-slate-600 dark:text-slate-300 max-w-3xl leading-relaxed font-medium">
-              Grobaax is an education-focused platform where students discover useful academic information, test knowledge through <strong>Daily Ultimate Search</strong>, connect with fellow scholars via the <strong>Campus Mini Mart & Skills Listing</strong>, and build verified student networks across universities on <strong>Campus</strong>.
+              Grobaax is an education-focused platform where students discover useful academic resources in the <strong>Academic Library</strong>, test knowledge through <strong>Daily Ultimate Search</strong>, recharge instant <strong>VTU Airtime & Data</strong>, connect with fellow scholars via the <strong>Campus Mini Mart</strong>, and build verified student networks on <strong>Campus</strong>.
             </p>
           </div>
 
-          {/* Three Core Pillars Quick Action / Highlight Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-            {/* Daily Ultimate Search Pillar */}
+          {/* Academic & Platform Pillars Quick Action / Highlight Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+            {/* 1. Daily Ultimate Search Pillar */}
             <div
               id="home-pillar-gus-card"
               onClick={() => setActiveTab('daily_qa')}
@@ -139,22 +142,84 @@ export const HomeTab: React.FC = () => {
               </div>
             </div>
 
-            {/* Mini Mart & Skills Listing Pillar */}
+            {/* 2. Academic Library Pillar Card */}
+            <div
+              id="home-pillar-library-card"
+              onClick={() => setActiveTab('library')}
+              className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0 group-hover:scale-105 transition-transform">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
+                      Academic Library
+                    </h2>
+                    <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-600 dark:text-sky-300 text-[9px] font-black border border-sky-500/30">
+                      LIBRARY
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Browse verified past examination questions, study outlines, lecture materials, and syllabus archives across Nigerian faculties.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-sky-600 dark:text-sky-400">
+                <span>Browse Past Questions</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+
+            {/* 3. Instant VTU Services (Airtime & Data) Pillar Card */}
+            <div
+              id="home-pillar-vtu-card"
+              onClick={() => openWalletModal('airtime_data')}
+              className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:scale-105 transition-transform">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                      Instant VTU Services
+                    </h2>
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 text-[9px] font-black border border-emerald-500/30">
+                      VTU
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Instant airtime recharge and affordable mobile data bundles for MTN, Airtel, Glo, and 9mobile directly from your student dashboard.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <span>Recharge Airtime & Data</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+
+            {/* 4. Mini Mart & Skills Listing Pillar */}
             <div
               id="home-pillar-minimart-card"
               onClick={() => navigateToCommunitySubTab('minimart')}
               className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
             >
               <div className="flex items-start gap-3.5">
-                <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:scale-105 transition-transform">
+                <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 group-hover:scale-105 transition-transform">
                   <ShoppingBag className="w-5 h-5" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5">
-                    <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                       Mini Mart & Skills Listing
                     </h2>
-                    <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 text-[9px] font-black border border-emerald-500/30">
+                    <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-300 text-[9px] font-black border border-amber-500/30">
                       MARKET
                     </span>
                   </div>
@@ -164,13 +229,13 @@ export const HomeTab: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-amber-600 dark:text-amber-400">
                 <span>Explore Mini Mart</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
 
-            {/* Campus Pillar */}
+            {/* 5. Campus Pillar */}
             <div
               id="home-pillar-campus-card"
               onClick={() => navigateToCommunitySubTab('campus')}

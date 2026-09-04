@@ -216,6 +216,7 @@ export const WalletModal: React.FC = () => {
 
   // Badge Modal State
   const [selectedBadgeForPurchase, setSelectedBadgeForPurchase] = useState<BadgeStoreItem | null>(null);
+  const [achievementFilter, setAchievementFilter] = useState<'all' | 'unlocked' | 'equipped' | 'store'>('all');
 
   // User Ledger Filter States
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
@@ -456,7 +457,7 @@ export const WalletModal: React.FC = () => {
     if (withdrawGpAmount < minGp) {
       setWithdrawalMessage({
         type: 'error',
-        text: `Minimum cash out withdrawal is ${minGp.toLocaleString()} GP (₦${(minGp * effectiveRate).toLocaleString()} NGN).`,
+        text: `Minimum cash out withdrawal is ${minGp.toLocaleString()} GP.`,
       });
       return;
     }
@@ -596,19 +597,19 @@ export const WalletModal: React.FC = () => {
           {/* TAB 1: PROFILE & ACHIEVEMENTS */}
           {activeTab === 'profile' && (
             <div className="space-y-6">
-              {/* Profile Card Summary */}
+              {/* Profile Card Summary - 100% Solid Opaque Executive Canvas */}
               <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
                   <div className="relative group shrink-0">
                     <img
                       src={currentUser.avatar || currentUser.profileImage}
                       alt={currentUser.name}
-                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-blue-500/50 shadow-md ring-4 ring-blue-500/20 bg-slate-100 dark:bg-slate-800"
+                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-slate-300 dark:border-slate-700 shadow-sm bg-slate-100 dark:bg-slate-800"
                       referrerPolicy="no-referrer"
                     />
                     {currentUser.equippedBadge ? (
                       <div
-                        className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black text-xs shadow-md flex items-center gap-1 border-2 border-white dark:border-slate-900"
+                        className="absolute -bottom-2 -right-2 px-2.5 py-1 rounded-xl bg-amber-500 text-slate-950 font-black text-xs shadow-md flex items-center gap-1 border-2 border-white dark:border-slate-900"
                         title={`Equipped Badge: ${currentUser.equippedBadge.name}`}
                       >
                         <span>{currentUser.equippedBadge.icon}</span>
@@ -628,7 +629,7 @@ export const WalletModal: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <UserBadgeItem
                         name={currentUser.name || currentUser.fullName}
@@ -639,28 +640,36 @@ export const WalletModal: React.FC = () => {
                         size="lg"
                       />
                       {currentUser.isRepresentative && (
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-extrabold text-[11px] uppercase tracking-wider flex items-center gap-1">
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-extrabold text-[11px] uppercase tracking-wider flex items-center gap-1">
                           <Award className="w-3 h-3" />
                           Official Representative
                         </span>
                       )}
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-[11px]">
+                        {currentUser.membershipTier || 'Free Scholar'}
+                      </span>
                     </div>
 
-                    <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
-                      <span className="text-blue-600 dark:text-blue-400 font-bold">@{currentUser.username || 'scholar'}</span>
-                      <span>•</span>
-                      <span>{currentUser.institution || currentUser.academicProfile?.institutionName || 'Higher Education Scholar'}</span>
+                    <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-2 flex-wrap">
+                      <span className="text-blue-600 dark:text-blue-400 font-black">@{currentUser.username || 'scholar'}</span>
+                      <span className="text-slate-400 dark:text-slate-600">•</span>
+                      <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                        <School className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                        {currentUser.institution || currentUser.academicProfile?.institutionName || 'Higher Education Scholar'}
+                      </span>
                       {currentUser.faculty && (
                         <>
-                          <span>•</span>
-                          <span className="truncate max-w-[200px]">{currentUser.faculty}</span>
+                          <span className="text-slate-400 dark:text-slate-600">•</span>
+                          <span className="truncate max-w-[220px]">{currentUser.faculty}</span>
                         </>
                       )}
-                      <span>•</span>
-                      <span className="text-slate-700 dark:text-slate-300 font-bold">{currentUser.level || '100 Level'}</span>
+                      <span className="text-slate-400 dark:text-slate-600">•</span>
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-extrabold border border-slate-200 dark:border-slate-700">
+                        {currentUser.level || '100 Level'}
+                      </span>
                     </div>
 
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-xl leading-relaxed bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+                    <p className="text-xs text-slate-700 dark:text-slate-200 mt-1 max-w-2xl leading-relaxed bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 font-medium">
                       {currentUser.bio || 'Verified academic scholar participating in the Grobaax inter-campus leagues, GUS tournaments, and intellectual competitions.'}
                     </p>
                   </div>
@@ -697,7 +706,7 @@ export const WalletModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Authoritative GP Wallet & Institutional Status Opaque Solid Cards */}
+              {/* Authoritative 4-Pillar Academic & Treasury Grid (100% Solid Opaque High-Legibility Surfaces) */}
               {(() => {
                 const userInstitutionName = currentUser.institution || currentUser.academicProfile?.institutionName || 'Federal Polytechnic, Ado-Ekiti';
                 const matchedInstitution = masterInstitutions.find(
@@ -710,24 +719,23 @@ export const WalletModal: React.FC = () => {
                 const deptName = currentUser.department || currentUser.academicProfile?.department || 'Electrical / Electronics Engineering Technology';
                 const levelName = currentUser.level || currentUser.academicProfile?.level || 'Post-Grad';
                 const matricNumber = currentUser.matricNumber || currentUser.academicProfile?.matricNumber;
+                const progressToMinWithdraw = Math.min(100, Math.round((rawGp / effectiveMinGp) * 100));
 
                 return (
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                    {/* 1. Authoritative GP Balance Card (Opaque Solid High-Contrast Canvas) */}
-                    <div className="lg:col-span-6 p-6 sm:p-7 rounded-3xl bg-gradient-to-br from-blue-50/90 via-white to-indigo-50/60 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 border-2 border-blue-200 dark:border-blue-900/60 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[270px]">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {/* PILLAR 1: Authoritative GP Balance & Treasury Ledger */}
+                    <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[310px] space-y-5">
                       <div className="space-y-4">
-                        {/* Top Header of Card */}
                         <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-100 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 text-xs font-black uppercase tracking-wider">
+                          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800 text-xs font-black uppercase tracking-wider">
                             <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
                             <span>Authoritative GP Balance</span>
                           </div>
 
-                          {/* Privacy Eye Toggle */}
                           <button
                             type="button"
                             onClick={toggleBalanceHidden}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer shadow-xs"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer shadow-xs"
                             title={isBalanceHidden ? 'Reveal GP Balance' : 'Hide GP Balance (Private Mode)'}
                           >
                             {isBalanceHidden ? <EyeOff className="w-3.5 h-3.5 text-amber-500" /> : <Eye className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />}
@@ -735,7 +743,6 @@ export const WalletModal: React.FC = () => {
                           </button>
                         </div>
 
-                        {/* Balance Typography & Stats */}
                         <div>
                           <div className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-baseline gap-2">
                             <span>{isBalanceHidden ? '••••••••' : authoritativeGpBalance}</span>
@@ -743,25 +750,38 @@ export const WalletModal: React.FC = () => {
                           </div>
 
                           <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-1">
-                            ≈ ₦{isBalanceHidden ? '••••••' : estimatedNaira} NGN <span className="text-slate-600 dark:text-slate-300 font-medium">(Official rate: 1 GP = ₦{effectiveRate} NGN)</span>
+                            ≈ ₦{isBalanceHidden ? '••••••' : estimatedNaira} NGN <span className="text-slate-500 dark:text-slate-400 font-medium">(Official rate: 1 GP = ₦{effectiveRate} NGN)</span>
                           </div>
 
-                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap mt-3">
-                            <span className="px-2.5 py-1 rounded-lg bg-emerald-100/80 dark:bg-emerald-950/50 border border-emerald-300/80 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-1">
+                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap mt-3.5">
+                            <span className="px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 text-xs font-black flex items-center gap-1.5">
                               <Zap className="w-3.5 h-3.5 text-amber-500" />
-                              <span>{isUserSubscribed ? '2.0x Boost Multiplier' : '1.0x Standard Scholar Rate'}</span>
+                              <span>{isUserSubscribed ? '2.0x Boost Multiplier Active' : '1.0x Standard Scholar Rate'}</span>
                             </span>
 
-                            <span className="px-2.5 py-1 rounded-lg bg-blue-100/80 dark:bg-blue-950/50 border border-blue-300/80 dark:border-blue-800 text-blue-800 dark:text-blue-300 text-xs font-bold flex items-center gap-1">
-                              <Coins className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                              <span>{rawGp >= effectiveMinGp ? 'Eligible for Direct Cash Out' : `Min Cash Out: ${effectiveMinGp.toLocaleString()} GP`}</span>
+                            <span className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5">
+                              <Coins className="w-3.5 h-3.5 text-amber-500" />
+                              <span>{rawGp >= effectiveMinGp ? '✅ Qualified for Direct Cash Out' : `Min Cash Out: ${effectiveMinGp.toLocaleString()} GP`}</span>
                             </span>
+                          </div>
+
+                          {/* Progress bar to min cashout */}
+                          <div className="mt-3.5 space-y-1.5 bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700">
+                            <div className="flex justify-between items-center text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                              <span>Cash Out Progress</span>
+                              <span className="text-blue-600 dark:text-blue-400 font-extrabold">{progressToMinWithdraw}% of Target</span>
+                            </div>
+                            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                              <div
+                                className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                                style={{ width: `${progressToMinWithdraw}%` }}
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Bottom Quick Action Buttons */}
-                      <div className="grid grid-cols-3 gap-2.5 pt-5 border-t border-slate-200 dark:border-slate-800 mt-5">
+                      <div className="grid grid-cols-3 gap-2.5 pt-4 border-t border-slate-200 dark:border-slate-800">
                         <button
                           type="button"
                           onClick={() => setActiveTab('airtime_data')}
@@ -783,7 +803,7 @@ export const WalletModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setActiveTab('history')}
-                          className="px-3 py-2.5 rounded-xl bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer text-center"
+                          className="px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer text-center"
                         >
                           <History className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
                           <span className="truncate">Logs</span>
@@ -791,24 +811,23 @@ export const WalletModal: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 2. Institutional Status Card (Opaque Solid High-Contrast Canvas) */}
-                    <div className="lg:col-span-6 p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[270px]">
+                    {/* PILLAR 2: Institutional Status & Academic Credentials */}
+                    <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[310px] space-y-5">
                       <div className="space-y-4">
-                        {/* Top Tag & Verification */}
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-black uppercase tracking-wider">
+                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800 text-xs font-black uppercase tracking-wider">
                             <School className="w-3.5 h-3.5 text-indigo-500" />
                             <span>Institutional Status</span>
                           </div>
 
                           <div className="flex items-center gap-1.5">
                             {currentUser.isRepresentative ? (
-                              <span className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
+                              <span className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
                                 <Award className="w-3.5 h-3.5" />
                                 Official Representative
                               </span>
                             ) : (
-                              <span className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
+                              <span className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                                 Verified Student Member
                               </span>
@@ -816,13 +835,12 @@ export const WalletModal: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Institution Name & Details */}
                         <div>
                           <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
                             <GraduationCap className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
                             <span className="leading-snug">{userInstitutionName}</span>
                           </h3>
-                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1.5 flex-wrap font-medium">
+                          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 mt-1.5 flex-wrap font-medium">
                             <span className="px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-slate-200 dark:border-slate-700">
                               {matchedInstitution?.category || currentUser.academicProfile?.category || 'Higher Education Institution'}
                             </span>
@@ -830,36 +848,36 @@ export const WalletModal: React.FC = () => {
                               <span className="font-semibold">• {matchedInstitution.state} State</span>
                             )}
                             {matchedInstitution?.motto && (
-                              <span className="italic text-slate-600 dark:text-slate-400">"{matchedInstitution.motto}"</span>
+                              <span className="italic text-slate-500 dark:text-slate-400">"{matchedInstitution.motto}"</span>
                             )}
                           </div>
                         </div>
 
                         {/* Academic Specifics Grid (Solid Opaque High-Legibility Boxes) */}
                         <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
-                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-0.5">
-                            <div className="text-[10px] text-slate-600 dark:text-slate-300 font-extrabold uppercase tracking-wider">Faculty</div>
+                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-0.5">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-extrabold uppercase tracking-wider">Faculty</div>
                             <div className="font-bold text-slate-900 dark:text-slate-100 truncate" title={facultyName}>
                               {facultyName}
                             </div>
                           </div>
 
-                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-0.5">
-                            <div className="text-[10px] text-slate-600 dark:text-slate-300 font-extrabold uppercase tracking-wider">Department</div>
+                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-0.5">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-extrabold uppercase tracking-wider">Department</div>
                             <div className="font-bold text-slate-900 dark:text-slate-100 truncate" title={deptName}>
                               {deptName}
                             </div>
                           </div>
 
-                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-0.5">
-                            <div className="text-[10px] text-slate-600 dark:text-slate-300 font-extrabold uppercase tracking-wider">Academic Level</div>
+                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-0.5">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-extrabold uppercase tracking-wider">Academic Level</div>
                             <div className="font-bold text-blue-600 dark:text-blue-400 truncate">
                               {levelName}
                             </div>
                           </div>
 
-                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-0.5">
-                            <div className="text-[10px] text-slate-600 dark:text-slate-300 font-extrabold uppercase tracking-wider">Student ID / Matric</div>
+                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-0.5">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-extrabold uppercase tracking-wider">Student ID / Matric</div>
                             <div className="font-bold text-amber-600 dark:text-amber-400 truncate">
                               {matricNumber || `@${currentUser.username || 'scholar'}`}
                             </div>
@@ -867,9 +885,8 @@ export const WalletModal: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Card Footer Info */}
-                      <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-4">
-                        <span className="flex items-center gap-1.5 font-medium">
+                      <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 mt-4">
+                        <span className="flex items-center gap-1.5 font-bold">
                           <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                           Academic record verified on campus ledger
                         </span>
@@ -882,15 +899,122 @@ export const WalletModal: React.FC = () => {
                         </button>
                       </div>
                     </div>
+
+                    {/* PILLAR 3: Daily Ultimate Search (GUS) & Arena Standing */}
+                    <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[260px] space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-xs font-black uppercase tracking-wider">
+                            <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                            <span>GUS Arena & Campus League</span>
+                          </div>
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 text-[10px] font-black uppercase">
+                            Season Live
+                          </span>
+                        </div>
+
+                        <div>
+                          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                            {currentUser.gusTier || 'Diamond Scholar Tier'}
+                          </div>
+                          <div className="text-xs font-bold text-amber-600 dark:text-amber-400 mt-0.5">
+                            #{currentUser.gusRank || 1} Institutional Campus Rank
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2.5 text-center">
+                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Accuracy</div>
+                            <div className="text-sm font-black text-emerald-600 dark:text-emerald-400 mt-0.5">98.4%</div>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Dome Sessions</div>
+                            <div className="text-sm font-black text-blue-600 dark:text-blue-400 mt-0.5">24 Matches</div>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Active Streak</div>
+                            <div className="text-sm font-black text-amber-600 dark:text-amber-400 mt-0.5">7 Days</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                        <span className="text-slate-500 dark:text-slate-400 font-medium">Inter-university qualification matches open</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsWalletModalOpen(false)}
+                          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-700 cursor-pointer"
+                        >
+                          Enter Quizzes
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* PILLAR 4: Academic Privileges & Membership Tier */}
+                    <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[260px] space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-800 text-xs font-black uppercase tracking-wider">
+                            <Crown className="w-3.5 h-3.5 text-purple-500" />
+                            <span>Scholar Privileges & Membership</span>
+                          </div>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                            isUserSubscribed
+                              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                          }`}>
+                            {currentUser.membershipTier || 'Free Scholar'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                            {isUserSubscribed ? 'Premium Academic Standing' : 'Standard Scholar Plan'}
+                          </div>
+                          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                            {isUserSubscribed ? 'Active verified campus benefits and high-speed cash-out access.' : 'Upgrade to Pro or Master to unlock 2x Quiz GP Multipliers.'}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 font-semibold">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            <span>{isUserSubscribed ? '2.0x GP Reward Multiplier on all correct quizzes' : '1.0x Base GP Quiz Rewards'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            <span>Instant Zero-Fee VTU Airtime & MTN/GLO Data access</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            <span>Equippable Trophy Cabinet & Public Leaderboard badges</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                          {isUserSubscribed ? 'Plan Active & Synced' : 'Ready for advancement'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('upgrade')}
+                          className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                        >
+                          <Crown className="w-3.5 h-3.5" />
+                          <span>{isUserSubscribed ? 'Manage Tier' : 'Upgrade Plan'}</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
 
-              {/* Comprehensive Profile Editor Form */}
+              {/* Comprehensive Profile Editor Form (100% Solid Opaque High-Legibility) */}
               {isEditingProfile && (
                 <form
                   onSubmit={handleSaveProfile}
-                  className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border-2 border-blue-500/50 space-y-5 shadow-lg animate-in fade-in"
+                  className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border-2 border-blue-500 space-y-5 shadow-lg animate-in fade-in"
                 >
                   <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                     <div className="flex items-center gap-2">
@@ -899,7 +1023,7 @@ export const WalletModal: React.FC = () => {
                         Edit Official Scholar Profile & Academic Credentials
                       </h3>
                     </div>
-                    <span className="text-xs text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <span className="text-xs text-blue-700 dark:text-blue-300 font-bold bg-blue-100 dark:bg-blue-950 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800">
                       Campus Ledger Synced
                     </span>
                   </div>
@@ -911,14 +1035,14 @@ export const WalletModal: React.FC = () => {
                   />
 
                   {profileSaveSuccess && (
-                    <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
+                    <div className="p-3.5 rounded-xl bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 text-xs font-bold flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
                       <span>🎉 Scholar profile updated successfully! Changes reflected across the platform.</span>
                     </div>
                   )}
 
                   {profileSaveError && (
-                    <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-bold flex items-center gap-2">
+                    <div className="p-3.5 rounded-xl bg-rose-100 dark:bg-rose-950 border border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200 text-xs font-bold flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                       <span>{profileSaveError}</span>
                     </div>
@@ -954,42 +1078,59 @@ export const WalletModal: React.FC = () => {
                     </div>
 
                     <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Institution / Campus
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          Institution / Campus
+                        </label>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                          <Lock className="w-2.5 h-2.5 text-slate-500" />
+                          Fixed & Verified
+                        </span>
+                      </div>
                       <input
                         type="text"
                         value={editInstitution}
-                        onChange={e => setEditInstitution(e.target.value)}
-                        placeholder="e.g. Federal Polytechnic, Ado-Ekiti"
-                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
+                        readOnly
+                        disabled
+                        className="w-full p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 font-bold cursor-not-allowed select-none opacity-85"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Faculty / School
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          Faculty / School
+                        </label>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                          <Lock className="w-2.5 h-2.5 text-slate-500" />
+                          Fixed
+                        </span>
+                      </div>
                       <input
                         type="text"
                         value={editFaculty}
-                        onChange={e => setEditFaculty(e.target.value)}
-                        placeholder="e.g. School of Engineering Technology"
-                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        readOnly
+                        disabled
+                        className="w-full p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 font-bold cursor-not-allowed select-none opacity-85"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Department / Major
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          Department / Major
+                        </label>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                          <Lock className="w-2.5 h-2.5 text-slate-500" />
+                          Fixed
+                        </span>
+                      </div>
                       <input
                         type="text"
                         value={editDepartment}
-                        onChange={e => setEditDepartment(e.target.value)}
-                        placeholder="e.g. Electrical / Electronics Engineering"
-                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        readOnly
+                        disabled
+                        className="w-full p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 font-bold cursor-not-allowed select-none opacity-85"
                       />
                     </div>
 
@@ -1042,46 +1183,32 @@ export const WalletModal: React.FC = () => {
                 </form>
               )}
 
-              {/* HEAD-TO-TOE REDESIGNED: Scholar Achievements, Honours & Trophy Cabinet */}
+              {/* HEAD-TO-TOE REDESIGNED: Scholar Achievements, Honours & Trophy Cabinet (100% Solid Opaque Surfaces) */}
               <div id="scholar-achievements-section" className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-                {/* Section Header */}
+                {/* Section Header with Equipped Badge Spotlight */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0 shadow-xs">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 shadow-xs">
                       <Trophy className="w-6 h-6" />
                     </div>
                     <div>
-                      <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                        <span>Scholar Achievements, Badges & Honours</span>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                        <span>Scholar Achievements, Honours & Trophy Cabinet</span>
                         {currentUser.equippedBadge && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-black">
-                            {currentUser.equippedBadge.icon} {currentUser.equippedBadge.name}
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-xs font-black shadow-xs flex items-center gap-1">
+                            <span>{currentUser.equippedBadge.icon}</span>
+                            <span>{currentUser.equippedBadge.name}</span>
                           </span>
                         )}
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Authoritative track record of academic milestones, Daily Ultimate Search ranks, and unlocked honor badges.
+                        Authoritative track record of academic milestones, Daily Ultimate Search ranks, and campus honours.
                       </p>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (badgeStore.length > 0) {
-                          setSelectedBadgeForPurchase(badgeStore[0]);
-                        }
-                      }}
-                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5 text-slate-950" />
-                      <span>Badge Store ({badgeStore.length})</span>
-                    </button>
-                  </div>
                 </div>
 
-                {/* 4 Academic Milestones Bento Cards */}
+                {/* 4 Academic Milestones Bento Cards (100% Solid Surfaces) */}
                 {(() => {
                   const rawGp = typeof currentUser.gpBalance === 'number' ? currentUser.gpBalance : Number(currentUser.gpBalance || 0);
                   const progressToMinWithdraw = Math.min(100, Math.round((rawGp / effectiveMinGp) * 100));
@@ -1089,13 +1216,13 @@ export const WalletModal: React.FC = () => {
                   return (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       {/* Milestone 1: GUS Arena Record */}
-                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between space-y-3">
+                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
                             <Trophy className="w-3.5 h-3.5" />
                             GUS Arena
                           </span>
-                          <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-black">
+                          <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-[10px] font-black">
                             Season Live
                           </span>
                         </div>
@@ -1107,14 +1234,14 @@ export const WalletModal: React.FC = () => {
                             #{currentUser.gusRank || 1} Campus League Rank
                           </div>
                         </div>
-                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                           <span>100% Verified Quiz Accuracy</span>
                         </div>
                       </div>
 
                       {/* Milestone 2: GP Treasury & Cash Out Qualification */}
-                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between space-y-3">
+                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
                             <Coins className="w-3.5 h-3.5" />
@@ -1122,8 +1249,8 @@ export const WalletModal: React.FC = () => {
                           </span>
                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
                             rawGp >= effectiveMinGp
-                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                              : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700'
+                              : 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800'
                           }`}>
                             {progressToMinWithdraw}% of Target
                           </span>
@@ -1151,13 +1278,13 @@ export const WalletModal: React.FC = () => {
                       </div>
 
                       {/* Milestone 3: Verified Scholar Standing */}
-                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between space-y-3">
+                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1">
                             <ShieldCheck className="w-3.5 h-3.5" />
                             Verification
                           </span>
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 text-[10px] font-black">
                             Active
                           </span>
                         </div>
@@ -1169,20 +1296,20 @@ export const WalletModal: React.FC = () => {
                             {currentUser.level || 'Post-Grad'} • {currentUser.faculty || 'Engineering'}
                           </div>
                         </div>
-                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                          <GraduationCap className="w-3 h-3 text-indigo-500" />
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1 font-medium">
+                          <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
                           <span>Campus Ledger Synchronized</span>
                         </div>
                       </div>
 
                       {/* Milestone 4: Marketplace & Privileges */}
-                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between space-y-3">
+                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
                             <ShoppingBag className="w-3.5 h-3.5" />
                             Commerce Status
                           </span>
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 text-[10px] font-black">
                             Eligible
                           </span>
                         </div>
@@ -1194,119 +1321,14 @@ export const WalletModal: React.FC = () => {
                             Airtime, MTN/GLO Data & Mini Mart
                           </div>
                         </div>
-                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                          <Zap className="w-3 h-3 text-amber-500" />
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1 font-medium">
+                          <Zap className="w-3.5 h-3.5 text-amber-500" />
                           <span>Zero Processing Fee</span>
                         </div>
                       </div>
                     </div>
                   );
                 })()}
-
-                {/* Interactive Trophy & Badge Cabinet */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                        <Medal className="w-4 h-4 text-amber-500" />
-                        <span>Interactive Trophy Cabinet & Rank Badges</span>
-                      </h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Equip your unlocked badges to showcase on your avatar, comments, and public leaderboard profile.
-                      </p>
-                    </div>
-
-                    <div className="text-xs text-slate-500 dark:text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl">
-                      {currentUser.purchasedBadgeIds?.length || 0} Unlocked • {currentUser.equippedBadge ? '1 Equipped' : 'None Equipped'}
-                    </div>
-                  </div>
-
-                  {/* Badges Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {badgeStore.map(badge => {
-                      const isEquipped = currentUser.equippedBadge?.id === badge.id || currentUser.equippedBadge?.name === badge.name;
-                      const isUnlocked = currentUser.purchasedBadgeIds?.includes(badge.id);
-
-                      return (
-                        <div
-                          key={badge.id}
-                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between relative space-y-3 ${
-                            isEquipped
-                              ? 'bg-amber-50/80 dark:bg-amber-950/30 border-2 border-amber-500 shadow-md ring-2 ring-amber-500/20'
-                              : isUnlocked
-                              ? 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 shadow-xs hover:border-blue-400'
-                              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700/60 border border-slate-200 dark:border-slate-600 flex items-center justify-center text-2xl shadow-inner shrink-0">
-                              {badge.image}
-                            </div>
-
-                            <div className="flex flex-col items-end gap-1">
-                              {isEquipped ? (
-                                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-xs">
-                                  <Check className="w-3 h-3" />
-                                  Equipped
-                                </span>
-                              ) : isUnlocked ? (
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  Unlocked
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] flex items-center gap-1">
-                                  <Coins className="w-3 h-3 text-amber-500" />
-                                  {badge.gpPrice} GP
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <h5 className="text-xs font-black text-slate-900 dark:text-white">
-                              {badge.name}
-                            </h5>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                              {badge.description}
-                            </p>
-                          </div>
-
-                          <div className="pt-2">
-                            {isEquipped ? (
-                              <button
-                                type="button"
-                                onClick={() => equipBadge(badge.id)}
-                                className="w-full py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-700 dark:text-amber-300 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Unequip Badge</span>
-                              </button>
-                            ) : isUnlocked ? (
-                              <button
-                                type="button"
-                                onClick={() => equipBadge(badge.id)}
-                                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                              >
-                                <Sparkles className="w-3.5 h-3.5 text-blue-200" />
-                                <span>Equip Badge</span>
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedBadgeForPurchase(badge)}
-                                className="w-full py-2 bg-white hover:bg-slate-100 dark:bg-slate-700 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
-                              >
-                                <Coins className="w-3.5 h-3.5 text-amber-500" />
-                                <span>Get for {badge.gpPrice} GP</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -2021,7 +2043,7 @@ export const WalletModal: React.FC = () => {
                       />
                       <div className="mt-1 flex justify-between text-xs text-slate-500">
                         <span>Available: <strong className="text-blue-500">{authoritativeGpBalance} GP</strong></span>
-                        <span>Min: <strong className="text-amber-500">{effectiveMinGp.toLocaleString()} GP (₦{(effectiveMinGp * effectiveRate).toLocaleString()} NGN)</strong></span>
+                        <span>Min: <strong className="text-amber-500">{effectiveMinGp.toLocaleString()} GP</strong></span>
                       </div>
                     </div>
 

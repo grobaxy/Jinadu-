@@ -147,12 +147,20 @@ export async function initializePaystackTransaction(params: {
   email: string;
   userId: string;
   userName: string;
+  callbackUrl?: string;
 }): Promise<PaystackInitResponse> {
   try {
+    const defaultCallback = typeof window !== 'undefined'
+      ? `${window.location.origin}${window.location.pathname}?planId=${encodeURIComponent(params.planId)}`
+      : undefined;
+
     const res = await fetch('/api/paystack/initialize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
+      body: JSON.stringify({
+        ...params,
+        callbackUrl: params.callbackUrl || defaultCallback,
+      }),
     });
     return await safeParseResponse(res, 'Could not connect to payment server.');
   } catch (err: any) {
@@ -174,6 +182,30 @@ export async function verifyPaystackTransaction(reference: string): Promise<Pays
       verified: false,
       status: 'error',
       error: err.message || 'Verification connection failed.',
+    };
+  }
+}
+
+// Check real-time payment sensor status
+export async function checkPaymentSensorStatus(params: {
+  reference?: string;
+  email?: string;
+  userId?: string;
+}): Promise<PaystackVerifyResponse> {
+  try {
+    const query = new URLSearchParams();
+    if (params.reference) query.set('reference', params.reference);
+    if (params.email) query.set('email', params.email);
+    if (params.userId) query.set('userId', params.userId);
+
+    const res = await fetch(`/api/paystack/sensor-status?${query.toString()}`);
+    return await safeParseResponse(res, 'Sensor query failed.');
+  } catch (err: any) {
+    return {
+      success: false,
+      verified: false,
+      status: 'error',
+      error: err.message || 'Sensor query failed.',
     };
   }
 }
