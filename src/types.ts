@@ -840,6 +840,11 @@ export interface PlatformEventItem {
   publishedAt?: any;
   archivedAt?: any;
   sortOrder?: number;
+  targetTab?: TabType;
+  targetSubTab?: 'minimart' | 'announcements' | 'campus';
+  channelName?: string;
+  channelUrl?: string;
+  targetChannel?: string;
   // Legacy / convenience aliases
   date?: string;
   time?: string;
@@ -860,12 +865,14 @@ export const PLATFORM_EVENT_CATEGORIES: {
   label: string;
   shortLabel: string;
   tabKey?: TabType;
+  channelName: string;
+  subTab?: 'minimart' | 'announcements' | 'campus';
 }[] = [
-  { id: 'gus', label: 'GUS Championship Event', shortLabel: 'GUS Tournament', tabKey: 'gus' },
-  { id: 'academic_olympiad', label: 'Academic Olympiad Event', shortLabel: 'Academic Olympiad', tabKey: 'home' },
-  { id: 'chatroom_live', label: 'Chatroom Live Event', shortLabel: 'Chatroom Live', tabKey: 'community' },
-  { id: 'campus_hackathon', label: 'Campus Hackathon & Quiz', shortLabel: 'Hackathon', tabKey: 'home' },
-  { id: 'others', label: 'General Student Event', shortLabel: 'Other Events', tabKey: 'home' },
+  { id: 'gus', label: 'GUS Championship Event', shortLabel: 'GUS Tournament', tabKey: 'daily_qa', channelName: 'Daily Ultimate Search' },
+  { id: 'academic_olympiad', label: 'Academic Olympiad Event', shortLabel: 'Academic Olympiad', tabKey: 'daily_qa', channelName: 'Daily Ultimate Search' },
+  { id: 'chatroom_live', label: 'Chatroom Live Event', shortLabel: 'Chatroom Live', tabKey: 'daily_qa', channelName: 'Daily Ultimate Search Live' },
+  { id: 'campus_hackathon', label: 'Campus Hackathon & Quiz', shortLabel: 'Campus Hackathon', tabKey: 'community', subTab: 'campus', channelName: 'Campus Network' },
+  { id: 'others', label: 'General Student Event', shortLabel: 'Campus Event', tabKey: 'community', subTab: 'campus', channelName: 'Campus Network' },
 ];
 
 export interface GusSubject {

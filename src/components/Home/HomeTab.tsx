@@ -9,6 +9,7 @@ import {
   PLATFORM_EVENT_CATEGORIES,
   OFFICIAL_EVENT_HOST,
 } from '../../types';
+import { resolveEventChannel } from '../../utils/eventNavigation';
 import { db } from '../../lib/firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import {
@@ -24,10 +25,20 @@ import {
   Flame,
   Award,
   Zap,
+  Compass,
+  Building2,
+  Users,
 } from 'lucide-react';
 
 export const HomeTab: React.FC = () => {
-  const { setActiveTab, events: contextEvents, markSectionAsRead } = useApp();
+  const {
+    setActiveTab,
+    events: contextEvents,
+    markSectionAsRead,
+    currentUser,
+    navigateToCommunitySubTab,
+    navigateToEventChannel,
+  } = useApp();
 
   // Clear home notification badge when user views Home tab
   useEffect(() => {
@@ -90,14 +101,15 @@ export const HomeTab: React.FC = () => {
             </p>
 
             <p className="text-xs sm:text-sm lg:text-base text-slate-600 dark:text-slate-300 max-w-3xl leading-relaxed font-medium">
-              Grobaax is an education-focused platform where students discover useful academic information, test knowledge through <strong>Daily Ultimate Search</strong>, and connect with fellow scholars via the <strong>Campus Mini Mart & Skills Listing</strong>.
+              Grobaax is an education-focused platform where students discover useful academic information, test knowledge through <strong>Daily Ultimate Search</strong>, connect with fellow scholars via the <strong>Campus Mini Mart & Skills Listing</strong>, and build verified student networks across universities on <strong>Campus</strong>.
             </p>
           </div>
 
           {/* Three Core Pillars Quick Action / Highlight Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
             {/* Daily Ultimate Search Pillar */}
             <div
+              id="home-pillar-gus-card"
               onClick={() => setActiveTab('daily_qa')}
               className="p-5 rounded-2xl bg-transparent hover:bg-slate-100/50 dark:hover:bg-white/5 border border-slate-200/70 dark:border-slate-800 transition-all cursor-pointer group flex flex-col justify-between"
             >
@@ -128,7 +140,8 @@ export const HomeTab: React.FC = () => {
 
             {/* Mini Mart & Skills Listing Pillar */}
             <div
-              onClick={() => setActiveTab('community')}
+              id="home-pillar-minimart-card"
+              onClick={() => navigateToCommunitySubTab('minimart')}
               className="p-5 rounded-2xl bg-transparent hover:bg-slate-100/50 dark:hover:bg-white/5 border border-slate-200/70 dark:border-slate-800 transition-all cursor-pointer group flex flex-col justify-between"
             >
               <div className="flex items-start gap-3.5">
@@ -154,6 +167,85 @@ export const HomeTab: React.FC = () => {
                 <span>Explore Mini Mart</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
+            </div>
+
+            {/* Campus Pillar */}
+            <div
+              id="home-pillar-campus-card"
+              onClick={() => navigateToCommunitySubTab('campus')}
+              className="p-5 rounded-2xl bg-transparent hover:bg-slate-100/50 dark:hover:bg-white/5 border border-slate-200/70 dark:border-slate-800 transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:scale-105 transition-transform">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                      Campus
+                    </h2>
+                    <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 text-[9px] font-black border border-indigo-500/30">
+                      SCHOLARS
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Connect with verified students, course coursemates, and faculty peers across institutions with verified WhatsApp study chats.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                <span>Explore Campus</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ======================================================== */}
+      {/* 1.5 DEDICATED CAMPUS HUB CARD */}
+      {/* ======================================================== */}
+      <section id="home-campus-card-section">
+        <div
+          id="home-verified-campus-card"
+          className="relative overflow-hidden rounded-3xl bg-transparent border border-slate-200/70 dark:border-slate-800/80 p-5 sm:p-6 transition-all hover:border-indigo-500/40 group"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:scale-105 transition-transform">
+                <GraduationCap className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                    Campus Scholar Hub
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" /> Verified Student Network
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                  {currentUser?.institution || 'Grobaax Campus Network'}
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                  {currentUser?.department ? `${currentUser.department} • ` : ''}
+                  Find course colleagues, faculty peers, and verified study connections in your university.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <Button
+                id="home-open-campus-btn"
+                variant="primary"
+                size="sm"
+                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold cursor-pointer"
+                onClick={() => navigateToCommunitySubTab('campus')}
+                rightIcon={<ArrowRight className="w-4 h-4" />}
+              >
+                Open Campus Directory
+              </Button>
             </div>
           </div>
         </div>
@@ -224,6 +316,7 @@ export const HomeTab: React.FC = () => {
               const catObj = PLATFORM_EVENT_CATEGORIES.find((c) => c.id === ev.category);
               const catLabel = catObj?.label || ev.category;
               const hasPrize = Boolean(ev.prizeReward && ev.prizeReward.trim() !== '' && ev.prizeReward.trim() !== '0');
+              const channelInfo = resolveEventChannel(ev);
 
               return (
                 <Card
@@ -316,6 +409,16 @@ export const HomeTab: React.FC = () => {
                             </span>
                           </div>
                         )}
+
+                        {/* Destination Channel Route */}
+                        <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
+                          <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                            <Compass className="w-3.5 h-3.5 text-blue-500" /> Destination
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${channelInfo.badgeClass}`}>
+                            {channelInfo.label}
+                          </span>
+                        </div>
                       </div>
 
                       {ev.description && (
@@ -325,17 +428,37 @@ export const HomeTab: React.FC = () => {
                       )}
                     </div>
 
-                    {/* View Event Button */}
-                    <Button
-                      id={`view-event-btn-${ev.id}`}
-                      variant="primary"
-                      size="sm"
-                      className="w-full justify-center mt-1"
-                      onClick={() => setSelectedEventForDetails(ev)}
-                      rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                    >
-                      View Event Details
-                    </Button>
+                    {/* Action Buttons: Direct to proper channel + Details */}
+                    <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                      <Button
+                        id={`enter-event-channel-btn-${ev.id}`}
+                        variant="primary"
+                        size="sm"
+                        className="flex-1 justify-center font-bold text-xs cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (navigateToEventChannel) {
+                            navigateToEventChannel(ev);
+                          }
+                        }}
+                        rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                      >
+                        {channelInfo.actionText}
+                      </Button>
+
+                      <Button
+                        id={`view-event-details-btn-${ev.id}`}
+                        variant="outline"
+                        size="sm"
+                        className="px-3 text-xs font-bold shrink-0 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedEventForDetails(ev);
+                        }}
+                      >
+                        Details
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               );

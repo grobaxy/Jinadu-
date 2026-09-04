@@ -6,7 +6,9 @@ import {
   PLATFORM_EVENT_CATEGORIES,
   OFFICIAL_EVENT_HOST,
   PRIMARY_SUPER_ADMIN_UID,
+  TabType,
 } from '../../types';
+import { resolveEventChannel } from '../../utils/eventNavigation';
 import {
   db,
   savePlatformEventToFirestore,
@@ -39,6 +41,7 @@ import {
   Layers,
   HelpCircle,
   AlertTriangle,
+  Compass,
 } from 'lucide-react';
 import { EventDetailsModal } from '../Home/EventDetailsModal';
 import { useApp } from '../../context/AppContext';
@@ -114,6 +117,8 @@ export function AdminEventsView() {
   );
   const [imageStoragePath, setImageStoragePath] = useState<string>('');
   const [status, setStatus] = useState<PlatformEventStatus>('Published');
+  const [targetTab, setTargetTab] = useState<TabType | ''>('');
+  const [targetSubTab, setTargetSubTab] = useState<'minimart' | 'announcements' | 'campus' | ''>('');
 
   // File Upload State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -138,6 +143,8 @@ export function AdminEventsView() {
     setImageUrl('https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80');
     setImageStoragePath('');
     setStatus('Published');
+    setTargetTab('');
+    setTargetSubTab('');
     setFormError(null);
     setUploadProgressMsg('');
   };
@@ -159,6 +166,8 @@ export function AdminEventsView() {
     setImageUrl(ev.imageUrl || ev.image || 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80');
     setImageStoragePath(ev.imageStoragePath || '');
     setStatus(ev.status || 'Published');
+    setTargetTab(ev.targetTab || '');
+    setTargetSubTab(ev.targetSubTab || '');
     setFormError(null);
     setUploadProgressMsg('');
     setShowModal(true);
@@ -250,6 +259,8 @@ export function AdminEventsView() {
       imageUrl: imageUrl || 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
       imageStoragePath,
       status: finalStatus,
+      targetTab: targetTab ? (targetTab as TabType) : undefined,
+      targetSubTab: targetSubTab ? (targetSubTab as any) : undefined,
     };
 
     try {
@@ -690,6 +701,85 @@ export function AdminEventsView() {
                     <ShieldCheck className="w-4 h-4 text-emerald-500" />
                   </div>
                 </div>
+              </div>
+
+              {/* Destination Channel Routing */}
+              <div className="p-3.5 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Compass className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Destination Channel (Directs users to proper channel)
+                    </label>
+                  </div>
+                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
+                    Auto-Direct Routing
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                      Primary Target Channel
+                    </label>
+                    <select
+                      id="event-form-target-tab"
+                      value={targetTab}
+                      onChange={(e) => {
+                        const val = e.target.value as TabType | '';
+                        setTargetTab(val);
+                        if (val !== 'community') {
+                          setTargetSubTab('');
+                        }
+                      }}
+                      className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs focus:border-blue-500 focus:outline-hidden"
+                    >
+                      <option value="">Default (Auto-mapped by Category)</option>
+                      <option value="daily_qa">Daily Ultimate Search (GUS)</option>
+                      <option value="community">Community / Campus / Mini Mart</option>
+                      <option value="home">Home Hub</option>
+                      <option value="profile">Student Profile Hub</option>
+                      <option value="ai">AI Library & Academic Assistant</option>
+                    </select>
+                  </div>
+
+                  {targetTab === 'community' && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                        Community Sub-Channel
+                      </label>
+                      <select
+                        id="event-form-target-subtab"
+                        value={targetSubTab}
+                        onChange={(e) => setTargetSubTab(e.target.value as any)}
+                        className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs focus:border-blue-500 focus:outline-hidden"
+                      >
+                        <option value="">Default (Auto by Category)</option>
+                        <option value="campus">Campus Network</option>
+                        <option value="minimart">Mini Mart & Skills Listing</option>
+                        <option value="announcements">Official Announcements</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Resolved routing preview */}
+                {(() => {
+                  const simulatedEv: Partial<PlatformEventItem> = {
+                    category,
+                    targetTab: targetTab ? (targetTab as TabType) : undefined,
+                    targetSubTab: targetSubTab ? (targetSubTab as any) : undefined,
+                  };
+                  const resolved = resolveEventChannel(simulatedEv as PlatformEventItem);
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-slate-600 dark:text-slate-400">
+                      <span>Directs users to:</span>
+                      <strong className="text-blue-600 dark:text-blue-400">{resolved.label}</strong>
+                      <span>• Button:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">"{resolved.actionText}"</span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Date Window & Time Pickers */}

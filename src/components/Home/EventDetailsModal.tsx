@@ -11,8 +11,10 @@ import {
   ShieldCheck,
   Sparkles,
   ArrowRight,
+  Compass,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { resolveEventChannel } from '../../utils/eventNavigation';
 
 interface EventDetailsModalProps {
   event: PlatformEventItem;
@@ -20,33 +22,21 @@ interface EventDetailsModalProps {
 }
 
 export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({ event, onClose }) => {
-  const { setActiveTab } = useApp();
+  const { navigateToEventChannel } = useApp();
 
   const categoryMeta = PLATFORM_EVENT_CATEGORIES.find((c) => c.id === event.category);
   const categoryLabel = categoryMeta?.label || event.categoryLabel || event.category;
+  const channelInfo = resolveEventChannel(event);
 
   const handleActionClick = () => {
     onClose();
-    if (categoryMeta?.tabKey) {
-      setActiveTab(categoryMeta.tabKey);
-    } else if (event.category === 'gus') {
-      setActiveTab('gus');
-    } else if (event.category === 'chatroom_live') {
-      setActiveTab('community');
-    } else {
-      setActiveTab('home');
+    if (navigateToEventChannel) {
+      navigateToEventChannel(event);
     }
   };
 
   const getActionTitle = () => {
-    switch (event.category) {
-      case 'gus':
-        return 'Enter GUS Tournament Arena';
-      case 'chatroom_live':
-        return 'Join Chatroom Live';
-      default:
-        return 'Explore Event';
-    }
+    return channelInfo.actionText;
   };
 
   const isPublished = event.status === 'Published';
@@ -141,6 +131,26 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({ event, onC
                 <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Audience
               </span>
               <p className="font-extrabold text-slate-900 dark:text-white text-xs">All Registered Users</p>
+            </div>
+
+            {/* Target Channel Destination */}
+            <div className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 space-y-1 col-span-2 sm:col-span-3 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-blue-500/15 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                  <Compass className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider block">
+                    Target Channel Destination
+                  </span>
+                  <span className="font-extrabold text-slate-900 dark:text-white text-xs">
+                    {channelInfo.label}
+                  </span>
+                </div>
+              </div>
+              <span className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border ${channelInfo.badgeClass}`}>
+                Direct Route
+              </span>
             </div>
           </div>
 

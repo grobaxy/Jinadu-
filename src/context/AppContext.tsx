@@ -49,6 +49,7 @@ import {
   UserProfile,
   Post,
   EventItem,
+  PlatformEventItem,
   Announcement,
   BadgeStoreItem,
   MasterInstitution,
@@ -83,6 +84,7 @@ import {
   ChatroomLiveMessage,
 } from '../types';
 import { verifyPaystackTransaction } from '../lib/paystackService';
+import { resolveEventChannel } from '../utils/eventNavigation';
 import {
   MOCK_USERS,
   MOCK_POSTS,
@@ -156,6 +158,10 @@ interface AppContextType {
   resolvedTheme: 'dark' | 'light';
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
+  communitySubTab: 'minimart' | 'announcements' | 'campus';
+  setCommunitySubTab: (tab: 'minimart' | 'announcements' | 'campus') => void;
+  navigateToCommunitySubTab: (subTab: 'minimart' | 'announcements' | 'campus') => void;
+  navigateToEventChannel: (event: PlatformEventItem) => void;
   currentUser: UserProfile;
   userProfile: UserProfile;
   setCurrentUser: React.Dispatch<React.SetStateAction<UserProfile>>;
@@ -636,6 +642,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('dark');
   const [activeTab, setActiveTab] = useState<TabType>('home');
+  const [communitySubTab, setCommunitySubTab] = useState<'minimart' | 'announcements' | 'campus'>('minimart');
+
+  const navigateToCommunitySubTab = useCallback((subTab: 'minimart' | 'announcements' | 'campus') => {
+    setCommunitySubTab(subTab);
+    setActiveTab('community');
+  }, []);
+
+  const navigateToEventChannel = useCallback((event: PlatformEventItem) => {
+    const channelInfo = resolveEventChannel(event);
+    if (channelInfo.url) {
+      window.open(channelInfo.url, '_blank');
+      return;
+    }
+    if (channelInfo.tab === 'community' && channelInfo.subTab) {
+      navigateToCommunitySubTab(channelInfo.subTab);
+    } else {
+      setActiveTab(channelInfo.tab);
+    }
+  }, [navigateToCommunitySubTab]);
   const [currentUser, setCurrentUser] = useState<UserProfile>(MOCK_USERS.student);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [walletModalTab, setWalletModalTab] = useState<
@@ -4458,6 +4483,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resolvedTheme,
         activeTab,
         setActiveTab,
+        communitySubTab,
+        setCommunitySubTab,
+        navigateToCommunitySubTab,
+        navigateToEventChannel,
         currentUser,
         setCurrentUser,
         isWalletModalOpen,

@@ -16,10 +16,12 @@ export const CommunityTab: React.FC = () => {
     announcements,
     sectionNotifications,
     markSectionAsRead,
+    communitySubTab,
+    setCommunitySubTab,
   } = useApp();
 
   // Community sub-tabs: 'minimart' | 'announcements' | 'campus'
-  const [currentTab, setCurrentTab] = useState<'minimart' | 'announcements' | 'campus'>('minimart');
+  const currentTab = communitySubTab || 'minimart';
 
   // When sub-tab changes or loads, clear its notification state
   useEffect(() => {
@@ -29,7 +31,9 @@ export const CommunityTab: React.FC = () => {
   }, [currentTab, markSectionAsRead]);
 
   const handleSubTabChange = (tab: 'minimart' | 'announcements' | 'campus') => {
-    setCurrentTab(tab);
+    if (setCommunitySubTab) {
+      setCommunitySubTab(tab);
+    }
     if (markSectionAsRead) {
       markSectionAsRead(tab);
     }
