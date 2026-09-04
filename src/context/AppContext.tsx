@@ -648,19 +648,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCommunitySubTab(subTab);
     setActiveTab('community');
   }, []);
-
-  const navigateToEventChannel = useCallback((event: PlatformEventItem) => {
-    const channelInfo = resolveEventChannel(event);
-    if (channelInfo.url) {
-      window.open(channelInfo.url, '_blank');
-      return;
-    }
-    if (channelInfo.tab === 'community' && channelInfo.subTab) {
-      navigateToCommunitySubTab(channelInfo.subTab);
-    } else {
-      setActiveTab(channelInfo.tab);
-    }
-  }, [navigateToCommunitySubTab]);
   const [currentUser, setCurrentUser] = useState<UserProfile>(MOCK_USERS.student);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [walletModalTab, setWalletModalTab] = useState<
@@ -772,6 +759,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setWalletModalTab(initialTab);
     setIsWalletModalOpen(true);
   };
+
+  const navigateToEventChannel = useCallback((event: PlatformEventItem) => {
+    const channelInfo = resolveEventChannel(event);
+    if (channelInfo.url) {
+      window.open(channelInfo.url, '_blank');
+      return;
+    }
+    if ((channelInfo.tab as string) === 'profile') {
+      openWalletModal('profile');
+      return;
+    }
+    if (channelInfo.tab === 'community' && channelInfo.subTab) {
+      navigateToCommunitySubTab(channelInfo.subTab);
+    } else {
+      setActiveTab(channelInfo.tab);
+    }
+  }, [navigateToCommunitySubTab]);
 
   // Auth Modal & Firebase User State
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -1082,10 +1086,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return MOCK_SPONSORSHIP_CAMPAIGNS;
   });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [gpConversionConfig, setGpConversionConfig] = useState<GpConversionConfig>(MOCK_GP_CONVERSION);
+  const [gpConversionConfig, setGpConversionConfig] = useState<GpConversionConfig>(() => {
+    try {
+      const cachedMin = localStorage.getItem('grobax_min_withdrawal_gp');
+      const cachedRate = localStorage.getItem('grobax_gp_fiat_rate');
+      return {
+        ...MOCK_GP_CONVERSION,
+        ...(cachedMin ? { minimumWithdrawalGP: Number(cachedMin) } : {}),
+        ...(cachedRate ? { gpToFiatRate: Number(cachedRate) } : {}),
+      };
+    } catch {
+      return MOCK_GP_CONVERSION;
+    }
+  });
   const [upgradePlans, setUpgradePlans] = useState<UpgradePlan[]>(MOCK_UPGRADE_PLANS);
   const [notifications, setNotifications] = useState<NotificationItem[]>(DEFAULT_NOTIFICATIONS);
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>(DEFAULT_SYSTEM_SETTINGS);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() => {
+    try {
+      const cached = localStorage.getItem('grobax_system_settings_cache');
+      const cachedMin = localStorage.getItem('grobax_min_withdrawal_gp');
+      const cachedRate = localStorage.getItem('grobax_gp_fiat_rate');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return {
+          ...DEFAULT_SYSTEM_SETTINGS,
+          ...parsed,
+          ...(cachedMin ? { minWithdrawalAmountGp: Number(cachedMin) } : {}),
+          ...(cachedRate ? { gpToFiatRate: Number(cachedRate) } : {}),
+        };
+      }
+      if (cachedMin || cachedRate) {
+        return {
+          ...DEFAULT_SYSTEM_SETTINGS,
+          ...(cachedMin ? { minWithdrawalAmountGp: Number(cachedMin) } : {}),
+          ...(cachedRate ? { gpToFiatRate: Number(cachedRate) } : {}),
+        };
+      }
+    } catch {}
+    return DEFAULT_SYSTEM_SETTINGS;
+  });
 
   // GUS State
   const [gusSeasons, setGusSeasons] = useState<GusSeason[]>(MOCK_GUS_SEASONS);
@@ -1626,13 +1665,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'config',
         (data) => {
           if (data) {
-            setSystemSettings({ ...DEFAULT_SYSTEM_SETTINGS, ...data } as SystemSettings);
-            if (typeof data.gpToFiatRate === 'number' || typeof data.minWithdrawalAmountGp === 'number') {
+            setSystemSettings(prev => ({ ...DEFAULT_SYSTEM_SETTINGS, ...prev, ...data }));
+            const minGp = typeof data.minWithdrawalAmountGp === 'number' && data.minWithdrawalAmountGp > 0 ? data.minWithdrawalAmountGp : undefined;
+            const rate = typeof data.gpToFiatRate === 'number' && data.gpToFiatRate > 0 ? data.gpToFiatRate : undefined;
+            if (minGp !== undefined || rate !== undefined) {
               setGpConversionConfig(prev => ({
                 ...prev,
-                ...(typeof data.gpToFiatRate === 'number' ? { gpToFiatRate: data.gpToFiatRate } : {}),
-                ...(typeof data.minWithdrawalAmountGp === 'number' ? { minimumWithdrawalGP: data.minWithdrawalAmountGp } : {}),
+                ...(minGp !== undefined ? { minimumWithdrawalGP: minGp } : {}),
+                ...(rate !== undefined ? { gpToFiatRate: rate } : {}),
               }));
+              try {
+                if (minGp !== undefined) localStorage.setItem('grobax_min_withdrawal_gp', String(minGp));
+                if (rate !== undefined) localStorage.setItem('grobax_gp_fiat_rate', String(rate));
+              } catch {}
             }
           }
         },
@@ -1646,7 +1691,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'gp_conversion',
         (data) => {
           if (data) {
-            setGpConversionConfig(prev => ({ ...prev, ...DEFAULT_GP_CONVERSION, ...data }));
+            setGpConversionConfig(prev => {
+              const incomingMin = (typeof data.minimumWithdrawalGP === 'number' && data.minimumWithdrawalGP > 0)
+                ? data.minimumWithdrawalGP
+                : (typeof (data as any).minWithdrawalAmountGp === 'number' && (data as any).minWithdrawalAmountGp > 0)
+                  ? (data as any).minWithdrawalAmountGp
+                  : prev.minimumWithdrawalGP;
+              const incomingRate = (typeof data.gpToFiatRate === 'number' && data.gpToFiatRate > 0)
+                ? data.gpToFiatRate
+                : prev.gpToFiatRate;
+              
+              if (incomingMin) {
+                try {
+                  localStorage.setItem('grobax_min_withdrawal_gp', String(incomingMin));
+                } catch {}
+              }
+              return {
+                ...DEFAULT_GP_CONVERSION,
+                ...prev,
+                ...data,
+                ...(incomingMin ? { minimumWithdrawalGP: incomingMin } : {}),
+                ...(incomingRate ? { gpToFiatRate: incomingRate } : {}),
+              };
+            });
           }
         },
         (error) => {
@@ -3850,6 +3917,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateGpConversionConfig = (config: Partial<GpConversionConfig>) => {
     setGpConversionConfig(prev => ({ ...prev, ...config }));
+    if (typeof config.minimumWithdrawalGP === 'number' && config.minimumWithdrawalGP > 0) {
+      setSystemSettings(prev => ({ ...prev, minWithdrawalAmountGp: config.minimumWithdrawalGP! }));
+      try {
+        localStorage.setItem('grobax_min_withdrawal_gp', String(config.minimumWithdrawalGP));
+      } catch {}
+    }
+    if (typeof config.gpToFiatRate === 'number' && config.gpToFiatRate > 0) {
+      setSystemSettings(prev => ({ ...prev, gpToFiatRate: config.gpToFiatRate! }));
+      try {
+        localStorage.setItem('grobax_gp_fiat_rate', String(config.gpToFiatRate));
+      } catch {}
+    }
     saveGpConversionConfigToFirestore(config, firebaseUser?.uid, currentUser.name).catch(err => {
       console.warn('Could not sync GP conversion config to Firestore:', err);
     });
@@ -4073,6 +4152,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateSystemSettings = async (settingsPatch: Partial<SystemSettings>) => {
     setSystemSettings(prev => ({ ...prev, ...settingsPatch }));
+    const minGp = typeof settingsPatch.minWithdrawalAmountGp === 'number' && settingsPatch.minWithdrawalAmountGp > 0 ? settingsPatch.minWithdrawalAmountGp : undefined;
+    const rate = typeof settingsPatch.gpToFiatRate === 'number' && settingsPatch.gpToFiatRate > 0 ? settingsPatch.gpToFiatRate : undefined;
+    if (minGp !== undefined || rate !== undefined) {
+      setGpConversionConfig(prev => ({
+        ...prev,
+        ...(minGp !== undefined ? { minimumWithdrawalGP: minGp } : {}),
+        ...(rate !== undefined ? { gpToFiatRate: rate } : {}),
+      }));
+    }
+    try {
+      localStorage.setItem('grobax_system_settings_cache', JSON.stringify({ ...systemSettings, ...settingsPatch }));
+      if (minGp !== undefined) localStorage.setItem('grobax_min_withdrawal_gp', String(minGp));
+      if (rate !== undefined) localStorage.setItem('grobax_gp_fiat_rate', String(rate));
+    } catch {}
     try {
       await saveSystemSettingsToFirestore(
         settingsPatch,

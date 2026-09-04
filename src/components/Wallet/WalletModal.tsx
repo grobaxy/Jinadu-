@@ -78,6 +78,9 @@ import {
   Receipt,
   BookOpen,
   School,
+  Trophy,
+  Star,
+  Target,
 } from 'lucide-react';
 
 const STANDARD_ACADEMIC_LEVELS = [
@@ -116,6 +119,7 @@ export const WalletModal: React.FC = () => {
     updateUserProfile,
     transactions,
     gpConversionConfig,
+    systemSettings,
     upgradePlans,
     walletModalTab,
     setWalletModalTab,
@@ -129,6 +133,22 @@ export const WalletModal: React.FC = () => {
     toggleBalanceHidden,
     isUserSubscribed,
   } = useApp();
+
+  const effectiveMinGp = Number(
+    (typeof systemSettings?.minWithdrawalAmountGp === 'number' && systemSettings.minWithdrawalAmountGp > 0)
+      ? systemSettings.minWithdrawalAmountGp
+      : (typeof gpConversionConfig?.minimumWithdrawalGP === 'number' && gpConversionConfig.minimumWithdrawalGP > 0)
+        ? gpConversionConfig.minimumWithdrawalGP
+        : 1000
+  );
+
+  const effectiveRate = Number(
+    (typeof systemSettings?.gpToFiatRate === 'number' && systemSettings.gpToFiatRate > 0)
+      ? systemSettings.gpToFiatRate
+      : (typeof gpConversionConfig?.gpToFiatRate === 'number' && gpConversionConfig.gpToFiatRate > 0)
+        ? gpConversionConfig.gpToFiatRate
+        : 1
+  );
 
   const [activeTab, setActiveTab] = useState<
     'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade'
@@ -182,17 +202,17 @@ export const WalletModal: React.FC = () => {
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
 
   // Withdrawal Form State
-  const [withdrawGpAmount, setWithdrawGpAmount] = useState<number>(gpConversionConfig.minimumWithdrawalGP || 1000);
+  const [withdrawGpAmount, setWithdrawGpAmount] = useState<number>(effectiveMinGp);
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [withdrawalMessage, setWithdrawalMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Sync default withdraw amount when config loads
+  // Sync default withdraw amount when config loads or changes
   useEffect(() => {
-    if (gpConversionConfig?.minimumWithdrawalGP && withdrawGpAmount < gpConversionConfig.minimumWithdrawalGP) {
-      setWithdrawGpAmount(gpConversionConfig.minimumWithdrawalGP);
+    if (effectiveMinGp && (!withdrawGpAmount || withdrawGpAmount < effectiveMinGp)) {
+      setWithdrawGpAmount(effectiveMinGp);
     }
-  }, [gpConversionConfig?.minimumWithdrawalGP]);
+  }, [effectiveMinGp]);
 
   // Badge Modal State
   const [selectedBadgeForPurchase, setSelectedBadgeForPurchase] = useState<BadgeStoreItem | null>(null);
@@ -431,12 +451,12 @@ export const WalletModal: React.FC = () => {
       return;
     }
 
-    const minGp = gpConversionConfig?.minimumWithdrawalGP || 1000;
+    const minGp = effectiveMinGp;
 
     if (withdrawGpAmount < minGp) {
       setWithdrawalMessage({
         type: 'error',
-        text: `Minimum cash out withdrawal is ${minGp.toLocaleString()} GP.`,
+        text: `Minimum cash out withdrawal is ${minGp.toLocaleString()} GP (₦${(minGp * effectiveRate).toLocaleString()} NGN).`,
       });
       return;
     }
@@ -577,18 +597,22 @@ export const WalletModal: React.FC = () => {
           {activeTab === 'profile' && (
             <div className="space-y-6">
               {/* Profile Card Summary */}
-              <div className="p-5 sm:p-6 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="relative group">
+              <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+                  <div className="relative group shrink-0">
                     <img
                       src={currentUser.avatar || currentUser.profileImage}
                       alt={currentUser.name}
-                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-blue-500/40 shadow-md ring-2 ring-blue-500/20 bg-slate-800"
+                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-blue-500/50 shadow-md ring-4 ring-blue-500/20 bg-slate-100 dark:bg-slate-800"
                       referrerPolicy="no-referrer"
                     />
                     {currentUser.equippedBadge ? (
-                      <div className="absolute -bottom-2 -right-2 px-1.5 py-0.5 rounded-md bg-slate-900 border border-amber-500/40 text-[10px] shadow-sm flex items-center gap-1 text-amber-400 font-bold">
+                      <div
+                        className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black text-xs shadow-md flex items-center gap-1 border-2 border-white dark:border-slate-900"
+                        title={`Equipped Badge: ${currentUser.equippedBadge.name}`}
+                      >
                         <span>{currentUser.equippedBadge.icon}</span>
+                        <span className="hidden sm:inline text-[10px] uppercase tracking-wider">{currentUser.equippedBadge.name}</span>
                       </div>
                     ) : (
                       <button
@@ -596,15 +620,16 @@ export const WalletModal: React.FC = () => {
                         onClick={() => {
                           if (!isEditingProfile) handleOpenEditProfile();
                         }}
-                        className="absolute -bottom-1 -right-1 p-1.5 rounded-lg bg-blue-900 text-white shadow-md hover:bg-blue-800 transition-all cursor-pointer"
+                        className="absolute -bottom-1 -right-1 p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all cursor-pointer border-2 border-white dark:border-slate-900"
                         title="Change profile picture"
                       >
-                        <Camera className="w-3 h-3" />
+                        <Camera className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
-                  <div>
-                    <div className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 flex-wrap">
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2.5 flex-wrap">
                       <UserBadgeItem
                         name={currentUser.name || currentUser.fullName}
                         verified={currentUser.verified !== false}
@@ -613,17 +638,35 @@ export const WalletModal: React.FC = () => {
                         equippedBadge={currentUser.equippedBadge}
                         size="lg"
                       />
+                      {currentUser.isRepresentative && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-extrabold text-[11px] uppercase tracking-wider flex items-center gap-1">
+                          <Award className="w-3 h-3" />
+                          Official Representative
+                        </span>
+                      )}
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                      @{currentUser.username} • {currentUser.institution || 'Scholar'} {currentUser.faculty ? `• ${currentUser.faculty} ` : ''}• {currentUser.department || 'General Studies'} ({currentUser.level || '100L'})
+
+                    <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
+                      <span className="text-blue-600 dark:text-blue-400 font-bold">@{currentUser.username || 'scholar'}</span>
+                      <span>•</span>
+                      <span>{currentUser.institution || currentUser.academicProfile?.institutionName || 'Higher Education Scholar'}</span>
+                      {currentUser.faculty && (
+                        <>
+                          <span>•</span>
+                          <span className="truncate max-w-[200px]">{currentUser.faculty}</span>
+                        </>
+                      )}
+                      <span>•</span>
+                      <span className="text-slate-700 dark:text-slate-300 font-bold">{currentUser.level || '100 Level'}</span>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5 max-w-lg leading-relaxed">
-                      {currentUser.bio || 'Passionate scholar competing in national university leagues.'}
+
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-xl leading-relaxed bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+                      {currentUser.bio || 'Verified academic scholar participating in the Grobaax inter-campus leagues, GUS tournaments, and intellectual competitions.'}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex sm:flex-col gap-2 w-full sm:w-auto shrink-0">
+                <div className="flex sm:flex-row md:flex-col gap-2.5 w-full md:w-auto shrink-0 pt-2 md:pt-0">
                   <button
                     onClick={() => {
                       if (isEditingProfile) {
@@ -632,37 +675,51 @@ export const WalletModal: React.FC = () => {
                         handleOpenEditProfile();
                       }
                     }}
-                    className="flex-1 sm:flex-initial px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    className="flex-1 md:flex-initial px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-blue-500/20"
                   >
-                    <Edit className="w-3.5 h-3.5 text-blue-500" />
+                    <Edit className="w-3.5 h-3.5" />
                     <span>{isEditingProfile ? 'Close Editor' : 'Edit Profile'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const achievementEl = document.getElementById('scholar-achievements-section');
+                      if (achievementEl) {
+                        achievementEl.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }}
+                    className="flex-1 md:flex-initial px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                    <span>View Honours</span>
                   </button>
                 </div>
               </div>
 
-              {/* Authoritative GP Wallet & Institutional Status Redesigned Cards */}
+              {/* Authoritative GP Wallet & Institutional Status Opaque Solid Cards */}
               {(() => {
-                const userInstitutionName = currentUser.institution || currentUser.academicProfile?.institutionName || 'University of Ilorin';
+                const userInstitutionName = currentUser.institution || currentUser.academicProfile?.institutionName || 'Federal Polytechnic, Ado-Ekiti';
                 const matchedInstitution = masterInstitutions.find(
                   inst => inst.name?.toLowerCase().trim() === userInstitutionName.toLowerCase().trim() ||
                           inst.shortName?.toLowerCase().trim() === userInstitutionName.toLowerCase().trim()
                 );
                 const rawGp = typeof currentUser.gpBalance === 'number' ? currentUser.gpBalance : Number(currentUser.gpBalance || 0);
-                const estimatedNaira = (rawGp * (gpConversionConfig?.gpToNairaRate || 1)).toLocaleString();
-                const facultyName = currentUser.faculty || currentUser.academicProfile?.faculty || 'Faculty of Engineering & Technology';
-                const deptName = currentUser.department || currentUser.academicProfile?.department || 'Electrical & Electronics Engineering';
-                const levelName = currentUser.level || currentUser.academicProfile?.level || '400 Level';
+                const estimatedNaira = (rawGp * effectiveRate).toLocaleString();
+                const facultyName = currentUser.faculty || currentUser.academicProfile?.faculty || 'School of Engineering Technology';
+                const deptName = currentUser.department || currentUser.academicProfile?.department || 'Electrical / Electronics Engineering Technology';
+                const levelName = currentUser.level || currentUser.academicProfile?.level || 'Post-Grad';
                 const matricNumber = currentUser.matricNumber || currentUser.academicProfile?.matricNumber;
 
                 return (
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                    {/* 1. Authoritative GP Balance Card (Transparent, Elevated, Privacy Toggle) */}
-                    <div className="lg:col-span-6 p-6 sm:p-7 rounded-3xl bg-transparent border-2 border-blue-500/40 relative overflow-hidden flex flex-col justify-between min-h-[260px]">
-                      <div className="relative z-10 space-y-4">
+                    {/* 1. Authoritative GP Balance Card (Opaque Solid High-Contrast Canvas) */}
+                    <div className="lg:col-span-6 p-6 sm:p-7 rounded-3xl bg-gradient-to-br from-blue-50/90 via-white to-indigo-50/60 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 border-2 border-blue-200 dark:border-blue-900/60 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[270px]">
+                      <div className="space-y-4">
                         {/* Top Header of Card */}
                         <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-400/30 text-blue-300 text-[11px] font-black uppercase tracking-wider">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-100 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 text-xs font-black uppercase tracking-wider">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
                             <span>Authoritative GP Balance</span>
                           </div>
 
@@ -670,80 +727,89 @@ export const WalletModal: React.FC = () => {
                           <button
                             type="button"
                             onClick={toggleBalanceHidden}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-900/40 hover:bg-blue-800/60 border border-blue-500/30 text-blue-300 text-xs font-bold transition-all cursor-pointer shadow-xs"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer shadow-xs"
                             title={isBalanceHidden ? 'Reveal GP Balance' : 'Hide GP Balance (Private Mode)'}
                           >
-                            {isBalanceHidden ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5 text-blue-400" />}
+                            {isBalanceHidden ? <EyeOff className="w-3.5 h-3.5 text-amber-500" /> : <Eye className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />}
                             <span>{isBalanceHidden ? 'Private' : 'Visible'}</span>
                           </button>
                         </div>
 
                         {/* Balance Typography & Stats */}
                         <div>
-                          <div className="text-3xl sm:text-4xl font-black text-white tracking-tight flex items-baseline gap-2">
+                          <div className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-baseline gap-2">
                             <span>{isBalanceHidden ? '••••••••' : authoritativeGpBalance}</span>
-                            <span className="text-base sm:text-lg font-black text-blue-400 tracking-wider">GP</span>
+                            <span className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 tracking-wider">GP</span>
                           </div>
 
-                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap mt-2">
-                            <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold flex items-center gap-1">
-                              <Zap className="w-3 h-3 text-amber-400" />
-                              <span>{isUserSubscribed ? '2.0x Boost Multiplier' : '1.0x Standard Rate'}</span>
+                          <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-1">
+                            ≈ ₦{isBalanceHidden ? '••••••' : estimatedNaira} NGN <span className="text-slate-600 dark:text-slate-300 font-medium">(Official rate: 1 GP = ₦{effectiveRate} NGN)</span>
+                          </div>
+
+                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap mt-3">
+                            <span className="px-2.5 py-1 rounded-lg bg-emerald-100/80 dark:bg-emerald-950/50 border border-emerald-300/80 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-1">
+                              <Zap className="w-3.5 h-3.5 text-amber-500" />
+                              <span>{isUserSubscribed ? '2.0x Boost Multiplier' : '1.0x Standard Scholar Rate'}</span>
+                            </span>
+
+                            <span className="px-2.5 py-1 rounded-lg bg-blue-100/80 dark:bg-blue-950/50 border border-blue-300/80 dark:border-blue-800 text-blue-800 dark:text-blue-300 text-xs font-bold flex items-center gap-1">
+                              <Coins className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                              <span>{rawGp >= effectiveMinGp ? 'Eligible for Direct Cash Out' : `Min Cash Out: ${effectiveMinGp.toLocaleString()} GP`}</span>
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Bottom Quick Action Pills */}
-                      <div className="relative z-10 grid grid-cols-3 gap-2 pt-5 border-t border-slate-800/80 mt-4">
+                      {/* Bottom Quick Action Buttons */}
+                      <div className="grid grid-cols-3 gap-2.5 pt-5 border-t border-slate-200 dark:border-slate-800 mt-5">
                         <button
                           type="button"
                           onClick={() => setActiveTab('airtime_data')}
-                          className="px-2.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer text-center"
+                          className="px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer shadow-sm text-center"
                         >
-                          <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <Smartphone className="w-4 h-4 text-emerald-100 shrink-0" />
                           <span className="truncate">Airtime / Data</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setActiveTab('withdraw')}
-                          className="px-2.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-blue-900/30 text-center"
+                          className="px-3 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-blue-500/20 text-center"
                         >
-                          <Banknote className="w-4 h-4 text-blue-200 shrink-0" />
+                          <Banknote className="w-4 h-4 text-blue-100 shrink-0" />
                           <span className="truncate">Cash Out</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setActiveTab('history')}
-                          className="px-2.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-200 font-bold text-xs transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer text-center"
+                          className="px-3 py-2.5 rounded-xl bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer text-center"
                         >
-                          <History className="w-4 h-4 text-slate-400 shrink-0" />
+                          <History className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
                           <span className="truncate">Logs</span>
                         </button>
                       </div>
                     </div>
 
-                    {/* 2. Institutional Status Card (Transparent, Comprehensive School Details & Credentials) */}
-                    <div className="lg:col-span-6 p-6 sm:p-7 rounded-3xl bg-transparent border border-slate-700/60 relative overflow-hidden flex flex-col justify-between min-h-[260px]">
-                      <div className="space-y-3.5">
+                    {/* 2. Institutional Status Card (Opaque Solid High-Contrast Canvas) */}
+                    <div className="lg:col-span-6 p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[270px]">
+                      <div className="space-y-4">
                         {/* Top Tag & Verification */}
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-2 text-[11px] font-black text-indigo-300 uppercase tracking-wider">
-                            <School className="w-4 h-4 text-indigo-400" />
+                          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-black uppercase tracking-wider">
+                            <School className="w-3.5 h-3.5 text-indigo-500" />
                             <span>Institutional Status</span>
                           </div>
 
                           <div className="flex items-center gap-1.5">
                             {currentUser.isRepresentative ? (
-                              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
-                                <Award className="w-3 h-3" />
+                              <span className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
+                                <Award className="w-3.5 h-3.5" />
                                 Official Representative
                               </span>
                             ) : (
-                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3" />
+                              <span className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
                                 Verified Student Member
                               </span>
                             )}
@@ -752,65 +818,65 @@ export const WalletModal: React.FC = () => {
 
                         {/* Institution Name & Details */}
                         <div>
-                          <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                            <GraduationCap className="w-5 h-5 text-blue-400 shrink-0" />
+                          <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                            <GraduationCap className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
                             <span className="leading-snug">{userInstitutionName}</span>
                           </h3>
-                          <div className="flex items-center gap-2 text-xs text-slate-400 mt-1 flex-wrap font-medium">
-                            <span className="px-2 py-0.5 rounded-md bg-slate-800 text-indigo-300 text-[10px] font-bold border border-slate-700">
+                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1.5 flex-wrap font-medium">
+                            <span className="px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-slate-200 dark:border-slate-700">
                               {matchedInstitution?.category || currentUser.academicProfile?.category || 'Higher Education Institution'}
                             </span>
                             {matchedInstitution?.state && (
-                              <span>• {matchedInstitution.state}</span>
+                              <span className="font-semibold">• {matchedInstitution.state} State</span>
                             )}
                             {matchedInstitution?.motto && (
-                              <span className="italic text-slate-500">"{matchedInstitution.motto}"</span>
+                              <span className="italic text-slate-600 dark:text-slate-400">"{matchedInstitution.motto}"</span>
                             )}
                           </div>
                         </div>
 
-                        {/* Academic Specifics Grid */}
-                        <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
-                          <div className="p-2 rounded-xl bg-transparent border border-slate-800/80">
-                            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Faculty</div>
-                            <div className="font-bold text-slate-200 truncate mt-0.5" title={facultyName}>
+                        {/* Academic Specifics Grid (Solid Opaque High-Legibility Boxes) */}
+                        <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
+                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-0.5">
+                            <div className="text-[10px] text-slate-600 dark:text-slate-300 font-extrabold uppercase tracking-wider">Faculty</div>
+                            <div className="font-bold text-slate-900 dark:text-slate-100 truncate" title={facultyName}>
                               {facultyName}
                             </div>
                           </div>
 
-                          <div className="p-2 rounded-xl bg-transparent border border-slate-800/80">
-                            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Department</div>
-                            <div className="font-bold text-slate-200 truncate mt-0.5" title={deptName}>
+                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-0.5">
+                            <div className="text-[10px] text-slate-600 dark:text-slate-300 font-extrabold uppercase tracking-wider">Department</div>
+                            <div className="font-bold text-slate-900 dark:text-slate-100 truncate" title={deptName}>
                               {deptName}
                             </div>
                           </div>
 
-                          <div className="p-2 rounded-xl bg-transparent border border-slate-800/80">
-                            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Academic Level</div>
-                            <div className="font-bold text-blue-400 truncate mt-0.5">
+                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-0.5">
+                            <div className="text-[10px] text-slate-600 dark:text-slate-300 font-extrabold uppercase tracking-wider">Academic Level</div>
+                            <div className="font-bold text-blue-600 dark:text-blue-400 truncate">
                               {levelName}
                             </div>
                           </div>
 
-                          <div className="p-2 rounded-xl bg-transparent border border-slate-800/80">
-                            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Matric / Student ID</div>
-                            <div className="font-bold text-amber-400 truncate mt-0.5">
-                              {matricNumber || `@${currentUser.username}`}
+                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-0.5">
+                            <div className="text-[10px] text-slate-600 dark:text-slate-300 font-extrabold uppercase tracking-wider">Student ID / Matric</div>
+                            <div className="font-bold text-amber-600 dark:text-amber-400 truncate">
+                              {matricNumber || `@${currentUser.username || 'scholar'}`}
                             </div>
                           </div>
                         </div>
                       </div>
 
                       {/* Card Footer Info */}
-                      <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 mt-2">
-                        <span className="flex items-center gap-1 text-slate-400">
-                          <Shield className="w-3 h-3 text-blue-400" />
+                      <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-4">
+                        <span className="flex items-center gap-1.5 font-medium">
+                          <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                           Academic record verified on campus ledger
                         </span>
                         <button
                           type="button"
                           onClick={() => handleOpenEditProfile()}
-                          className="text-blue-400 font-bold hover:underline cursor-pointer"
+                          className="text-blue-600 dark:text-blue-400 font-black hover:underline cursor-pointer"
                         >
                           Edit Details →
                         </button>
@@ -820,21 +886,21 @@ export const WalletModal: React.FC = () => {
                 );
               })()}
 
-              {/* Comprehensive Profile Editor Modal/Form */}
+              {/* Comprehensive Profile Editor Form */}
               {isEditingProfile && (
                 <form
                   onSubmit={handleSaveProfile}
-                  className="p-5 rounded-2xl bg-white dark:bg-slate-900 border-2 border-blue-500/40 space-y-4 shadow-xl animate-in fade-in"
+                  className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border-2 border-blue-500/50 space-y-5 shadow-lg animate-in fade-in"
                 >
                   <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                     <div className="flex items-center gap-2">
-                      <GraduationCap className="w-4 h-4 text-blue-500" />
-                      <h3 className="text-sm font-black text-slate-900 dark:text-slate-100">
-                        Edit Official Scholar Profile
+                      <GraduationCap className="w-5 h-5 text-blue-500" />
+                      <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100">
+                        Edit Official Scholar Profile & Academic Credentials
                       </h3>
                     </div>
-                    <span className="text-[10px] text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
-                      Master Academic Ledger
+                    <span className="text-xs text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800">
+                      Campus Ledger Synced
                     </span>
                   </div>
 
@@ -844,173 +910,404 @@ export const WalletModal: React.FC = () => {
                     onSaveAvatar={handleSaveAvatar}
                   />
 
+                  {profileSaveSuccess && (
+                    <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+                      <span>🎉 Scholar profile updated successfully! Changes reflected across the platform.</span>
+                    </div>
+                  )}
+
                   {profileSaveError && (
-                    <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs font-semibold flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
+                    <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-bold flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                       <span>{profileSaveError}</span>
                     </div>
                   )}
 
-                  {profileSaveSuccess && (
-                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs font-semibold flex items-center gap-2">
-                      <Check className="w-4 h-4 shrink-0" />
-                      <span>Profile updated successfully in Firestore master database!</span>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                        Full Display Name
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Full Name
                       </label>
                       <input
                         type="text"
                         value={editName}
                         onChange={e => setEditName(e.target.value)}
-                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-900"
+                        placeholder="e.g. Abdulazeez Ibrahim"
+                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                        Unique Scholar Username (@)
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Scholar Username (@)
                       </label>
                       <input
                         type="text"
                         value={editUsername}
-                        onChange={e => setEditUsername(e.target.value)}
-                        placeholder="scholar_handle"
-                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-900"
+                        onChange={e => setEditUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                        placeholder="e.g. abdul"
+                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required
                       />
                     </div>
 
-                    {/* Academic Level */}
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Institution / Campus
+                      </label>
+                      <input
+                        type="text"
+                        value={editInstitution}
+                        onChange={e => setEditInstitution(e.target.value)}
+                        placeholder="e.g. Federal Polytechnic, Ado-Ekiti"
+                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Faculty / School
+                      </label>
+                      <input
+                        type="text"
+                        value={editFaculty}
+                        onChange={e => setEditFaculty(e.target.value)}
+                        placeholder="e.g. School of Engineering Technology"
+                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Department / Major
+                      </label>
+                      <input
+                        type="text"
+                        value={editDepartment}
+                        onChange={e => setEditDepartment(e.target.value)}
+                        placeholder="e.g. Electrical / Electronics Engineering"
+                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                         Academic Level
                       </label>
                       <select
                         value={editLevel}
                         onChange={e => setEditLevel(e.target.value)}
-                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 font-bold"
-                        required
+                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         {STANDARD_ACADEMIC_LEVELS.map(lvl => (
-                          <option key={lvl} value={lvl}>
-                            {lvl}
-                          </option>
+                          <option key={lvl} value={lvl}>{lvl}</option>
                         ))}
                       </select>
                     </div>
 
-                    {/* Academic Status Note */}
-                    <div className="flex items-center">
-                      <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-[11px] flex items-center gap-2 w-full">
-                        <ShieldCheck className="w-4 h-4 shrink-0" />
-                        <span>Academic identity is verified & bound to your registered scholar record.</span>
-                      </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Scholar Bio
+                      </label>
+                      <input
+                        type="text"
+                        value={editBio}
+                        onChange={e => setEditBio(e.target.value)}
+                        placeholder="Passionate scholar competing in university leagues..."
+                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
                     </div>
                   </div>
 
-                  {/* Registered Academic Credentials (Locked post-registration) */}
-                  <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Lock className="w-4 h-4 text-amber-500" />
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                          Registered Academic Credentials (Immutable)
-                        </span>
-                      </div>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                        Locked Post-Registration
-                      </span>
-                    </div>
-
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      To preserve competition integrity and institutional rankings, scholars cannot change their institution, faculty, or department after initial registration.
-                    </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                      <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                        <div className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase flex items-center gap-1 mb-0.5">
-                          <Building2 className="w-3 h-3 text-blue-500" />
-                          <span>Institution</span>
-                        </div>
-                        <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate" title={currentUser.institutionName || currentUser.institution || 'Unassigned'}>
-                          {currentUser.institutionName || currentUser.institution || 'Unassigned'}
-                        </div>
-                        <div className="text-[10px] text-slate-600 dark:text-slate-300 mt-0.5">
-                          {currentUser.institutionCategory || 'University'}
-                        </div>
-                      </div>
-
-                      <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                        <div className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase flex items-center gap-1 mb-0.5">
-                          <School className="w-3 h-3 text-indigo-500" />
-                          <span>Faculty / School</span>
-                        </div>
-                        <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate" title={currentUser.facultyName || currentUser.faculty || 'General'}>
-                          {currentUser.facultyName || currentUser.faculty || 'General'}
-                        </div>
-                        <div className="text-[10px] text-slate-600 dark:text-slate-300 mt-0.5">
-                          College / Division
-                        </div>
-                      </div>
-
-                      <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                        <div className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase flex items-center gap-1 mb-0.5">
-                          <BookOpen className="w-3 h-3 text-purple-500" />
-                          <span>Department</span>
-                        </div>
-                        <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate" title={currentUser.departmentName || currentUser.department || 'General Studies'}>
-                          {currentUser.departmentName || currentUser.department || 'General Studies'}
-                        </div>
-                        <div className="text-[10px] text-slate-600 dark:text-slate-300 mt-0.5">
-                          Registered Major
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                      Academic Bio & Specialties
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={editBio}
-                      onChange={e => setEditBio(e.target.value)}
-                      placeholder="Share your academic interests, research, or competition focus..."
-                      className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 resize-none focus:outline-none focus:ring-2 focus:ring-blue-900"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <p className="text-[11px] text-slate-500">
-                      * Note: Official competition roles & representative status are validated authoritatively by admins.
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingProfile(false)}
-                        className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isSavingProfile}
-                        className="px-5 py-2 bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                      >
-                        {isSavingProfile && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                        <span>{isSavingProfile ? 'Saving...' : 'Save Profile Changes'}</span>
-                      </button>
-                    </div>
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingProfile(false)}
+                      className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingProfile}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2"
+                    >
+                      {isSavingProfile ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      <span>{isSavingProfile ? 'Saving Changes...' : 'Save Profile Changes'}</span>
+                    </button>
                   </div>
                 </form>
               )}
+
+              {/* HEAD-TO-TOE REDESIGNED: Scholar Achievements, Honours & Trophy Cabinet */}
+              <div id="scholar-achievements-section" className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+                {/* Section Header */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0 shadow-xs">
+                      <Trophy className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>Scholar Achievements, Badges & Honours</span>
+                        {currentUser.equippedBadge && (
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-black">
+                            {currentUser.equippedBadge.icon} {currentUser.equippedBadge.name}
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Authoritative track record of academic milestones, Daily Ultimate Search ranks, and unlocked honor badges.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (badgeStore.length > 0) {
+                          setSelectedBadgeForPurchase(badgeStore[0]);
+                        }
+                      }}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5 text-slate-950" />
+                      <span>Badge Store ({badgeStore.length})</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4 Academic Milestones Bento Cards */}
+                {(() => {
+                  const rawGp = typeof currentUser.gpBalance === 'number' ? currentUser.gpBalance : Number(currentUser.gpBalance || 0);
+                  const progressToMinWithdraw = Math.min(100, Math.round((rawGp / effectiveMinGp) * 100));
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Milestone 1: GUS Arena Record */}
+                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                            <Trophy className="w-3.5 h-3.5" />
+                            GUS Arena
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-black">
+                            Season Live
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-lg font-black text-slate-900 dark:text-white">
+                            {currentUser.gusTier || 'Scholar Tier'}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                            #{currentUser.gusRank || 1} Campus League Rank
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                          <span>100% Verified Quiz Accuracy</span>
+                        </div>
+                      </div>
+
+                      {/* Milestone 2: GP Treasury & Cash Out Qualification */}
+                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
+                            <Coins className="w-3.5 h-3.5" />
+                            GP Milestone
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
+                            rawGp >= effectiveMinGp
+                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                          }`}>
+                            {progressToMinWithdraw}% of Target
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-lg font-black text-slate-900 dark:text-white">
+                            {rawGp.toLocaleString()} GP
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                            Target: {effectiveMinGp.toLocaleString()} GP Min Cash Out
+                          </div>
+                        </div>
+                        <div>
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                              style={{ width: `${progressToMinWithdraw}%` }}
+                            />
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex justify-between font-medium">
+                            <span>0 GP</span>
+                            <span>{rawGp >= effectiveMinGp ? '✅ Qualified' : `${(effectiveMinGp - rawGp).toLocaleString()} GP left`}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Milestone 3: Verified Scholar Standing */}
+                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            Verification
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black">
+                            Active
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-lg font-black text-slate-900 dark:text-white">
+                            Verified Scholar
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                            {currentUser.level || 'Post-Grad'} • {currentUser.faculty || 'Engineering'}
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                          <GraduationCap className="w-3 h-3 text-indigo-500" />
+                          <span>Campus Ledger Synchronized</span>
+                        </div>
+                      </div>
+
+                      {/* Milestone 4: Marketplace & Privileges */}
+                      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                            Commerce Status
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black">
+                            Eligible
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-lg font-black text-slate-900 dark:text-white">
+                            Instant VTU Privileges
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                            Airtime, MTN/GLO Data & Mini Mart
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-amber-500" />
+                          <span>Zero Processing Fee</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Interactive Trophy & Badge Cabinet */}
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <Medal className="w-4 h-4 text-amber-500" />
+                        <span>Interactive Trophy Cabinet & Rank Badges</span>
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Equip your unlocked badges to showcase on your avatar, comments, and public leaderboard profile.
+                      </p>
+                    </div>
+
+                    <div className="text-xs text-slate-500 dark:text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl">
+                      {currentUser.purchasedBadgeIds?.length || 0} Unlocked • {currentUser.equippedBadge ? '1 Equipped' : 'None Equipped'}
+                    </div>
+                  </div>
+
+                  {/* Badges Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {badgeStore.map(badge => {
+                      const isEquipped = currentUser.equippedBadge?.id === badge.id || currentUser.equippedBadge?.name === badge.name;
+                      const isUnlocked = currentUser.purchasedBadgeIds?.includes(badge.id);
+
+                      return (
+                        <div
+                          key={badge.id}
+                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between relative space-y-3 ${
+                            isEquipped
+                              ? 'bg-amber-50/80 dark:bg-amber-950/30 border-2 border-amber-500 shadow-md ring-2 ring-amber-500/20'
+                              : isUnlocked
+                              ? 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 shadow-xs hover:border-blue-400'
+                              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700/60 border border-slate-200 dark:border-slate-600 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                              {badge.image}
+                            </div>
+
+                            <div className="flex flex-col items-end gap-1">
+                              {isEquipped ? (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                                  <Check className="w-3 h-3" />
+                                  Equipped
+                                </span>
+                              ) : isUnlocked ? (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  Unlocked
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] flex items-center gap-1">
+                                  <Coins className="w-3 h-3 text-amber-500" />
+                                  {badge.gpPrice} GP
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <h5 className="text-xs font-black text-slate-900 dark:text-white">
+                              {badge.name}
+                            </h5>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                              {badge.description}
+                            </p>
+                          </div>
+
+                          <div className="pt-2">
+                            {isEquipped ? (
+                              <button
+                                type="button"
+                                onClick={() => equipBadge(badge.id)}
+                                className="w-full py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-700 dark:text-amber-300 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Unequip Badge</span>
+                              </button>
+                            ) : isUnlocked ? (
+                              <button
+                                type="button"
+                                onClick={() => equipBadge(badge.id)}
+                                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-blue-200" />
+                                <span>Equip Badge</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedBadgeForPurchase(badge)}
+                                className="w-full py-2 bg-white hover:bg-slate-100 dark:bg-slate-700 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                              >
+                                <Coins className="w-3.5 h-3.5 text-amber-500" />
+                                <span>Get for {badge.gpPrice} GP</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1682,11 +1979,11 @@ export const WalletModal: React.FC = () => {
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {[
-                        { gp: gpConversionConfig.minimumWithdrawalGP || 1000, label: `${(gpConversionConfig.minimumWithdrawalGP || 1000).toLocaleString()} GP (Min)` },
-                        { gp: 3000, label: '3,000 GP' },
-                        { gp: 5000, label: '5,000 GP' },
-                        { gp: 10000, label: '10,000 GP' },
-                        ...(currentUser.gpBalance && currentUser.gpBalance >= (gpConversionConfig.minimumWithdrawalGP || 1000)
+                        { gp: effectiveMinGp, label: `${effectiveMinGp.toLocaleString()} GP (Min)` },
+                        ...(effectiveMinGp < 5000 ? [{ gp: 5000, label: '5,000 GP' }] : []),
+                        ...(effectiveMinGp < 10000 ? [{ gp: 10000, label: '10,000 GP' }] : []),
+                        { gp: Math.max(15000, effectiveMinGp * 2), label: `${Math.max(15000, effectiveMinGp * 2).toLocaleString()} GP` },
+                        ...(currentUser.gpBalance && currentUser.gpBalance >= effectiveMinGp
                           ? [{ gp: currentUser.gpBalance, label: `Max (${currentUser.gpBalance.toLocaleString()} GP)` }]
                           : []),
                       ].map((preset, idx) => (
@@ -1715,7 +2012,7 @@ export const WalletModal: React.FC = () => {
                       <input
                         type="number"
                         disabled={isFreeScholar}
-                        min={gpConversionConfig.minimumWithdrawalGP || 1000}
+                        min={effectiveMinGp}
                         max={gpConversionConfig.maximumWithdrawalGP || 500000}
                         value={withdrawGpAmount}
                         onChange={e => setWithdrawGpAmount(Number(e.target.value))}
@@ -1724,7 +2021,7 @@ export const WalletModal: React.FC = () => {
                       />
                       <div className="mt-1 flex justify-between text-xs text-slate-500">
                         <span>Available: <strong className="text-blue-500">{authoritativeGpBalance} GP</strong></span>
-                        <span>Min: <strong className="text-amber-500">{(gpConversionConfig.minimumWithdrawalGP || 1000).toLocaleString()} GP</strong></span>
+                        <span>Min: <strong className="text-amber-500">{effectiveMinGp.toLocaleString()} GP (₦{(effectiveMinGp * effectiveRate).toLocaleString()} NGN)</strong></span>
                       </div>
                     </div>
 

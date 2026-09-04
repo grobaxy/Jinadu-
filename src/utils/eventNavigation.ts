@@ -13,19 +13,31 @@ export interface EventTargetChannelInfo {
  * Accurately determines the destination channel and UI copy for any event.
  */
 export function resolveEventChannel(event: PlatformEventItem): EventTargetChannelInfo {
-  // 1. External custom URL
+  // 1. External custom URL or WhatsApp Group
   if (event.channelUrl && event.channelUrl.trim().startsWith('http')) {
+    const trimmed = event.channelUrl.trim();
+    const isWhatsApp = trimmed.includes('chat.whatsapp.com') || trimmed.includes('wa.me');
     return {
       tab: 'home',
-      label: 'External Arena',
-      actionText: 'Open Live Stream / Link',
-      url: event.channelUrl.trim(),
-      badgeClass: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+      label: isWhatsApp ? 'WhatsApp Study Arena' : 'External Arena',
+      actionText: isWhatsApp ? 'Join WhatsApp Group' : 'Open Live Stream / Link',
+      url: trimmed,
+      badgeClass: isWhatsApp
+        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+        : 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
     };
   }
 
   // 2. Explicit targetTab specified on the event
   if (event.targetTab) {
+    if ((event.targetTab as string) === 'profile') {
+      return {
+        tab: 'home',
+        label: 'Scholar Profile & ID',
+        actionText: 'View Scholar Profile',
+        badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+      };
+    }
     if (event.targetTab === 'community') {
       const sub = event.targetSubTab || 'campus';
       const label =
@@ -55,7 +67,7 @@ export function resolveEventChannel(event: PlatformEventItem): EventTargetChanne
         badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
       };
     }
-    if (event.targetTab === 'library') {
+    if (event.targetTab === 'library' || (event.targetTab as string) === 'ai') {
       return {
         tab: 'library',
         label: 'AI Past Questions Library',
@@ -77,7 +89,7 @@ export function resolveEventChannel(event: PlatformEventItem): EventTargetChanne
             ? 'Enter Daily Ultimate Search'
             : event.category === 'chatroom_live'
             ? 'Enter Daily Ultimate Search Live'
-            : 'Join Academic Olympiad',
+            : 'Enter Academic Olympiad',
         badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
       };
     }
@@ -131,7 +143,7 @@ export function resolveEventChannel(event: PlatformEventItem): EventTargetChanne
     };
   }
 
-  // Default: Daily Ultimate Search (where daily interactive search and contests live)
+  // Default: Daily Ultimate Search
   return {
     tab: 'daily_qa',
     label: 'Daily Ultimate Search',

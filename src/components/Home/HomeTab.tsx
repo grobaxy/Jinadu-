@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { EventDetailsModal } from './EventDetailsModal';
+import { CampusCard } from './CampusCard';
 import {
   PlatformEventItem,
   PlatformEventCategory,
@@ -83,7 +84,7 @@ export const HomeTab: React.FC = () => {
       {/* ======================================================== */}
       <section
         id="home-welcome-section"
-        className="relative overflow-hidden rounded-3xl bg-transparent text-slate-900 dark:text-white p-6 sm:p-8 lg:p-10 border border-slate-200/60 dark:border-slate-800/80"
+        className="relative overflow-hidden rounded-3xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-6 sm:p-8 lg:p-10 border border-slate-200 dark:border-slate-800 shadow-sm"
       >
         <div className="relative space-y-6">
           <div className="space-y-2.5 max-w-3xl">
@@ -111,7 +112,7 @@ export const HomeTab: React.FC = () => {
             <div
               id="home-pillar-gus-card"
               onClick={() => setActiveTab('daily_qa')}
-              className="p-5 rounded-2xl bg-transparent hover:bg-slate-100/50 dark:hover:bg-white/5 border border-slate-200/70 dark:border-slate-800 transition-all cursor-pointer group flex flex-col justify-between"
+              className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
             >
               <div className="flex items-start gap-3.5">
                 <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 group-hover:scale-105 transition-transform">
@@ -142,7 +143,7 @@ export const HomeTab: React.FC = () => {
             <div
               id="home-pillar-minimart-card"
               onClick={() => navigateToCommunitySubTab('minimart')}
-              className="p-5 rounded-2xl bg-transparent hover:bg-slate-100/50 dark:hover:bg-white/5 border border-slate-200/70 dark:border-slate-800 transition-all cursor-pointer group flex flex-col justify-between"
+              className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
             >
               <div className="flex items-start gap-3.5">
                 <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:scale-105 transition-transform">
@@ -173,7 +174,7 @@ export const HomeTab: React.FC = () => {
             <div
               id="home-pillar-campus-card"
               onClick={() => navigateToCommunitySubTab('campus')}
-              className="p-5 rounded-2xl bg-transparent hover:bg-slate-100/50 dark:hover:bg-white/5 border border-slate-200/70 dark:border-slate-800 transition-all cursor-pointer group flex flex-col justify-between"
+              className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
             >
               <div className="flex items-start gap-3.5">
                 <div className="w-11 h-11 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:scale-105 transition-transform">
@@ -204,51 +205,10 @@ export const HomeTab: React.FC = () => {
       </section>
 
       {/* ======================================================== */}
-      {/* 1.5 DEDICATED CAMPUS HUB CARD */}
+      {/* 1.5 OFFICIAL CAMPUS CARD (STUDENT SCHOLAR IDENTITY)     */}
       {/* ======================================================== */}
       <section id="home-campus-card-section">
-        <div
-          id="home-verified-campus-card"
-          className="relative overflow-hidden rounded-3xl bg-transparent border border-slate-200/70 dark:border-slate-800/80 p-5 sm:p-6 transition-all hover:border-indigo-500/40 group"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start sm:items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:scale-105 transition-transform">
-                <GraduationCap className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                    Campus Scholar Hub
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Verified Student Network
-                  </span>
-                </div>
-                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                  {currentUser?.institution || 'Grobaax Campus Network'}
-                </h3>
-                <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                  {currentUser?.department ? `${currentUser.department} • ` : ''}
-                  Find course colleagues, faculty peers, and verified study connections in your university.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 shrink-0">
-              <Button
-                id="home-open-campus-btn"
-                variant="primary"
-                size="sm"
-                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold cursor-pointer"
-                onClick={() => navigateToCommunitySubTab('campus')}
-                rightIcon={<ArrowRight className="w-4 h-4" />}
-              >
-                Open Campus Directory
-              </Button>
-            </div>
-          </div>
-        </div>
+        <CampusCard />
       </section>
 
       {/* ======================================================== */}
@@ -322,12 +282,17 @@ export const HomeTab: React.FC = () => {
                 <Card
                   key={ev.id}
                   id={`home-event-card-${ev.id}`}
-                  className="p-0 overflow-hidden transition-all hover:border-blue-500/40 hover:shadow-md flex flex-col justify-between group"
+                  className="p-0 overflow-hidden transition-all hover:border-blue-500/40 hover:shadow-md flex flex-col justify-between group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
                 >
-                  {/* Card Cover Image */}
+                  {/* Card Cover Image: Direct click navigates to proper channel */}
                   <div
                     className="relative h-36 w-full bg-slate-950 overflow-hidden cursor-pointer"
-                    onClick={() => setSelectedEventForDetails(ev)}
+                    onClick={() => {
+                      if (navigateToEventChannel) {
+                        navigateToEventChannel(ev);
+                      }
+                    }}
+                    title={`Click to enter ${channelInfo.label}`}
                   >
                     <img
                       src={
@@ -360,7 +325,7 @@ export const HomeTab: React.FC = () => {
 
                     {/* Event Title */}
                     <div className="absolute bottom-2.5 left-3 right-3">
-                      <h3 className="text-sm font-black text-white leading-tight drop-shadow-sm line-clamp-1">
+                      <h3 className="text-sm font-black text-white leading-tight drop-shadow-sm line-clamp-1 group-hover:text-blue-300 transition-colors">
                         {ev.title}
                       </h3>
                     </div>
@@ -379,7 +344,7 @@ export const HomeTab: React.FC = () => {
                         </span>
                       </p>
 
-                      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5">
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Date Window
@@ -400,7 +365,7 @@ export const HomeTab: React.FC = () => {
 
                         {/* Reward field ONLY rendered if configured */}
                         {hasPrize && (
-                          <div className="flex items-center justify-between text-xs pt-0.5 border-t border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center justify-between text-xs pt-0.5 border-t border-slate-200 dark:border-slate-700">
                             <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
                               <Trophy className="w-3.5 h-3.5 text-amber-500" /> Reward
                             </span>
@@ -411,7 +376,7 @@ export const HomeTab: React.FC = () => {
                         )}
 
                         {/* Destination Channel Route */}
-                        <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200 dark:border-slate-700">
                           <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
                             <Compass className="w-3.5 h-3.5 text-blue-500" /> Destination
                           </span>
@@ -429,7 +394,7 @@ export const HomeTab: React.FC = () => {
                     </div>
 
                     {/* Action Buttons: Direct to proper channel + Details */}
-                    <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
                       <Button
                         id={`enter-event-channel-btn-${ev.id}`}
                         variant="primary"
