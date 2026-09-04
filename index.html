@@ -1,6 +1,24 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      // Gracefully filter benign Vite HMR websocket messages in iframe/proxy environments
+      (function () {
+        const _err = console.error;
+        console.error = function (...args) {
+          if (
+            args.length > 0 &&
+            typeof args[0] === 'string' &&
+            (args[0].includes('[vite] failed to connect to websocket') ||
+             args[0].includes('[vite] connecting') ||
+             args[0].startsWith('[vite]'))
+          ) {
+            return;
+          }
+          _err.apply(console, args);
+        };
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no, viewport-fit=cover" />
     <title>Grobaax - An Academic Network that connect students together.</title>

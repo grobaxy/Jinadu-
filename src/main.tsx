@@ -17,8 +17,23 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// Intercept uncaught Firestore quota resource-exhausted rejections gracefully
+// Intercept uncaught Firestore quota resource-exhausted rejections gracefully and filter benign Vite HMR logs
 if (typeof window !== 'undefined') {
+  const _origConsoleError = console.error;
+  console.error = function (...args: any[]) {
+    if (
+      args.length > 0 &&
+      typeof args[0] === 'string' &&
+      (args[0].includes('[vite] failed to connect to websocket') ||
+        args[0].includes('[vite] connecting') ||
+        args[0] === '[vite]' ||
+        args[0].startsWith('[vite]'))
+    ) {
+      return;
+    }
+    _origConsoleError.apply(console, args);
+  };
+
   window.addEventListener('unhandledrejection', (event) => {
     if (
       event.reason &&
