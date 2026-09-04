@@ -1,6 +1,6 @@
 import React from 'react';
 import { UserEquippedBadge } from '../../types';
-import { Sparkles, Shield, Crown, Award } from 'lucide-react';
+import { Sparkles, Shield, Crown, Award, User } from 'lucide-react';
 
 interface UserBadgeItemProps {
   name: string;
@@ -42,7 +42,7 @@ export const TwitterVerifiedBadge: React.FC<{ className?: string; title?: string
 );
 
 /**
- * Premium Package Badge with sleek Dark Blue / Gold styling
+ * Package Badge with sleek VIP / Premium / Free styling
  */
 export const PremiumPackageBadge: React.FC<{
   tier?: string;
@@ -51,28 +51,39 @@ export const PremiumPackageBadge: React.FC<{
 }> = ({ tier = 'PREMIUM', isVip: explicitVip, className = '' }) => {
   const upper = (tier || '').toUpperCase();
   const isVip = explicitVip || upper.includes('VIP') || upper.includes('TITAN') || upper.includes('ANNUAL');
+  const isFree = upper.includes('FREE') || upper === 'BASIC';
   const isStarter = upper.includes('STARTER');
   const isPro = upper.includes('PRO') || upper.includes('CHAMPION');
-
-  const label = isVip
-    ? 'VIP SCHOLAR'
-    : isStarter
-    ? 'STARTER SCHOLAR'
-    : isPro
-    ? 'PRO SCHOLAR'
-    : 'PREMIUM SCHOLAR';
 
   if (isVip) {
     return (
       <span
         className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 text-slate-950 border border-amber-300 ring-1 ring-amber-400/50 ${className}`}
-        title={`Active VIP Package: ${tier}`}
+        title={`Active VIP Scholar Package: ${tier}`}
       >
         <Crown className="w-2.5 h-2.5 text-slate-950 fill-amber-950 shrink-0" />
-        <span className="truncate">{label}</span>
+        <span className="truncate">VIP SCHOLAR</span>
       </span>
     );
   }
+
+  if (isFree) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700 ${className}`}
+        title="Free Scholar Account"
+      >
+        <User className="w-2.5 h-2.5 text-slate-500 dark:text-slate-400 shrink-0" />
+        <span className="truncate">FREE SCHOLAR</span>
+      </span>
+    );
+  }
+
+  const label = isStarter
+    ? 'STARTER SCHOLAR'
+    : isPro
+    ? 'PRO SCHOLAR'
+    : 'PREMIUM SCHOLAR';
 
   return (
     <span
@@ -84,6 +95,11 @@ export const PremiumPackageBadge: React.FC<{
     </span>
   );
 };
+
+/**
+ * Universal Scholar Tier Badge identifying Free, Premium, and VIP users
+ */
+export const ScholarTierBadge = PremiumPackageBadge;
 
 export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
   name,

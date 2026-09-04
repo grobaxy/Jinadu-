@@ -14,6 +14,7 @@ import {
   respondCampusChatRequest,
   getSecureWhatsAppLink,
 } from '../../../lib/campusService';
+import { openExternalWhatsApp } from '../../../lib/whatsappUtils';
 import {
   getFacultiesByCategory,
   getDepartmentsByFaculty,
@@ -232,7 +233,7 @@ export const CampusView: React.FC = () => {
   const handleOpenWhatsAppByStudent = async (student: CampusStudentCard) => {
     const res = await getSecureWhatsAppLink(currentUser.id, student.id, student.requestId);
     if (res.success && res.whatsappUrl) {
-      window.open(res.whatsappUrl, '_blank', 'noopener,noreferrer');
+      openExternalWhatsApp(res.whatsappUrl);
     } else {
       showToast(res.error || 'Unable to open WhatsApp chat.', 'error');
     }
@@ -241,7 +242,7 @@ export const CampusView: React.FC = () => {
   const handleOpenWhatsAppByRequest = async (targetUserId: string, targetName: string, requestId: string) => {
     const res = await getSecureWhatsAppLink(currentUser.id, targetUserId, requestId);
     if (res.success && res.whatsappUrl) {
-      window.open(res.whatsappUrl, '_blank', 'noopener,noreferrer');
+      openExternalWhatsApp(res.whatsappUrl);
     } else {
       showToast(res.error || 'Unable to open WhatsApp chat.', 'error');
     }

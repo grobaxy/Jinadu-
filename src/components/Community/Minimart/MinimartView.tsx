@@ -27,6 +27,7 @@ import {
   Edit3,
 } from 'lucide-react';
 import { TwitterVerifiedBadge, PremiumPackageBadge } from '../../ui/UserBadgeItem';
+import { openExternalWhatsApp } from '../../../lib/whatsappUtils';
 
 export const MinimartView: React.FC = () => {
   const {
@@ -46,6 +47,7 @@ export const MinimartView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc'>('newest');
   const [conditionFilter, setConditionFilter] = useState<string>('all');
+  const [sellerTierFilter, setSellerTierFilter] = useState<'all' | 'vip' | 'premium' | 'free'>('all');
   const [viewMode, setViewMode] = useState<'all' | 'my_listings'>('all');
 
   // Modals
@@ -90,6 +92,14 @@ export const MinimartView: React.FC = () => {
         return false;
       }
 
+      // Seller Tier filter (VIP, Premium, Free)
+      if (sellerTierFilter !== 'all') {
+        const tier = (product.subscriptionPlan || (product as any).sellerTier || 'free').toLowerCase();
+        if (sellerTierFilter === 'vip' && !tier.includes('vip') && !tier.includes('titan')) return false;
+        if (sellerTierFilter === 'premium' && (tier.includes('vip') || tier.includes('free') || tier === 'basic')) return false;
+        if (sellerTierFilter === 'free' && (!tier.includes('free') && tier !== 'basic')) return false;
+      }
+
       // Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -109,7 +119,7 @@ export const MinimartView: React.FC = () => {
       if (sortBy === 'price_desc') return b.price - a.price;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [minimartProducts, selectedCategory, searchQuery, sortBy, conditionFilter, viewMode, currentUser.id, currentUser.name]);
+  }, [minimartProducts, selectedCategory, searchQuery, sortBy, conditionFilter, sellerTierFilter, viewMode, currentUser.id, currentUser.name]);
 
   // Handle Delete Confirmation
   const handleConfirmDelete = async () => {
@@ -129,7 +139,7 @@ export const MinimartView: React.FC = () => {
     }
   };
 
-  // Open WhatsApp Link directly
+  // Open WhatsApp Link directly (iOS Safari & PWA safe)
   const handleOpenWhatsApp = (e: React.MouseEvent, product: MinimartProduct) => {
     e.stopPropagation();
     const cleanPhone = (product.whatsappNumber || '').replace(/[^0-9]/g, '');
@@ -142,7 +152,7 @@ export const MinimartView: React.FC = () => {
     const messageText = encodeURIComponent(
       `Hello ${product.sellerName || 'Scholar'}, I saw your listing for "${product.productName}" (₦${product.price.toLocaleString()}) on Grobaax Minimart. Is it still available on campus?`
     );
-    window.open(`https://wa.me/${waPhone}?text=${messageText}`, '_blank');
+    openExternalWhatsApp(`https://wa.me/${waPhone}?text=${messageText}`);
   };
 
   return (
@@ -301,6 +311,18 @@ export const MinimartView: React.FC = () => {
 
         {/* Filters and Sort */}
         <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end overflow-x-auto">
+          {/* Seller Tier Filter (Free, Premium, VIP) */}
+          <select
+            value={sellerTierFilter}
+            onChange={e => setSellerTierFilter(e.target.value as any)}
+            className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-blue-600 focus:outline-hidden cursor-pointer"
+          >
+            <option value="all">All Sellers</option>
+            <option value="vip">👑 VIP Scholars</option>
+            <option value="premium">⭐ Premium Scholars</option>
+            <option value="free">🎓 Free Scholars</option>
+          </select>
+
           {/* Condition Filter */}
           <select
             value={conditionFilter}
@@ -402,12 +424,18 @@ export const MinimartView: React.FC = () => {
                     }}
                   />
 
-                  {/* Condition Badge */}
-                  {product.condition && (
-                    <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-lg bg-slate-950/80 backdrop-blur-xs text-white text-[10px] font-bold border border-white/10">
-                      {product.condition}
-                    </span>
-                  )}
+                  {/* Badges on Top of Image */}
+                  <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap max-w-[70%]">
+                    {product.condition && (
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-950/80 backdrop-blur-xs text-white text-[10px] font-bold border border-white/10">
+                        {product.condition}
+                      </span>
+                    )}
+                    <PremiumPackageBadge
+                      tier={product.subscriptionPlan || (product as any).sellerTier || 'free'}
+                      className="text-[9px] px-1.5 py-0.5 shadow-md"
+                    />
+                  </div>
 
                   {/* Category Pill */}
                   <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-lg bg-blue-900/90 backdrop-blur-xs text-white text-[10px] font-bold">
@@ -470,12 +498,10 @@ export const MinimartView: React.FC = () => {
                         {(product as any).sellerVerified !== false && (
                           <TwitterVerifiedBadge className="w-3 h-3" />
                         )}
-                        {product.subscriptionPlan && (
-                          <PremiumPackageBadge
-                            tier={product.subscriptionPlan}
-                            className="text-[8px] px-1 py-0"
-                          />
-                        )}
+                        <PremiumPackageBadge
+                          tier={product.subscriptionPlan || (product as any).sellerTier || 'free'}
+                          className="text-[8px] px-1 py-0"
+                        />
                       </div>
                     </div>
 

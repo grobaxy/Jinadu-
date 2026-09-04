@@ -656,12 +656,8 @@ export const WalletModal: React.FC = () => {
 
                 return (
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                    {/* 1. Authoritative GP Balance Card (Spacious, Elevated, Privacy Toggle) */}
-                    <div className="lg:col-span-6 p-6 sm:p-7 rounded-3xl bg-gradient-to-br from-blue-950 via-slate-900 to-indigo-950 border-2 border-blue-500/40 shadow-xl shadow-blue-950/30 relative overflow-hidden flex flex-col justify-between min-h-[260px]">
-                      {/* Ambient background glow */}
-                      <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-                      <div className="absolute bottom-0 left-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-
+                    {/* 1. Authoritative GP Balance Card (Transparent, Elevated, Privacy Toggle) */}
+                    <div className="lg:col-span-6 p-6 sm:p-7 rounded-3xl bg-transparent border-2 border-blue-500/40 relative overflow-hidden flex flex-col justify-between min-h-[260px]">
                       <div className="relative z-10 space-y-4">
                         {/* Top Header of Card */}
                         <div className="flex items-center justify-between gap-2">
@@ -729,8 +725,8 @@ export const WalletModal: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 2. Institutional Status Card (Comprehensive School Details & Credentials) */}
-                    <div className="lg:col-span-6 p-6 sm:p-7 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900/90 to-blue-950/40 border border-slate-700/60 shadow-lg relative overflow-hidden flex flex-col justify-between min-h-[260px]">
+                    {/* 2. Institutional Status Card (Transparent, Comprehensive School Details & Credentials) */}
+                    <div className="lg:col-span-6 p-6 sm:p-7 rounded-3xl bg-transparent border border-slate-700/60 relative overflow-hidden flex flex-col justify-between min-h-[260px]">
                       <div className="space-y-3.5">
                         {/* Top Tag & Verification */}
                         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -775,28 +771,28 @@ export const WalletModal: React.FC = () => {
 
                         {/* Academic Specifics Grid */}
                         <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
-                          <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                          <div className="p-2 rounded-xl bg-transparent border border-slate-800/80">
                             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Faculty</div>
                             <div className="font-bold text-slate-200 truncate mt-0.5" title={facultyName}>
                               {facultyName}
                             </div>
                           </div>
 
-                          <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                          <div className="p-2 rounded-xl bg-transparent border border-slate-800/80">
                             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Department</div>
                             <div className="font-bold text-slate-200 truncate mt-0.5" title={deptName}>
                               {deptName}
                             </div>
                           </div>
 
-                          <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                          <div className="p-2 rounded-xl bg-transparent border border-slate-800/80">
                             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Academic Level</div>
                             <div className="font-bold text-blue-400 truncate mt-0.5">
                               {levelName}
                             </div>
                           </div>
 
-                          <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                          <div className="p-2 rounded-xl bg-transparent border border-slate-800/80">
                             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Matric / Student ID</div>
                             <div className="font-bold text-amber-400 truncate mt-0.5">
                               {matricNumber || `@${currentUser.username}`}

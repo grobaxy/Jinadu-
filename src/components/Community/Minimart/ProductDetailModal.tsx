@@ -21,6 +21,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { TwitterVerifiedBadge, PremiumPackageBadge } from '../../ui/UserBadgeItem';
+import { openExternalWhatsApp } from '../../../lib/whatsappUtils';
 
 interface ProductDetailModalProps {
   isOpen: boolean;
@@ -219,9 +220,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   {product.sellerVerified !== false && (
                     <TwitterVerifiedBadge className="w-4 h-4" />
                   )}
-                  {product.subscriptionPlan && (
-                    <PremiumPackageBadge tier={product.subscriptionPlan} />
-                  )}
+                  <PremiumPackageBadge
+                    tier={product.subscriptionPlan || (product as any).sellerTier || 'free'}
+                  />
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   {product.sellerInstitution || 'Grobaax Scholar'} • {product.sellerDepartment || 'Student'}
@@ -231,16 +232,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
             {/* Direct WhatsApp Callout Button */}
             {!isExpired && product.status === 'active' && (
-              <a
-                href={waUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => openExternalWhatsApp(waUrl)}
                 className="px-4 py-2.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/20 transition flex items-center gap-2 cursor-pointer shrink-0"
               >
                 <MessageCircle className="w-4 h-4" />
                 <span className="hidden sm:inline">Chat on WhatsApp</span>
                 <span className="sm:hidden">Chat</span>
-              </a>
+              </button>
             )}
           </div>
 

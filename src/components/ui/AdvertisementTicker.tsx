@@ -13,8 +13,8 @@ export const AdvertisementTicker: React.FC = () => {
     setIsPaused(false);
   }, [activeTab]);
 
-  // Hide sponsored ticker on Daily Ultimate Search alone (daily_qa / gus tab)
-  if (!isVisible || activeTab === 'daily_qa' || activeTab === 'gus') return null;
+  // Hide sponsored ticker on Community tab and Daily Ultimate Search (daily_qa / gus tab)
+  if (!isVisible || activeTab === 'community' || activeTab === 'daily_qa' || activeTab === 'gus') return null;
 
   // Active ticker campaigns
   const activeTickerItems = sponsorshipCampaigns.filter(

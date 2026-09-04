@@ -72,27 +72,24 @@ export const HomeTab: React.FC = () => {
       {/* ======================================================== */}
       <section
         id="home-welcome-section"
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-blue-950 to-slate-950 text-white p-6 sm:p-8 lg:p-10 shadow-xl border border-blue-900/40"
+        className="relative overflow-hidden rounded-3xl bg-transparent text-slate-900 dark:text-white p-6 sm:p-8 lg:p-10 border border-slate-200/60 dark:border-slate-800/80"
       >
-        {/* Subtle background flare */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-
         <div className="relative space-y-6">
           <div className="space-y-2.5 max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md">
-              <GraduationCap className="w-3.5 h-3.5 text-blue-400" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider">
+              <GraduationCap className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
               <span>Campus Academic Hub</span>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
               Welcome to Grobaax
             </h1>
 
-            <p className="text-sm sm:text-base lg:text-lg font-bold text-blue-300">
+            <p className="text-sm sm:text-base lg:text-lg font-bold text-blue-600 dark:text-blue-400">
               An Academic Network that connect students together.
             </p>
 
-            <p className="text-xs sm:text-sm lg:text-base text-slate-300 max-w-3xl leading-relaxed font-medium">
+            <p className="text-xs sm:text-sm lg:text-base text-slate-600 dark:text-slate-300 max-w-3xl leading-relaxed font-medium">
               Grobaax is an education-focused platform where students discover useful academic information, test knowledge through <strong>Daily Ultimate Search</strong>, and connect with fellow scholars via the <strong>Campus Mini Mart & Skills Listing</strong>.
             </p>
           </div>
@@ -102,28 +99,28 @@ export const HomeTab: React.FC = () => {
             {/* Daily Ultimate Search Pillar */}
             <div
               onClick={() => setActiveTab('daily_qa')}
-              className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer group flex flex-col justify-between"
+              className="p-5 rounded-2xl bg-transparent hover:bg-slate-100/50 dark:hover:bg-white/5 border border-slate-200/70 dark:border-slate-800 transition-all cursor-pointer group flex flex-col justify-between"
             >
               <div className="flex items-start gap-3.5">
-                <div className="w-11 h-11 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0 group-hover:scale-105 transition-transform">
+                <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 group-hover:scale-105 transition-transform">
                   <Trophy className="w-5 h-5" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5">
-                    <h2 className="text-sm sm:text-base font-bold text-white group-hover:text-blue-300 transition-colors">
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                       Daily Ultimate Search
                     </h2>
-                    <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-black border border-amber-500/30">
+                    <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-300 text-[9px] font-black border border-amber-500/30">
                       LIVE
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                     Participate in daily real-time search queries and challenge questions to boost your knowledge and earn GP points.
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs font-bold text-blue-300">
+              <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-blue-600 dark:text-blue-400">
                 <span>Enter Daily Ultimate Search</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
@@ -132,28 +129,28 @@ export const HomeTab: React.FC = () => {
             {/* Mini Mart & Skills Listing Pillar */}
             <div
               onClick={() => setActiveTab('community')}
-              className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer group flex flex-col justify-between"
+              className="p-5 rounded-2xl bg-transparent hover:bg-slate-100/50 dark:hover:bg-white/5 border border-slate-200/70 dark:border-slate-800 transition-all cursor-pointer group flex flex-col justify-between"
             >
               <div className="flex items-start gap-3.5">
-                <div className="w-11 h-11 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shrink-0 group-hover:scale-105 transition-transform">
+                <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:scale-105 transition-transform">
                   <ShoppingBag className="w-5 h-5" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5">
-                    <h2 className="text-sm sm:text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                       Mini Mart & Skills Listing
                     </h2>
-                    <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-black border border-emerald-500/30">
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 text-[9px] font-black border border-emerald-500/30">
                       MARKET
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                     Buy, sell campus essentials, textbooks, gadgets, and list student freelance services safely in your institution.
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs font-bold text-emerald-300">
+              <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
                 <span>Explore Mini Mart</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
