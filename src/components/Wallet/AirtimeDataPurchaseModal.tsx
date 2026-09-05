@@ -63,7 +63,17 @@ export function AirtimeDataPurchaseModal({ onClose, onNavigateToTab }: AirtimeDa
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setWindowStatus(getAirtimeRedemptionWindowStatus());
+      const next = getAirtimeRedemptionWindowStatus();
+      setWindowStatus((prev) => {
+        if (
+          prev.isOpen === next.isOpen &&
+          prev.secondsRemainingInWindow === next.secondsRemainingInWindow &&
+          prev.secondsUntilNextWindow === next.secondsUntilNextWindow
+        ) {
+          return prev;
+        }
+        return next;
+      });
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -188,8 +198,8 @@ export function AirtimeDataPurchaseModal({ onClose, onNavigateToTab }: AirtimeDa
         const fetchedPlans = await vtuClient.getDataPlans(selectedNetwork);
         if (isMounted) {
           setDataPlans(fetchedPlans);
-          if (fetchedPlans.length > 0 && (!selectedPlan || selectedPlan.network !== selectedNetwork)) {
-            setSelectedPlan(fetchedPlans[0]);
+          if (fetchedPlans.length > 0) {
+            setSelectedPlan((prev) => (!prev || prev.network !== selectedNetwork ? fetchedPlans[0] : prev));
           }
         }
       } catch (err) {

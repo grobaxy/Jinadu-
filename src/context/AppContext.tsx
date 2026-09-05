@@ -828,20 +828,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('grobax_theme', newTheme);
   };
 
-  // Synchronize theme with document.documentElement for Tailwind dark mode
-  useEffect(() => {
-    const isDark =
-      theme === 'dark' ||
-      (theme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-
-    setResolvedTheme(isDark ? 'dark' : 'light');
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
-
   const logout = async () => {
     try {
       await firebaseSignOut(auth);
@@ -4307,12 +4293,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const subscribeToPlan = async (
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+  const firebaseUserRef = useRef(firebaseUser);
+  firebaseUserRef.current = firebaseUser;
+  const addTransactionRef = useRef(addTransaction);
+  addTransactionRef.current = addTransaction;
+
+  const subscribeToPlan = useCallback(async (
     plan: SubscriptionPlan,
     paymentMethod: 'GP' | 'CARD' | 'TRANSFER' = 'CARD',
     customPaymentReference?: string
   ): Promise<{ success: boolean; message: string }> => {
     try {
+      const curUser = currentUserRef.current;
+      const fbUser = firebaseUserRef.current;
       const days =
         plan.durationUnit === 'Years'
           ? plan.durationValue * 365
@@ -4328,7 +4323,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : `GRBX_PAY_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`);
 
       // If GP payment, verify and deduct balance
-      let newGp = typeof currentUser.gpBalance === 'number' ? currentUser.gpBalance : Number(currentUser.gpBalance || 0);
+      let newGp = typeof curUser.gpBalance === 'number' ? curUser.gpBalance : Number(curUser.gpBalance || 0);
       if (paymentMethod === 'GP') {
         const gpPrice = plan.priceNaira; // 1 GP = 1 Naira standard equivalent
         if (newGp < gpPrice) {
@@ -4339,7 +4334,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         newGp = Math.max(0, newGp - gpPrice);
         setCurrentUser(prev => ({ ...prev, gpBalance: newGp }));
-        addTransaction({
+        addTransactionRef.current({
           type: 'subscription_purchase',
           title: `Subscription: ${plan.name}`,
           description: `${plan.durationValue} ${plan.durationUnit} Academic Upgrade (GP Wallet)`,
@@ -4349,7 +4344,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       } else {
         // Card or Transfer payment via Paystack Gateway
-        addTransaction({
+        addTransactionRef.current({
           type: 'subscription_purchase',
           title: `Subscription: ${plan.name}`,
           description: `${plan.durationValue} ${plan.durationUnit} Upgrade via Paystack (${finalReference})`,
@@ -4360,10 +4355,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const subRecord: Omit<UserSubscriptionRecord, 'id'> = {
-        subscriptionId: `sub_${Date.now()}_${(currentUser.id || 'user').substring(0, 5)}`,
-        userId: currentUser.id || firebaseUser?.uid || 'guest',
-        userName: currentUser.name || currentUser.fullName || 'Scholar',
-        userEmail: currentUser.username || currentUser.email || '',
+        subscriptionId: `sub_${Date.now()}_${(curUser.id || 'user').substring(0, 5)}`,
+        userId: curUser.id || fbUser?.uid || 'guest',
+        userName: curUser.name || curUser.fullName || 'Scholar',
+        userEmail: curUser.username || curUser.email || '',
         planId: plan.planId,
         planNameSnapshot: plan.name,
         priceSnapshot: plan.priceNaira,
@@ -4423,7 +4418,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...(paymentMethod === 'GP' ? { gpBalance: newGp } : {}),
       };
 
-      const targetUid = firebaseUser?.uid || currentUser.id;
+      const targetUid = fbUser?.uid || curUser.id;
 
       setCurrentUser(prev => {
         const nextUser = {
@@ -4465,8 +4460,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             body: JSON.stringify({
               reference: finalReference,
               userId: targetUid,
-              userEmail: currentUser.email || firebaseUser?.email || '',
-              userName: currentUser.name || currentUser.fullName || '',
+              userEmail: curUser.email || fbUser?.email || '',
+              userName: curUser.name || curUser.fullName || '',
               planId: plan.planId,
               planName: plan.name,
               amountNaira: plan.priceNaira,
@@ -4507,7 +4502,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: err.message || 'Failed to activate subscription. Please try again.',
       };
     }
-  };
+  }, []);
 
   // Register a pending Paystack payment for continuous background sensor monitoring
   const registerPendingPayment = useCallback((data: {
@@ -4520,12 +4515,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }) => {
     if (!data.reference) return;
     try {
+      const curUser = currentUserRef.current;
       const payload = {
         reference: data.reference,
         plan: data.plan,
-        userId: data.userId || currentUser.id || 'scholar',
-        userName: data.userName || currentUser.name || 'Scholar',
-        userEmail: data.userEmail || currentUser.email || '',
+        userId: data.userId || curUser.id || 'scholar',
+        userName: data.userName || curUser.name || 'Scholar',
+        userEmail: data.userEmail || curUser.email || '',
         channel: data.channel || 'paystack',
         timestamp: Date.now(),
       };
@@ -4538,22 +4534,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('grobax_pending_references', JSON.stringify(refs.slice(-6)));
       }
 
-      setActivePaymentSensor({
-        isMonitoring: true,
-        pendingReference: data.reference,
-        planName: data.plan.name,
-        lastCheckedAt: Date.now(),
+      setActivePaymentSensor(prev => {
+        if (prev.isMonitoring && prev.pendingReference === data.reference && prev.planName === data.plan.name) {
+          return prev;
+        }
+        return {
+          isMonitoring: true,
+          pendingReference: data.reference,
+          planName: data.plan.name,
+          lastCheckedAt: Date.now(),
+        };
       });
       console.log(`[Sensor] Registered pending payment reference: ${data.reference} (${data.plan.name})`);
     } catch (err) {
       console.warn('Error registering pending payment in sensor:', err);
     }
-  }, [currentUser.id, currentUser.name, currentUser.email]);
+  }, []);
+
+  const isCheckingSensorRef = useRef(false);
+  const subscriptionPlansRef = useRef(subscriptionPlans);
+  subscriptionPlansRef.current = subscriptionPlans;
+  const subscribeToPlanRef = useRef(subscribeToPlan);
+  subscribeToPlanRef.current = subscribeToPlan;
 
   // Active Subscription Plan Sensor:
   // Continuous real-time listener and poller that detects customer payments (Bank Transfer & Card Checkout)
   // and immediately activates their subscription across the application and Firestore.
   const runSubscriptionSensorCheck = useCallback(async () => {
+    if (isCheckingSensorRef.current) return;
+    isCheckingSensorRef.current = true;
     try {
       // 1. Check URL search parameters (?reference=..., ?trxref=..., ?paystack_verify=...)
       let urlRef = '';
@@ -4585,15 +4594,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
 
       if (refsToTest.length === 0) {
-        setActivePaymentSensor(prev => (prev.isMonitoring ? { ...prev, isMonitoring: false } : prev));
+        setActivePaymentSensor(prev => {
+          if (!prev.isMonitoring && !prev.pendingReference) return prev;
+          return {
+            isMonitoring: false,
+            pendingReference: null,
+            planName: null,
+            lastCheckedAt: Date.now(),
+          };
+        });
         return;
       }
 
-      setActivePaymentSensor({
-        isMonitoring: true,
-        pendingReference: refsToTest[0],
-        planName: pendingData?.plan?.name || 'Academic Plan',
-        lastCheckedAt: Date.now(),
+      const targetRef = refsToTest[0];
+      const targetPlanName = pendingData?.plan?.name || 'Academic Plan';
+
+      setActivePaymentSensor(prev => {
+        if (prev.isMonitoring && prev.pendingReference === targetRef && prev.planName === targetPlanName) {
+          return prev;
+        }
+        return {
+          isMonitoring: true,
+          pendingReference: targetRef,
+          planName: targetPlanName,
+          lastCheckedAt: Date.now(),
+        };
       });
 
       for (const ref of refsToTest) {
@@ -4603,18 +4628,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             console.log(`[Active Payment Sensor] Verified payment for ref ${ref}:`, verifyRes);
 
             // Match plan
-            const targetPlanId = verifyRes.planId || urlPlanId || pendingData?.plan?.planId || pendingData?.plan?.id;
-            const targetPlanName = verifyRes.planName || pendingData?.plan?.name;
+            const matchedPlanId = verifyRes.planId || urlPlanId || pendingData?.plan?.planId || pendingData?.plan?.id;
+            const matchedPlanName = verifyRes.planName || pendingData?.plan?.name;
 
-            let matchedPlan = subscriptionPlans.find(
-              p => (targetPlanId && (p.planId === targetPlanId || p.id === targetPlanId)) ||
-                   (targetPlanName && p.name.toLowerCase() === targetPlanName.toLowerCase())
+            let matchedPlan = subscriptionPlansRef.current.find(
+              p => (matchedPlanId && (p.planId === matchedPlanId || p.id === matchedPlanId)) ||
+                   (matchedPlanName && p.name.toLowerCase() === matchedPlanName.toLowerCase())
             );
 
             if (!matchedPlan) {
               matchedPlan = DEFAULT_SUBSCRIPTION_PLANS.find(
-                p => (targetPlanId && (p.planId === targetPlanId || p.id === targetPlanId)) ||
-                     (targetPlanName && p.name.toLowerCase() === targetPlanName.toLowerCase())
+                p => (matchedPlanId && (p.planId === matchedPlanId || p.id === matchedPlanId)) ||
+                     (matchedPlanName && p.name.toLowerCase() === matchedPlanName.toLowerCase())
               );
             }
 
@@ -4624,9 +4649,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             if (!matchedPlan) {
               matchedPlan = {
-                id: targetPlanId || 'plan_premium',
-                planId: targetPlanId || 'plan_premium',
-                name: targetPlanName || 'Premium',
+                id: matchedPlanId || 'plan_premium',
+                planId: matchedPlanId || 'plan_premium',
+                name: matchedPlanName || 'Premium',
                 shortDescription: 'Upgraded Academic Scholar Membership',
                 priceNaira: verifyRes.amountNaira || 100,
                 currency: 'NGN',
@@ -4639,7 +4664,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
             // Immediately activate the subscription in state and Firestore
-            await subscribeToPlan(matchedPlan, 'CARD', ref);
+            await subscribeToPlanRef.current(matchedPlan, 'CARD', ref);
 
             // Dispatch global event for instant UI celebration and modal state transition
             if (typeof window !== 'undefined') {
@@ -4676,8 +4701,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (err) {
       console.warn('[Sensor] Sensor loop notice:', err);
+    } finally {
+      isCheckingSensorRef.current = false;
     }
-  }, [subscriptionPlans, subscribeToPlan]);
+  }, []);
 
   const triggerSubscriptionSensorCheck = useCallback(async () => {
     await runSubscriptionSensorCheck();
@@ -4718,6 +4745,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [isAuthReady, runSubscriptionSensorCheck]);
 
+  const activeSubscriptionPlans = useMemo(
+    () => subscriptionPlans.filter(p => p.active !== false),
+    [subscriptionPlans]
+  );
+
   return (
     <AppContext.Provider
       value={{
@@ -4742,7 +4774,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setWalletModalTab,
         openWalletModal,
         subscriptionPlans,
-        activeSubscriptionPlans: subscriptionPlans.filter(p => p.active !== false),
+        activeSubscriptionPlans,
         subscribeToPlan,
         registerPendingPayment,
         activePaymentSensor,

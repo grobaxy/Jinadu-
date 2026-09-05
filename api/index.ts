@@ -4160,6 +4160,107 @@ paystackRouter.post("/webhook", express.raw({ type: "application/json" }), async
   }
 });
 
+paystackRouter.post("/activate", async (req, res) => {
+  try {
+    const { reference, userId, userEmail, userName, planId, planName, amountNaira } = req.body || {};
+    if (!reference) {
+      return res.status(400).json({ success: false, error: "Payment reference is required." });
+    }
+
+    const secretKey = getSecretKey();
+    let channel = "paystack";
+    let verifiedAmount = Number(amountNaira || 0);
+
+    if (secretKey && (secretKey.startsWith("sk_live_") || secretKey.startsWith("sk_test_"))) {
+      try {
+        const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${secretKey}` },
+        });
+        const verifyData = await verifyRes.json();
+        if (verifyData && verifyData.data) {
+          if (verifyData.data.status !== "success") {
+            return res.status(400).json({
+              success: false,
+              error: `Transaction status is ${verifyData.data.status}, not success.`,
+            });
+          }
+          channel = verifyData.data.channel || "paystack";
+          verifiedAmount = verifyData.data.amount ? verifyData.data.amount / 100 : verifiedAmount;
+        }
+      } catch (vfErr) {
+        console.warn("[Paystack Activate] Notice verifying with Paystack API:", vfErr);
+      }
+    }
+
+    return res.json({
+      success: true,
+      planName: planName || "Premium Plan",
+      isVip: true,
+      channel,
+      amountNaira: verifiedAmount,
+      reference,
+      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+  } catch (err: any) {
+    console.error("[Paystack Activate] Error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Failed to activate subscription.",
+    });
+  }
+});
+
+paystackRouter.get("/sensor-status", async (req, res) => {
+  try {
+    const reference = ((req.query.reference as string) || "").trim();
+    if (reference) {
+      const secretKey = getSecretKey();
+      if (secretKey && (secretKey.startsWith("sk_live_") || secretKey.startsWith("sk_test_"))) {
+        try {
+          const resp = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+            headers: {
+              Authorization: `Bearer ${secretKey}`,
+              "Content-Type": "application/json",
+            },
+          });
+          const json = await resp.json();
+          if (json && json.status && json.data) {
+            const tx = json.data;
+            const isSuccess = tx.status === "success";
+            return res.json({
+              success: true,
+              verified: isSuccess,
+              status: tx.status,
+              reference: tx.reference,
+              amountNaira: tx.amount ? tx.amount / 100 : 0,
+              planId: tx.metadata?.planId,
+              planName: tx.metadata?.planName,
+              activated: isSuccess,
+            });
+          }
+        } catch (verErr) {
+          console.warn("[Sensor Status] Error verifying with Paystack:", verErr);
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      verified: false,
+      status: "pending",
+      reference: reference || null,
+      message: "No successful payment detected for this reference yet.",
+    });
+  } catch (err: any) {
+    console.error("[Paystack Sensor Status] Error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Failed to check sensor status.",
+    });
+  }
+});
+
 // server/libraryRouter.ts
 import { Router as Router3 } from "express";
 var libraryRouter = Router3();
@@ -4320,32 +4421,42 @@ libraryRouter.post("/view-check", (req, res) => {
 dotenv.config();
 var app = express2();
 
-// Vercel Serverless Path Normalizer
-app.use((req, res, next) => {
-  const vercelOriginalPath =
-    req.headers["x-matched-path"] ||
-    req.headers["x-invoke-path"] ||
-    req.headers["x-forwarded-uri"] ||
-    req.headers["x-original-url"] ||
-    (req.query && req.query.__path);
-
-  if (
-    typeof vercelOriginalPath === "string" &&
-    vercelOriginalPath &&
-    vercelOriginalPath !== "/" &&
-    vercelOriginalPath !== "/api"
-  ) {
-    req.url = vercelOriginalPath;
-  }
-  next();
-});
-
+// Global CORS Middleware - Always set headers first
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Cache-Control, Accept");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
+  }
+  next();
+});
+
+// Vercel Serverless Path Normalizer
+app.use((req, res, next) => {
+  let matchedPath = "";
+  if (req.query && req.query.__path) {
+    const raw = Array.isArray(req.query.__path) ? req.query.__path.join("/") : req.query.__path;
+    matchedPath = "/" + String(raw).replace(/^\/+/, "");
+  } else if (req.headers["x-matched-path"] && req.headers["x-matched-path"] !== "/" && req.headers["x-matched-path"] !== "/api") {
+    matchedPath = req.headers["x-matched-path"] as string;
+  } else if (req.headers["x-invoke-path"] && req.headers["x-invoke-path"] !== "/" && req.headers["x-invoke-path"] !== "/api") {
+    matchedPath = req.headers["x-invoke-path"] as string;
+  } else if (req.headers["x-forwarded-uri"] && req.headers["x-forwarded-uri"] !== "/" && req.headers["x-forwarded-uri"] !== "/api") {
+    matchedPath = req.headers["x-forwarded-uri"] as string;
+  } else if (req.headers["x-original-url"] && req.headers["x-original-url"] !== "/" && req.headers["x-original-url"] !== "/api") {
+    matchedPath = req.headers["x-original-url"] as string;
+  } else if (req.url && req.url !== "/" && req.url !== "/api") {
+    matchedPath = req.url;
+  }
+
+  if (matchedPath) {
+    const clean = matchedPath.split("?")[0].trim();
+    if (clean) {
+      const withSlash = clean.startsWith("/") ? clean : "/" + clean;
+      const apiPrefixed = withSlash.startsWith("/api") ? withSlash : "/api" + withSlash;
+      req.url = apiPrefixed;
+    }
   }
   next();
 });

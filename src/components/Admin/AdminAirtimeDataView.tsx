@@ -173,13 +173,19 @@ export function AdminAirtimeDataView() {
 
   // Load Audit Logs when tab is clicked
   useEffect(() => {
+    let isMounted = true;
     if (activeTab === 'audit') {
       setIsLoadingLogs(true);
       vtuClient.getAdminAuditLogs().then((logs) => {
-        setAuditLogs(logs);
-        setIsLoadingLogs(false);
+        if (isMounted) {
+          setAuditLogs(logs);
+          setIsLoadingLogs(false);
+        }
       });
     }
+    return () => {
+      isMounted = false;
+    };
   }, [activeTab]);
 
   const handleCopy = (text: string) => {

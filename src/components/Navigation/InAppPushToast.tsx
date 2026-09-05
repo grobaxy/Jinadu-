@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { NotificationItem } from '../../types';
 import {
@@ -71,31 +71,34 @@ export const playNotificationSound = () => {
 export const InAppPushToast: React.FC = () => {
   const { notifications, markNotificationRead, setActiveTab } = useApp();
   const [activeToast, setActiveToast] = useState<NotificationItem | null>(null);
-  const [lastSeenId, setLastSeenId] = useState<string | null>(null);
+  const lastSeenIdRef = useRef<string | null>(null);
+  const isInitializedRef = useRef<boolean>(false);
+
+  const latestNotif = notifications && notifications.length > 0 ? notifications[0] : null;
+  const latestNotifId = latestNotif?.id;
+  const latestNotifIsRead = latestNotif?.isRead;
 
   useEffect(() => {
-    if (!notifications || notifications.length === 0) return;
+    if (!latestNotif) return;
 
-    const latest = notifications[0];
-    if (!latest) return;
-
-    // Check if it's new and unread
-    if (lastSeenId === null) {
-      // First mount, initialize last seen
-      setLastSeenId(latest.id);
+    // First mount / initial load: register current latest as seen without alerting
+    if (!isInitializedRef.current) {
+      isInitializedRef.current = true;
+      lastSeenIdRef.current = latestNotif.id;
       return;
     }
 
-    if (latest.id !== lastSeenId && !latest.isRead) {
-      setLastSeenId(latest.id);
-      setActiveToast(latest);
+    // When an actual new, unread notification arrives
+    if (latestNotif.id !== lastSeenIdRef.current && !latestNotif.isRead) {
+      lastSeenIdRef.current = latestNotif.id;
+      setActiveToast(latestNotif);
       playNotificationSound();
 
       // Native browser notification if allowed
       try {
         if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(latest.title || 'Grobaax Alert', {
-            body: latest.message,
+          new Notification(latestNotif.title || 'Grobaax Alert', {
+            body: latestNotif.message,
             icon: '/icon.png',
           });
         }
@@ -107,7 +110,7 @@ export const InAppPushToast: React.FC = () => {
       }, 6000);
       return () => clearTimeout(timer);
     }
-  }, [notifications, lastSeenId]);
+  }, [latestNotifId, latestNotifIsRead]);
 
   if (!activeToast) return null;
 

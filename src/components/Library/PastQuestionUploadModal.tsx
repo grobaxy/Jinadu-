@@ -192,7 +192,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
         setLevel(activeCategoryMeta.levels[0]);
       }
     }
-  }, [isOpen, currentUser]);
+  }, [isOpen, currentUser?.uid]);
 
   // Update faculties/departments when category changes
   const handleCategoryChange = (cat: InstitutionCategory) => {

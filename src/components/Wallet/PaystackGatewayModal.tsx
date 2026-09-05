@@ -87,6 +87,17 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
   // Polling ref to control background status checks
   const isPollingRef = useRef(true);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isGeneratingAccountRef = useRef(false);
+  const initializedPlanRef = useRef<string | null>(null);
+
+  const emailRef = useRef(email);
+  emailRef.current = email;
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
+  const userNameRef = useRef(userName);
+  userNameRef.current = userName;
+  const registerPendingPaymentRef = useRef(registerPendingPayment);
+  registerPendingPaymentRef.current = registerPendingPayment;
 
   // Stop polling helper
   const stopPolling = useCallback(() => {
@@ -99,37 +110,43 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
 
   // Fetch real Paystack transfer account
   const fetchLiveTransferAccount = useCallback(async () => {
+    if (isGeneratingAccountRef.current) return;
+    isGeneratingAccountRef.current = true;
     setIsGeneratingAccount(true);
     setErrorMsg('');
 
     try {
+      const activeEmail = emailRef.current && emailRef.current.includes('@') ? emailRef.current.trim() : 'scholar@grobaax.org';
+      const activeUserId = userIdRef.current || 'scholar';
+      const activeUserName = userNameRef.current || 'Scholar';
+
       const res = await createPaystackTransferAccount({
         planId: plan.planId,
         planName: plan.name,
         amountNaira: plan.priceNaira,
-        email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
-        userId: userId || 'scholar',
-        userName: userName || 'Scholar',
+        email: activeEmail,
+        userId: activeUserId,
+        userName: activeUserName,
       });
 
       if (res.success && res.accountNumber) {
         setTransferAccount(res);
         if (res.reference) {
           setReference(res.reference);
-          registerPendingPayment({
+          registerPendingPaymentRef.current({
             reference: res.reference,
             plan,
-            userId,
-            userName,
-            userEmail: email,
+            userId: activeUserId,
+            userName: activeUserName,
+            userEmail: activeEmail,
             channel: 'bank_transfer',
           });
           try {
             localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
               reference: res.reference,
               plan,
-              userId,
-              userName,
+              userId: activeUserId,
+              userName: activeUserName,
               timestamp: Date.now(),
             }));
           } catch {}
@@ -142,20 +159,20 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
         setAuthUrl(res.authorization_url);
         if (res.reference) {
           setReference(res.reference);
-          registerPendingPayment({
+          registerPendingPaymentRef.current({
             reference: res.reference,
             plan,
-            userId,
-            userName,
-            userEmail: email,
+            userId: activeUserId,
+            userName: activeUserName,
+            userEmail: activeEmail,
             channel: 'bank_transfer_url',
           });
           try {
             localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
               reference: res.reference,
               plan,
-              userId,
-              userName,
+              userId: activeUserId,
+              userName: activeUserName,
               timestamp: Date.now(),
             }));
           } catch {}
@@ -167,11 +184,15 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
       setErrorMsg(err.message || 'Error communicating with Paystack payment gateway.');
     } finally {
       setIsGeneratingAccount(false);
+      isGeneratingAccountRef.current = false;
     }
-  }, [plan, email, userId, userName, registerPendingPayment]);
+  }, [plan]);
 
   // Initialize transaction and load Paystack script on mount
   useEffect(() => {
+    if (initializedPlanRef.current === plan.planId) return;
+    initializedPlanRef.current = plan.planId;
+
     let isMounted = true;
     isPollingRef.current = true;
 
@@ -183,13 +204,17 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
       loadPaystackInlineScript().catch(() => {});
 
       try {
+        const activeEmail = emailRef.current && emailRef.current.includes('@') ? emailRef.current.trim() : 'scholar@grobaax.org';
+        const activeUserId = userIdRef.current || 'scholar';
+        const activeUserName = userNameRef.current || 'Scholar';
+
         const initRes = await initializePaystackTransaction({
           planId: plan.planId,
           planName: plan.name,
           amountNaira: plan.priceNaira,
-          email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
-          userId: userId || 'scholar',
-          userName: userName || 'Scholar',
+          email: activeEmail,
+          userId: activeUserId,
+          userName: activeUserName,
         });
 
         if (isMounted) {
@@ -202,19 +227,19 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
             if (initRes.publicKey) {
               setPublicKey(initRes.publicKey);
             }
-            registerPendingPayment({
+            registerPendingPaymentRef.current({
               reference: initRes.reference,
               plan,
-              userId,
-              userName,
-              userEmail: email,
+              userId: activeUserId,
+              userName: activeUserName,
+              userEmail: activeEmail,
               channel: 'init',
             });
             try {
               localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
                 reference: initRes.reference,
                 plan,
-                userId,
+                userId: activeUserId,
                 timestamp: Date.now(),
               }));
             } catch {}
@@ -240,7 +265,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
       isMounted = false;
       stopPolling();
     };
-  }, [plan, fetchLiveTransferAccount, stopPolling, registerPendingPayment, email, userId, userName]);
+  }, [plan, fetchLiveTransferAccount, stopPolling]);
 
   // Global event listener: when AppContext Active Subscription Plan Sensor confirms activation, reflect immediately!
   useEffect(() => {
@@ -608,34 +633,6 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-5 overflow-y-auto space-y-4 flex-1">
-          {/* Active Payment Sensor Status Radar */}
-          {paymentStep === 'checkout' && (
-            <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-left flex items-center justify-between gap-3 shadow-inner">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="relative flex h-2.5 w-2.5 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                </span>
-                <div className="min-w-0">
-                  <div className="text-[11px] font-black text-emerald-400 flex items-center gap-1.5 uppercase tracking-wide">
-                    <span>Active Subscription Plan Sensor</span>
-                  </div>
-                  <div className="text-[11px] text-slate-300 truncate">
-                    Listening for deposit & card completion to auto-activate {plan.name}...
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleManualVerify}
-                disabled={isVerifying}
-                className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[10px] font-black border border-emerald-500/40 shrink-0 transition cursor-pointer"
-              >
-                {isVerifying ? 'Checking...' : 'Check Sensor'}
-              </button>
-            </div>
-          )}
-
           {/* Error Message banner */}
           {errorMsg && (
             <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-start gap-2.5 animate-in fade-in">
@@ -653,7 +650,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
               <div className="space-y-2">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Subscription Plan Sensor: ACTIVATED</span>
+                  <span>Subscription Plan: ACTIVATED</span>
                 </div>
                 <h3 className="text-xl font-black text-slate-900 dark:text-white">
                   Welcome to {plan.name}!

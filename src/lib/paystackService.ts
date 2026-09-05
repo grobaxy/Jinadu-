@@ -124,19 +124,50 @@ export async function createPaystackTransferAccount(params: {
   userId: string;
   userName: string;
 }): Promise<PaystackTransferAccountResponse> {
-  try {
-    const res = await fetch('/api/paystack/charge-transfer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-    });
-    return await safeParseResponse(res, 'Could not connect to payment server to generate transfer account.');
-  } catch (err: any) {
-    return {
-      success: false,
-      error: err.message || 'Could not connect to payment server to generate transfer account.',
-    };
+  const endpoints = ['/api/paystack/charge-transfer', '/paystack/charge-transfer'];
+  let lastError = '';
+
+  for (const endpoint of endpoints) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(params),
+      });
+
+      if (res.ok || res.status === 400 || res.status === 500) {
+        const data = await safeParseResponse(res, 'Could not connect to payment server to generate transfer account.');
+        if (data && (data.success || data.accountNumber || data.authorization_url)) {
+          return data;
+        }
+        if (data && data.error) {
+          lastError = data.error;
+        }
+      }
+    } catch (err: any) {
+      lastError = err?.message || 'Network error';
+    }
   }
+
+  // If direct charge-transfer failed (e.g. during Vercel cold boot or proxy routing delay),
+  // seamlessly fall back to transaction initialization so checkout is always available
+  try {
+    const initRes = await initializePaystackTransaction(params);
+    if (initRes && initRes.success && initRes.authorization_url) {
+      return {
+        success: true,
+        reference: initRes.reference,
+        authorization_url: initRes.authorization_url,
+        amountNaira: params.amountNaira,
+        fallbackCheckout: true,
+      };
+    }
+  } catch {}
+
+  return {
+    success: false,
+    error: lastError || 'Could not connect to payment server to generate transfer account.',
+  };
 }
 
 // Initialize payment transaction on backend
@@ -149,26 +180,44 @@ export async function initializePaystackTransaction(params: {
   userName: string;
   callbackUrl?: string;
 }): Promise<PaystackInitResponse> {
-  try {
-    const defaultCallback = typeof window !== 'undefined'
-      ? `${window.location.origin}${window.location.pathname}?planId=${encodeURIComponent(params.planId)}`
-      : undefined;
+  const defaultCallback = typeof window !== 'undefined'
+    ? `${window.location.origin}${window.location.pathname}?planId=${encodeURIComponent(params.planId)}`
+    : undefined;
 
-    const res = await fetch('/api/paystack/initialize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...params,
-        callbackUrl: params.callbackUrl || defaultCallback,
-      }),
-    });
-    return await safeParseResponse(res, 'Could not connect to payment server.');
-  } catch (err: any) {
-    return {
-      success: false,
-      error: err.message || 'Could not connect to payment server.',
-    };
+  const payload = {
+    ...params,
+    callbackUrl: params.callbackUrl || defaultCallback,
+  };
+
+  const endpoints = ['/api/paystack/initialize', '/paystack/initialize'];
+  let lastError = '';
+
+  for (const endpoint of endpoints) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok || res.status === 400) {
+        const data = await safeParseResponse(res, 'Could not connect to payment server.');
+        if (data && (data.success || data.authorization_url || data.reference)) {
+          return data;
+        }
+        if (data && data.error) {
+          lastError = data.error;
+        }
+      }
+    } catch (err: any) {
+      lastError = err?.message || 'Network error';
+    }
   }
+
+  return {
+    success: false,
+    error: lastError || 'Could not connect to payment server.',
+  };
 }
 
 // Verify transaction on backend

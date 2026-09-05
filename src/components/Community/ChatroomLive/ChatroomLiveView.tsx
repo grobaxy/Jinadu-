@@ -177,7 +177,7 @@ export const ChatroomLiveView: React.FC = () => {
         isMounted = false;
       };
     }
-  }, [activeUserId, todayDate, currentUser?.dailyQaUsage]);
+  }, [activeUserId, todayDate, currentUser?.dailyQaUsage?.date, currentUser?.dailyQaUsage?.count]);
 
   const isLimitReached = !isStaffOrAdmin && dailyResponseCount >= maxDailyLimit;
 

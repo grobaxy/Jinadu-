@@ -209,8 +209,8 @@ export const WalletModal: React.FC = () => {
 
   // Sync default withdraw amount when config loads or changes
   useEffect(() => {
-    if (effectiveMinGp && (!withdrawGpAmount || withdrawGpAmount < effectiveMinGp)) {
-      setWithdrawGpAmount(effectiveMinGp);
+    if (effectiveMinGp) {
+      setWithdrawGpAmount((prev) => (!prev || prev < effectiveMinGp ? effectiveMinGp : prev));
     }
   }, [effectiveMinGp]);
 
