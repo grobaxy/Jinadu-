@@ -1864,7 +1864,7 @@ export interface NotificationItem {
   message: string;
   timestamp: string;
   isRead: boolean;
-  type: 'dome' | 'gus' | 'league' | 'wallet' | 'announcement' | 'system';
+  type: 'dome' | 'gus' | 'league' | 'wallet' | 'announcement' | 'system' | 'reward' | 'academic_library' | 'library' | 'vtu' | 'minimart' | (string & {});
   actionUrl?: string;
   createdAtMs?: number;
 }

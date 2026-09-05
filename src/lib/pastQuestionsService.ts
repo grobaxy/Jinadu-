@@ -14,6 +14,7 @@ import {
   serverTimestamp,
   increment,
   runTransaction,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import {
@@ -24,6 +25,7 @@ import {
   PastQuestionUploadRecord,
 } from '../types';
 import { recordWalletTransactionInFirestore } from './firebase';
+import { grobaxNotificationService } from './notificationService';
 
 const PAST_QUESTIONS_COLLECTION = 'past_questions';
 const PAST_QUESTION_VIEWS_COLLECTION = 'past_question_views';
@@ -381,10 +383,88 @@ export async function submitPastQuestion(data: {
     const cur = Number(localStorage.getItem(localKey) || '0');
     localStorage.setItem(localKey, String(cur + 1));
 
+    // 6. Dispatch Real-Time Admin Notification to Firestore & Notification Service
+    try {
+      const notifData = {
+        title: 'New Past Question Uploaded',
+        message: `${data.uploadedByName || 'Scholar'} submitted ${data.courseCode.toUpperCase()} (${data.academicSession}) for ${data.institutionName}. Pending review in vault.`,
+        type: 'academic_library',
+        targetRole: 'admin',
+        actionUrl: 'admin:library',
+        isRead: false,
+        createdAt: serverTimestamp(),
+        createdAtMillis: Date.now(),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        meta: {
+          questionId,
+          courseCode: data.courseCode.toUpperCase(),
+          courseTitle: data.courseTitle,
+          institutionName: data.institutionName,
+          academicSession: data.academicSession,
+          departmentName: data.departmentName,
+          facultyName: data.facultyName,
+          uploadedBy: data.uploadedBy,
+          uploadedByName: data.uploadedByName,
+          uploadedByEmail: data.uploadedByEmail,
+        },
+      };
+
+      await addDoc(collection(db, 'notifications'), notifData);
+
+      // User notification confirming achievement submission activity
+      const currentSettings = await fetchPastQuestionSettings();
+      await addDoc(collection(db, 'notifications'), {
+        userId: data.uploadedBy,
+        title: '📄 Past Question Uploaded for Verification',
+        message: `Your contribution for ${data.courseCode.toUpperCase()} (${data.institutionName}) has been submitted to the faculty arbiters. +${currentSettings.uploadGpReward} GP will be credited once verified!`,
+        type: 'academic_library',
+        actionUrl: 'library',
+        isRead: false,
+        createdAt: serverTimestamp(),
+        createdAtMillis: Date.now(),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+
+      // Increment admin library unread count in notification service
+      grobaxNotificationService.incrementSection('admin_library', 1);
+      grobaxNotificationService.incrementSection('library', 1);
+    } catch (notifErr) {
+      console.warn('Admin past question notification notice:', notifErr);
+    }
+
     return { success: true, questionId };
   } catch (err: any) {
     console.error('Error submitting past question:', err);
     return { success: false, error: err?.message || 'Failed to submit past question. Please try again.' };
+  }
+}
+
+/**
+ * Real-time subscription to Past Questions (for admin moderation)
+ */
+export function subscribeToAdminPastQuestions(
+  callback: (questions: PastQuestion[]) => void,
+  statusFilter?: PastQuestionStatus | 'all'
+): () => void {
+  try {
+    let q = query(collection(db, PAST_QUESTIONS_COLLECTION));
+    if (statusFilter && statusFilter !== 'all') {
+      q = query(collection(db, PAST_QUESTIONS_COLLECTION), where('status', '==', statusFilter));
+    }
+    return onSnapshot(
+      q,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PastQuestion));
+        list.sort((a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
+        callback(list);
+      },
+      (err) => {
+        console.warn('Admin past questions real-time subscription notice:', err);
+      }
+    );
+  } catch (err) {
+    console.warn('subscribeToAdminPastQuestions setup notice:', err);
+    return () => {};
   }
 }
 
@@ -592,11 +672,14 @@ export async function moderatePastQuestion(
           // 4. Send reward notification
           await addDoc(collection(db, 'notifications'), {
             userId: question.uploadedBy,
-            title: '🎉 Contribution Approved! GP Awarded',
-            message: `Congratulations! Your past question for ${question.courseCode} (${question.academicSession}) has been verified. +${gpReward} GP has been credited to your wallet!`,
+            title: '🎉 Achievement: Contribution Approved! GP Awarded',
+            message: `Congratulations! Your past question for ${question.courseCode} (${question.academicSession}) has been verified by faculty arbiters. +${gpReward} GP has been credited to your wallet!`,
             type: 'academic_library',
+            actionUrl: 'wallet:history',
             isRead: false,
             createdAt: serverTimestamp(),
+            createdAtMillis: Date.now(),
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           });
         } catch (walletErr) {
           console.warn('Notice: Could not complete wallet transaction for reward:', walletErr);

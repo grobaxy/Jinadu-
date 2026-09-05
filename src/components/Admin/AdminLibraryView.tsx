@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   X,
   Lock,
+  Bell,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PastQuestion, PastQuestionSettings, PastQuestionStatus } from '../../types';
@@ -31,6 +32,7 @@ import {
   moderatePastQuestion,
   fetchPastQuestionSettings,
   savePastQuestionSettings,
+  subscribeToAdminPastQuestions,
   DEFAULT_PAST_QUESTION_SETTINGS,
 } from '../../lib/pastQuestionsService';
 import { PastQuestionViewerModal } from '../Library/PastQuestionViewerModal';
@@ -94,7 +96,23 @@ export const AdminLibraryView: React.FC = () => {
   };
 
   useEffect(() => {
-    loadAdminData();
+    fetchPastQuestionSettings().then((appSettings) => {
+      setSettings(appSettings);
+      if (typeof appSettings.vipDailyViewLimit === 'number') {
+        setIsVipCustomNumber(true);
+        setVipCustomLimit(appSettings.vipDailyViewLimit);
+      } else {
+        setIsVipCustomNumber(false);
+      }
+    });
+
+    const unsub = subscribeToAdminPastQuestions((allQuestions) => {
+      setQuestions(allQuestions);
+      setIsLoading(false);
+      setIsRefreshing(false);
+    });
+
+    return () => unsub();
   }, []);
 
   // Filtered Questions
@@ -285,6 +303,34 @@ export const AdminLibraryView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Dynamic Pending Moderation Real-Time Banner */}
+      {pendingCount > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+              <Bell className="w-5 h-5 animate-bounce" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider">
+                {pendingCount} Past Question{pendingCount > 1 ? 's' : ''} Awaiting Admin Verification
+              </h4>
+              <p className="text-[11px] text-amber-700/90 dark:text-amber-300/90 mt-0.5">
+                Scholars have submitted new past questions. Verify document authenticity to credit their GP wallets.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setAdminTab('moderation');
+              setStatusFilter('pending');
+            }}
+            className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold shrink-0 shadow-xs cursor-pointer transition"
+          >
+            Filter Pending ({pendingCount})
+          </button>
+        </div>
+      )}
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

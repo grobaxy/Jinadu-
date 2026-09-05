@@ -50,6 +50,8 @@ import {
   Smartphone,
   Receipt,
   Trophy,
+  CheckCheck,
+  Inbox,
 } from 'lucide-react';
 
 interface AdminPanelLayoutProps {
@@ -57,9 +59,33 @@ interface AdminPanelLayoutProps {
 }
 
 export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
-  const { userProfile, theme, toggleTheme, logout, adminSectionNotifications, markSectionAsRead } = useApp();
-  const [activeTab, setActiveTab] = useState<AdminTabType>('dashboard');
+  const {
+    userProfile,
+    theme,
+    toggleTheme,
+    logout,
+    adminSectionNotifications,
+    markSectionAsRead,
+    adminActiveTab,
+    setAdminActiveTab,
+    notifications,
+    markNotificationRead,
+  } = useApp();
+
+  const activeTab = adminActiveTab || 'dashboard';
+  const setActiveTab = setAdminActiveTab;
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+
+  // Filter alerts relevant to administrators (including Past Question submissions)
+  const adminAlerts = (notifications || []).filter(
+    (n) =>
+      n.targetRole === 'admin' ||
+      n.type === 'academic_library' ||
+      n.actionUrl?.includes('admin') ||
+      n.actionUrl?.includes('library')
+  );
+  const unreadAlertsCount = adminAlerts.filter((n) => !n.isRead).length;
 
   // Clear unread badge for the currently active tab
   useEffect(() => {
@@ -238,6 +264,116 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
                 {ROLE_LABELS[managerRole] || managerRole}
               </div>
             </div>
+          </div>
+
+          {/* Admin Notifications Bell & Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setIsAlertsOpen(!isAlertsOpen)}
+              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              title="Administrative Notifications & Upload Alerts"
+              aria-label="View administrative alerts"
+            >
+              <Bell className="w-4 h-4" />
+              {unreadAlertsCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-rose-600 text-[10px] font-black text-white shadow-xs animate-pulse">
+                  {unreadAlertsCount > 99 ? '99+' : unreadAlertsCount}
+                </span>
+              )}
+            </button>
+
+            {isAlertsOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsAlertsOpen(false)}
+                />
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900/70">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                        Admin Alerts ({unreadAlertsCount})
+                      </span>
+                    </div>
+                    {unreadAlertsCount > 0 && (
+                      <button
+                        onClick={() => {
+                          adminAlerts.forEach((a) => markNotificationRead(a.id));
+                        }}
+                        className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <CheckCheck className="w-3 h-3" />
+                        <span>Mark all read</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {adminAlerts.length === 0 ? (
+                      <div className="p-6 text-center text-slate-400 dark:text-slate-500">
+                        <Inbox className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-xs font-semibold">No recent alerts</p>
+                        <p className="text-[11px] opacity-75">All scholar submissions and vault queues are clear.</p>
+                      </div>
+                    ) : (
+                      adminAlerts.slice(0, 8).map((alert) => (
+                        <div
+                          key={alert.id}
+                          className={`p-3 transition hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                            !alert.isRead ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div className="p-1.5 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 mt-0.5 shrink-0">
+                              <BookOpen className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  {alert.title}
+                                </h4>
+                                <span className="text-[10px] text-slate-400 shrink-0">
+                                  {alert.timestamp || 'Just now'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 line-clamp-2 leading-relaxed">
+                                {alert.message}
+                              </p>
+                              <div className="flex items-center justify-end gap-2 mt-2">
+                                <button
+                                  onClick={() => {
+                                    markNotificationRead(alert.id);
+                                    setActiveTab('library');
+                                    setIsAlertsOpen(false);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-[11px] font-extrabold flex items-center gap-1 shadow-xs cursor-pointer transition"
+                                >
+                                  <span>Review in Vault</span>
+                                  <ChevronRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="p-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-center">
+                    <button
+                      onClick={() => {
+                        setActiveTab('notifications');
+                        setIsAlertsOpen(false);
+                      }}
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Open Broadcast Dispatcher
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* User App Switcher */}

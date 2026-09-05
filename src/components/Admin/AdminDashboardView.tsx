@@ -22,6 +22,8 @@ import {
   Layers,
   Receipt,
   RefreshCw,
+  BookOpen,
+  ChevronRight,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -29,7 +31,7 @@ interface AdminDashboardProps {
 }
 
 export function AdminDashboardView({ onNavigateTab }: AdminDashboardProps) {
-  const { currentUser, firebaseUser, adminSectionNotifications } = useApp();
+  const { currentUser, firebaseUser, adminSectionNotifications, pendingPastQuestionsCount } = useApp();
   const [userCount, setUserCount] = useState<number>(0);
   const [totalGpCirculation, setTotalGpCirculation] = useState<number>(0);
   const [managerCount, setManagerCount] = useState<number>(0);
@@ -197,6 +199,37 @@ export function AdminDashboardView({ onNavigateTab }: AdminDashboardProps) {
         </div>
       </div>
 
+      {/* Pending Past Questions Vault Alert Banner */}
+      {pendingPastQuestionsCount > 0 && (
+        <div
+          onClick={() => onNavigateTab('library')}
+          className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 cursor-pointer hover:bg-amber-500/15 transition group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+              <BookOpen className="w-5 h-5 group-hover:scale-110 transition" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-amber-800 dark:text-amber-300 uppercase tracking-wider">
+                  Vault Moderation Queue
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white animate-pulse">
+                  {pendingPastQuestionsCount} New
+                </span>
+              </div>
+              <p className="text-xs text-amber-700/90 dark:text-amber-300/90 mt-0.5">
+                Scholars have uploaded new past questions awaiting curriculum verification and GP bounty approval.
+              </p>
+            </div>
+          </div>
+          <button className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold flex items-center gap-1 shrink-0 shadow-xs">
+            <span>Review Submissions ({pendingPastQuestionsCount})</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Quick Access Shortcuts Grid */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
         <h3 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
@@ -212,12 +245,15 @@ export function AdminDashboardView({ onNavigateTab }: AdminDashboardProps) {
             { label: 'Sponsorship & Ads', tab: 'sponsorship', icon: Sparkles, color: 'text-amber-500 bg-amber-500/10' },
             { label: 'Live Search Chat', tab: 'chatroom_live', icon: Trophy, color: 'text-purple-500 bg-purple-500/10' },
             { label: 'Withdrawals', tab: 'withdrawals', icon: Wallet, color: 'text-rose-500 bg-rose-500/10' },
-            { label: 'Library Manager', tab: 'library', icon: Layers, color: 'text-teal-500 bg-teal-500/10' },
+            { label: 'Past Questions Vault', tab: 'library', icon: BookOpen, color: 'text-teal-500 bg-teal-500/10' },
             { label: 'Airtime & Data', tab: 'airtime_data', icon: Activity, color: 'text-slate-500 bg-slate-500/10' },
             { label: 'Transactions Log', tab: 'transactions', icon: Receipt, color: 'text-emerald-500 bg-emerald-500/10' },
           ].map((item, idx) => {
             const Icon = item.icon;
-            const unreadCount = adminSectionNotifications?.[item.tab as any] || 0;
+            let unreadCount = adminSectionNotifications?.[item.tab as any] || 0;
+            if (item.tab === 'library') {
+              unreadCount = Math.max(unreadCount, pendingPastQuestionsCount);
+            }
             return (
               <button
                 key={idx}

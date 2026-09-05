@@ -65,6 +65,7 @@ export const ChatroomLiveView: React.FC = () => {
     isUserSubscribed,
     setWalletModalTab,
     setIsWalletModalOpen,
+    openWalletModal,
     chatroomMessages,
     sendChatroomMessage,
     deleteChatroomMessage,
@@ -182,7 +183,9 @@ export const ChatroomLiveView: React.FC = () => {
   const isLimitReached = !isStaffOrAdmin && dailyResponseCount >= maxDailyLimit;
 
   const handleOpenUpgrade = () => {
-    if (setWalletModalTab && setIsWalletModalOpen) {
+    if (openWalletModal) {
+      openWalletModal('upgrade');
+    } else if (setWalletModalTab && setIsWalletModalOpen) {
       setWalletModalTab('upgrade');
       setIsWalletModalOpen(true);
     }

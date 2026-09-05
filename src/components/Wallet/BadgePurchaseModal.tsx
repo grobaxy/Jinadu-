@@ -16,20 +16,30 @@ export const BadgePurchaseModal: React.FC<BadgePurchaseModalProps> = ({ badge, o
   const hasEnoughGp = (typeof currentUser.gpBalance === 'number' ? currentUser.gpBalance : Number(currentUser.gpBalance || 0)) >= badge.gpPrice;
   const isAlreadyPurchased = currentUser.purchasedBadgeIds.includes(badge.id);
 
+  const [errorMessage, setErrorMessage] = React.useState<string>('');
+  const [isProcessing, setIsProcessing] = React.useState<boolean>(false);
+
   const handleBuy = async () => {
+    setErrorMessage('');
     if (isAlreadyPurchased) {
       equipBadge(badge.id);
       onClose();
       return;
     }
 
-    const success = await buyBadge(badge);
-    if (success) {
-      equipBadge(badge.id);
-      alert(`🎉 Success! You purchased and equipped the "${badge.name}" badge.`);
-      onClose();
-    } else {
-      alert('Insufficient GP balance to purchase this badge.');
+    setIsProcessing(true);
+    try {
+      const success = await buyBadge(badge);
+      if (success) {
+        equipBadge(badge.id);
+        onClose();
+      } else {
+        setErrorMessage('Insufficient GP balance to purchase this badge.');
+      }
+    } catch {
+      setErrorMessage('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -70,6 +80,13 @@ export const BadgePurchaseModal: React.FC<BadgePurchaseModalProps> = ({ badge, o
           </div>
         )}
 
+        {errorMessage && (
+          <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2 text-left">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         <div className="pt-2 flex gap-3">
           <button
             type="button"
@@ -81,10 +98,10 @@ export const BadgePurchaseModal: React.FC<BadgePurchaseModalProps> = ({ badge, o
           <button
             type="button"
             onClick={handleBuy}
-            disabled={!hasEnoughGp && !isAlreadyPurchased}
-            className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 cursor-pointer"
+            disabled={(!hasEnoughGp && !isAlreadyPurchased) || isProcessing}
+            className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 cursor-pointer transition-transform active:scale-95"
           >
-            {isAlreadyPurchased ? 'Equip Badge' : 'Confirm Purchase'}
+            {isProcessing ? 'Processing...' : isAlreadyPurchased ? 'Equip Badge' : 'Confirm Purchase'}
           </button>
         </div>
       </div>

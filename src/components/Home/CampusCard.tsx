@@ -252,6 +252,18 @@ export const CampusCard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {!isVip && (
+              <button
+                type="button"
+                id="campus-card-upgrade-tier-btn"
+                onClick={() => openWalletModal('upgrade')}
+                className="px-3.5 py-2 rounded-xl text-xs font-black text-amber-950 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 shadow-xs transition active:scale-98 cursor-pointer flex items-center gap-1.5"
+              >
+                <Crown className="w-3.5 h-3.5 text-amber-800" />
+                <span>Upgrade</span>
+              </button>
+            )}
+
             <button
               type="button"
               id="campus-card-open-profile-btn"

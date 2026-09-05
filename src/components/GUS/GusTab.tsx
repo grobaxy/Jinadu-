@@ -294,7 +294,7 @@ export const GusTab: React.FC = () => {
               onClick={() => setInLiveRoom(true)}
               className={`w-full py-4 px-6 rounded-2xl font-black text-sm sm:text-base text-white flex items-center justify-center gap-2 transition-all shadow-lg cursor-pointer ${
                 isEliminated
-                  ? 'bg-slate-800 hover:bg-slate-750 border border-slate-700 text-white'
+                  ? 'bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white'
                   : isLive
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 shadow-emerald-600/30 animate-pulse'
                   : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:opacity-95 shadow-cyan-600/30'
@@ -457,7 +457,7 @@ export const GusTab: React.FC = () => {
               <button
                 disabled={isRegistering}
                 onClick={() => setShowRegModal(false)}
-                className="flex-1 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors disabled:opacity-50 cursor-pointer"
+                className="flex-1 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors disabled:opacity-50 cursor-pointer"
               >
                 Cancel
               </button>

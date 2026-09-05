@@ -4689,7 +4689,7 @@ export const sendBroadcastNotificationToFirestore = async (
   notifData: {
     title: string;
     message: string;
-    type?: 'dome' | 'gus' | 'league' | 'wallet' | 'announcement' | 'system';
+    type?: NotificationItem['type'];
     targetRole?: string;
     userId?: string;
     targetUserId?: string;

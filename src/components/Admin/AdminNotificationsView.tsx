@@ -18,10 +18,12 @@ import {
   Building2,
   Wallet,
   ShieldAlert,
+  BookOpen,
+  ChevronRight,
 } from 'lucide-react';
 
 export function AdminNotificationsView() {
-  const { notifications, firebaseUser, currentUser } = useApp();
+  const { notifications, firebaseUser, currentUser, setAdminActiveTab } = useApp();
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [type, setType] = useState<'announcement' | 'dome' | 'gus' | 'league' | 'wallet' | 'system'>('announcement');
@@ -87,6 +89,10 @@ export function AdminNotificationsView() {
         return <Wallet className="w-4 h-4 text-blue-400" />;
       case 'system':
         return <ShieldAlert className="w-4 h-4 text-rose-400" />;
+      case 'academic_library':
+      case 'library':
+      case 'past_question':
+        return <BookOpen className="w-4 h-4 text-teal-400" />;
       default:
         return <Sparkles className="w-4 h-4 text-pink-400" />;
     }
@@ -273,7 +279,17 @@ export function AdminNotificationsView() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0 pt-1">
+                  <div className="flex items-center gap-1.5 shrink-0 pt-1">
+                    {(notif.type === 'academic_library' || notif.actionUrl?.includes('library')) && (
+                      <button
+                        onClick={() => setAdminActiveTab('library')}
+                        title="Review in Vault"
+                        className="px-2.5 py-1 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-[11px] flex items-center gap-1 transition shadow-xs cursor-pointer"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>Vault</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => setPreviewNotif(notif)}
                       title="Preview Notification Modal"

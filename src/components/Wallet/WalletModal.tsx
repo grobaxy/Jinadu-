@@ -1184,6 +1184,102 @@ export const WalletModal: React.FC = () => {
                   );
                 })()}
               </div>
+
+              {/* 5. TROPHY CABINET & ACADEMIC HONOURS / ACHIEVEMENTS */}
+              <div className="p-5 sm:p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
+                      <Trophy className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>Trophy Cabinet & Honours</span>
+                        <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          {currentUser.purchasedBadgeIds.length} Unlocked
+                        </span>
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Equip your academic badges to display honours on your Smart Campus Pass and community forums.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {badgeStore.map((badge) => {
+                    const isEquipped = currentUser.equippedBadgeId === badge.id;
+                    const isUnlocked = currentUser.purchasedBadgeIds.includes(badge.id);
+
+                    return (
+                      <div
+                        key={badge.id}
+                        className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
+                          isEquipped
+                            ? 'bg-amber-50/80 dark:bg-amber-950/20 border-amber-400 dark:border-amber-500/50 shadow-xs ring-1 ring-amber-400/40'
+                            : isUnlocked
+                            ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                            : 'bg-slate-100/60 dark:bg-slate-950/40 border-slate-200/60 dark:border-slate-800/40 opacity-80'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-2xl shrink-0 shadow-inner">
+                            {badge.image}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h5 className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
+                                {badge.name}
+                              </h5>
+                              {isEquipped && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
+                                  Equipped
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">
+                              {badge.description}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                          <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                            {isUnlocked ? 'Unlocked' : `${badge.gpPrice} GP`}
+                          </span>
+
+                          {isEquipped ? (
+                            <button
+                              type="button"
+                              onClick={() => equipBadge('')}
+                              className="px-3 py-1 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-200/70 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 transition cursor-pointer"
+                            >
+                              Unequip
+                            </button>
+                          ) : isUnlocked ? (
+                            <button
+                              type="button"
+                              onClick={() => equipBadge(badge.id)}
+                              className="px-3 py-1 rounded-xl text-xs font-black text-slate-950 bg-amber-400 hover:bg-amber-300 transition shadow-xs cursor-pointer active:scale-95"
+                            >
+                              Equip Honour
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedBadgeForPurchase(badge)}
+                              className="px-3 py-1 rounded-xl text-xs font-black text-slate-950 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 transition shadow-xs cursor-pointer active:scale-95 flex items-center gap-1"
+                            >
+                              <span>Unlock</span>
+                              <Sparkles className="w-3 h-3 text-amber-900" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
 

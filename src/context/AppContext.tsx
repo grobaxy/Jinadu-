@@ -82,6 +82,8 @@ import {
   SubscriptionPlan,
   UserSubscriptionRecord,
   ChatroomLiveMessage,
+  AdminTabType,
+  PRIMARY_SUPER_ADMIN_UID,
 } from '../types';
 import { verifyPaystackTransaction } from '../lib/paystackService';
 import { resolveEventChannel } from '../utils/eventNavigation';
@@ -380,6 +382,15 @@ interface AppContextType {
   // User Profile
   updateUserProfile: (data: Partial<UserProfile>) => void;
 
+  // View & Admin Mode Navigation
+  viewMode: 'app' | 'admin';
+  setViewMode: (mode: 'app' | 'admin') => void;
+  adminActiveTab: AdminTabType;
+  setAdminActiveTab: (tab: AdminTabType) => void;
+  navigateToAdminTab: (tab: AdminTabType) => void;
+  pendingPastQuestionsCount: number;
+  pendingPastQuestions: any[];
+
   triggerAiBroadcast: (message: string) => void;
   selectedRoleUser: UserProfile;
 }
@@ -664,6 +675,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveTab('community');
   }, []);
   const [currentUser, setCurrentUser] = useState<UserProfile>(MOCK_USERS.student);
+  const [viewMode, setViewMode] = useState<'app' | 'admin'>('app');
+  const [adminActiveTab, setAdminActiveTab] = useState<AdminTabType>('dashboard');
+  const [pendingPastQuestions, setPendingPastQuestions] = useState<any[]>([]);
+
+  const navigateToAdminTab = useCallback((tab: AdminTabType) => {
+    setViewMode('admin');
+    setAdminActiveTab(tab);
+  }, []);
+
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [walletModalTab, setWalletModalTab] = useState<
     'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade'
@@ -1220,6 +1240,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch {}
 
+    sendNotification({
+      title: '⚔️ GUS Olympiad Registration Confirmed!',
+      message: `You are officially registered for ${targetSeason?.title || 'Global Ultimate Search'}. Get ready for elimination rounds!`,
+      type: 'gus',
+      actionUrl: 'gus',
+      targetUserId: currentUser.id,
+      userId: currentUser.id,
+    });
+
     return true;
   };
 
@@ -1458,6 +1487,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userAvatar: currentUser.avatar || '',
         institutionName: currentUser.institution || currentUser.institutionName || '',
         status: 'completed',
+      });
+
+      sendNotification({
+        title: `⚡ Speed Quiz Achievement: +${gpEarned} GP!`,
+        message: `Sharp intellect! You correctly solved the Speed Quiz challenge and earned +${gpEarned} GP directly to your wallet.`,
+        type: 'dome',
+        actionUrl: 'wallet:history',
+        targetUserId: firebaseUser?.uid || currentUser.id,
+        userId: firebaseUser?.uid || currentUser.id,
       });
 
       // Update session total GP distributed
@@ -1750,7 +1788,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentUid = firebaseUser?.uid || currentUser.id;
       const currentRole = currentUser.role || 'student';
       const isUserRep = Boolean(currentUser.isRepresentative);
-      const isUserAdmin = currentRole === 'admin' || currentRole === 'super_admin' || Boolean((currentUser as any)?.managerRole);
+      const isUserAdmin =
+        currentRole === 'admin' ||
+        currentRole === 'super_admin' ||
+        currentRole === 'SUPER_ADMIN' ||
+        currentRole === 'ADMIN' ||
+        Boolean((currentUser as any)?.managerRole) ||
+        currentUid === PRIMARY_SUPER_ADMIN_UID ||
+        firebaseUser?.email === 'grobaxycompany@gmail.com' ||
+        currentUser?.email === 'grobaxycompany@gmail.com' ||
+        firebaseUser?.email === 'basmock@gmail.com' ||
+        currentUser?.email === 'basmock@gmail.com';
 
       const notifQuery = query(collection(db, 'notifications'), limit(20));
       const unsubNotifs = onSnapshot(
@@ -2515,6 +2563,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     );
 
+    // Live Snapshot for Pending Past Questions (Admin moderation and notification count)
+    const pqQuery = query(
+      collection(db, 'past_questions'),
+      where('status', '==', 'pending'),
+      limit(50)
+    );
+    const unsubPastQuestions = onSnapshot(
+      pqQuery,
+      (snap) => {
+        const loaded = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setPendingPastQuestions(loaded);
+      },
+      (err) => {
+        console.warn('Pending past questions live snapshot notice:', err);
+      }
+    );
+
     return () => {
       unsubConfig();
       unsubCategories();
@@ -2524,6 +2589,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubPlans();
       unsubTx();
       unsubWithdrawals();
+      unsubPastQuestions();
     };
   }, [currentUser.id, currentUser.role, firebaseUser?.uid]);
 
@@ -2677,6 +2743,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'completed',
       reason,
     });
+
+    // Send push notification for achievement milestone reward
+    sendNotification({
+      title: `🎉 Achievement Reward Claimed: +${amount} ${unit}!`,
+      message: reason || `Congratulations! You've successfully claimed your ${amount} ${unit} academic milestone reward.`,
+      type: 'reward',
+      actionUrl: 'wallet:history',
+      targetUserId: firebaseUser?.uid || currentUser.id,
+      userId: firebaseUser?.uid || currentUser.id,
+    });
   };
 
   const buyBadge = async (badge: BadgeStoreItem): Promise<boolean> => {
@@ -2727,6 +2803,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       title: `Badge Acquired: ${badge.name}`,
       description: `Unlocked and equipped ${badge.name} badge`,
       isCredit: false,
+    });
+
+    // Send real-time push notification for achievement badge acquisition
+    sendNotification({
+      title: `🏆 Achievement Unlocked: ${badge.name}!`,
+      message: `Congratulations! You've unlocked the "${badge.name}" achievement badge. It is now preserved in your Trophy Cabinet.`,
+      type: 'announcement',
+      actionUrl: 'wallet:profile',
+      targetUserId: targetUid,
+      userId: targetUid,
     });
 
     return true;
@@ -4029,6 +4115,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('equipBadge sync notice:', e);
       }
     }
+
+    sendNotification({
+      title: '🎖️ Showcase Honour Equipped',
+      message: `You are now showcasing "${equippedBadgeObj.title}" on your Smart Campus Pass and academic cards.`,
+      type: 'announcement',
+      actionUrl: 'wallet:profile',
+      targetUserId: firebaseUser?.uid || currentUser.id,
+      userId: firebaseUser?.uid || currentUser.id,
+    });
   };
 
   const addSponsorshipCampaign = async (campaign: Omit<SponsorshipCampaign, 'id'>) => {
@@ -4236,6 +4331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       studentVerifications: representativeRecords as any,
       reportedPosts: posts.filter(p => p.status === 'Reported'),
       liveFixtures: fixtures as any,
+      libraryMaterials: pendingPastQuestions as any,
     });
   }, [
     firebaseUser?.uid,
@@ -4251,6 +4347,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     transactions,
     representativeRecords,
     fixtures,
+    pendingPastQuestions,
   ]);
 
   // When active tab changes, mark that section as read automatically
@@ -4477,7 +4574,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         type: 'system',
         targetUserId: targetUid,
         userId: targetUid,
-        actionUrl: '#profile',
+        actionUrl: 'wallet:upgrade',
       });
 
       // Dispatch real-time global event so all open modals (WalletModal, PaystackGatewayModal) update synchronously
@@ -4921,6 +5018,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSystemSettings,
         updateUserProfile,
         userProfile: currentUser,
+        viewMode,
+        setViewMode,
+        adminActiveTab,
+        setAdminActiveTab,
+        navigateToAdminTab,
+        pendingPastQuestionsCount: pendingPastQuestions.length,
+        pendingPastQuestions,
         toggleTheme: () => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark'),
 
         triggerAiBroadcast,

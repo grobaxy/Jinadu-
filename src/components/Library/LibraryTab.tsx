@@ -406,7 +406,7 @@ export const LibraryTab: React.FC = () => {
                 </div>
                 {userTier !== 'vip' && (
                   <button
-                    onClick={() => openWalletModal?.()}
+                    onClick={() => openWalletModal?.('upgrade')}
                     className="ml-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition-colors shadow-2xs cursor-pointer"
                   >
                     Upgrade
@@ -459,7 +459,7 @@ export const LibraryTab: React.FC = () => {
                 </div>
               </div>
               <button
-                onClick={() => openWalletModal?.()}
+                onClick={() => openWalletModal?.('upgrade')}
                 className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shrink-0 shadow-xs cursor-pointer"
               >
                 <Crown className="w-4 h-4 text-amber-200" />
@@ -598,11 +598,11 @@ export const LibraryTab: React.FC = () => {
                       setSelectedFaculty(e.target.value);
                       setSelectedDepartment('All Departments');
                     }}
-                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 truncate"
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 truncate"
                   >
-                    <option value="All Faculties">All Faculties</option>
+                    <option value="All Faculties" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">All Faculties</option>
                     {availableFaculties.map((fac) => (
-                      <option key={fac} value={fac}>
+                      <option key={fac} value={fac} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">
                         {fac}
                       </option>
                     ))}
@@ -617,11 +617,11 @@ export const LibraryTab: React.FC = () => {
                   <select
                     value={selectedDepartment}
                     onChange={(e) => setSelectedDepartment(e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 truncate"
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 truncate"
                   >
-                    <option value="All Departments">All Departments</option>
+                    <option value="All Departments" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">All Departments</option>
                     {availableDepartments.map((dept) => (
-                      <option key={dept} value={dept}>
+                      <option key={dept} value={dept} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">
                         {dept}
                       </option>
                     ))}
@@ -736,7 +736,7 @@ export const LibraryTab: React.FC = () => {
                     isViewDisabled={dailyViewQuota.remainingViews === 0 && dailyViewQuota.dailyLimit !== 'unlimited'}
                     isAlreadyViewedToday={viewedQuestionIdsToday.includes(question.id)}
                     userTier={userTier}
-                    onUpgradePrompt={() => openWalletModal?.()}
+                    onUpgradePrompt={() => openWalletModal?.('upgrade')}
                   />
                 ))}
               </div>
@@ -826,7 +826,7 @@ export const LibraryTab: React.FC = () => {
               <button
                 onClick={() => {
                   setQuotaExceededModal({ isOpen: false });
-                  openWalletModal?.();
+                  openWalletModal?.('upgrade');
                 }}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors"
               >

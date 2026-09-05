@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { NotificationItem } from '../../types';
+import { useApp } from '../../context/AppContext';
 import {
   X,
   Bell,
@@ -17,6 +18,8 @@ import {
   Smartphone,
   ShieldCheck,
   Megaphone,
+  ArrowRight,
+  Crown,
 } from 'lucide-react';
 
 interface NotificationDetailModalProps {
@@ -30,7 +33,98 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
   onClose,
   onMarkAsRead,
 }) => {
+  const { setActiveTab, openWalletModal, navigateToAdminTab, currentUser } = useApp();
+
   if (!notification) return null;
+
+  const handleActionNavigate = () => {
+    if (onMarkAsRead) onMarkAsRead(notification.id);
+    onClose();
+
+    const isAdminUser =
+      currentUser?.role === 'admin' ||
+      currentUser?.role === 'super_admin' ||
+      currentUser?.role === 'ADMIN' ||
+      currentUser?.role === 'SUPER_ADMIN';
+
+    if (
+      notification.targetRole === 'admin' ||
+      notification.actionUrl?.includes('admin:library') ||
+      (isAdminUser && notification.type === 'academic_library')
+    ) {
+      navigateToAdminTab('library');
+      return;
+    }
+
+    if (notification.actionUrl) {
+      const target = notification.actionUrl.toLowerCase();
+      if (target.includes('upgrade') || target.includes('membership') || target.includes('tier')) {
+        openWalletModal('upgrade');
+        return;
+      }
+      if (target.startsWith('wallet:')) {
+        const sub = target.split(':')[1] || 'profile';
+        openWalletModal(sub as any);
+        return;
+      }
+      if (target.includes('profile')) {
+        openWalletModal('profile');
+        return;
+      }
+      if (target.includes('wallet')) {
+        openWalletModal('history');
+        return;
+      }
+      if (target.includes('gus')) {
+        setActiveTab('gus');
+        return;
+      }
+      if (target.includes('chat') || target.includes('daily')) {
+        setActiveTab('daily_qa');
+        return;
+      }
+      if (target.includes('library')) {
+        setActiveTab('library');
+        return;
+      }
+      if (target.includes('community')) {
+        setActiveTab('community');
+        return;
+      }
+    }
+
+    if (notification.type === 'reward') {
+      openWalletModal('history');
+    } else if (notification.type === 'gus') {
+      setActiveTab('gus');
+    } else if (notification.type === 'academic_library' || notification.type === 'library') {
+      setActiveTab('library');
+    } else {
+      setActiveTab('home');
+    }
+  };
+
+  const getActionLabel = () => {
+    const target = (notification.actionUrl || '').toLowerCase();
+    if (target.includes('upgrade') || target.includes('tier') || target.includes('membership')) {
+      return { label: 'Explore Membership Tiers', icon: <Crown className="w-4 h-4 text-amber-300" /> };
+    }
+    if (target.includes('profile') || target === 'wallet:profile') {
+      return { label: 'View Trophy Cabinet & Pass', icon: <Trophy className="w-4 h-4 text-amber-300" /> };
+    }
+    if (target.includes('wallet') || notification.type === 'reward') {
+      return { label: 'View Wallet & Ledger', icon: <Wallet className="w-4 h-4 text-amber-300" /> };
+    }
+    if (target.includes('gus') || notification.type === 'gus') {
+      return { label: 'Enter GUS Olympiad', icon: <Trophy className="w-4 h-4 text-amber-300" /> };
+    }
+    if (target.includes('library') || notification.type === 'academic_library') {
+      return { label: 'Go to Academic Vault', icon: <BookOpen className="w-4 h-4 text-teal-300" /> };
+    }
+    return { label: 'View Activity', icon: <ArrowRight className="w-4 h-4" /> };
+  };
+
+  const actionMeta = getActionLabel();
 
   const getNotifBadge = (type: string) => {
     switch (type) {
@@ -161,15 +255,24 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center justify-between gap-3 pt-2">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
           <button
+            type="button"
             onClick={() => {
               if (onMarkAsRead) onMarkAsRead(notification.id);
               onClose();
             }}
-            className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-purple-600/25 transition cursor-pointer flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition cursor-pointer"
           >
-            <span>Close Notification</span>
+            Dismiss
+          </button>
+          <button
+            type="button"
+            onClick={handleActionNavigate}
+            className="w-full sm:flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm shadow-lg shadow-purple-600/25 transition cursor-pointer flex items-center justify-center gap-2 active:scale-98"
+          >
+            {actionMeta.icon}
+            <span>{actionMeta.label}</span>
           </button>
         </div>
       </div>

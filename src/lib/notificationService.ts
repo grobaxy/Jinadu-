@@ -478,14 +478,15 @@ class GrobaaxNotificationService {
     let adminLibCount = this.eventCounts['admin_library'] || 0;
     if (ds.libraryMaterials && ds.libraryMaterials.length > 0) {
       adminLibCount += ds.libraryMaterials.filter((l) => {
-        const time = this.parseTimestamp((l as any).createdAt);
-        return time > adminLibRead;
+        const time = this.parseTimestamp((l as any).createdAt || (l as any).uploadedAt);
+        const isPending = (l as any).status === 'pending' || !(l as any).status;
+        return isPending && (!adminLibRead || time > adminLibRead);
       }).length;
     }
 
     // Populate full admin counts map
     this.adminCounts = {
-      dashboard: pendingWithdrawals + pendingVerif + reportedPostsCount + adminChatCount,
+      dashboard: pendingWithdrawals + pendingVerif + reportedPostsCount + adminChatCount + adminLibCount,
       users: pendingVerif > 0 ? pendingVerif : (this.eventCounts['admin_users'] || 0),
       managers: this.eventCounts['admin_managers'] || 0,
       transactions: txCount,

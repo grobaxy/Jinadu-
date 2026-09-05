@@ -18,8 +18,17 @@ import { PWAInstallBanner } from './components/PWA/PWAInstallBanner';
 import { OfflineIndicator } from './components/PWA/OfflineIndicator';
 
 function MainLayout() {
-  const { activeTab, firebaseUser, currentUser, isAuthModalOpen, setIsAuthModalOpen, authModalMode, login } = useApp();
-  const [viewMode, setViewMode] = useState<'app' | 'admin'>('app');
+  const {
+    activeTab,
+    firebaseUser,
+    currentUser,
+    isAuthModalOpen,
+    setIsAuthModalOpen,
+    authModalMode,
+    login,
+    viewMode,
+    setViewMode,
+  } = useApp();
 
   // If user is not authenticated with Firebase, show Auth Landing Screen (Login/Register)
   if (!firebaseUser) {
@@ -49,7 +58,13 @@ function MainLayout() {
 
   // Render Admin Panel when viewMode === 'admin'
   if (viewMode === 'admin') {
-    return <AdminPanelLayout onReturnToUserApp={() => setViewMode('app')} />;
+    return (
+      <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+        <AdminPanelLayout onReturnToUserApp={() => setViewMode('app')} />
+        {/* Real-Time In-App Push Notification Toast Alerts for Admin */}
+        <InAppPushToast />
+      </div>
+    );
   }
 
   return (

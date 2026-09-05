@@ -15,6 +15,7 @@ import {
   Crown,
 } from 'lucide-react';
 import { PastQuestion } from '../../types';
+import { useApp } from '../../context/AppContext';
 
 interface PastQuestionCardProps {
   question: PastQuestion;
@@ -37,6 +38,7 @@ export const PastQuestionCard: React.FC<PastQuestionCardProps> = ({
   userTier = 'free',
   onUpgradePrompt,
 }) => {
+  const { openWalletModal } = useApp();
   const isPending = question.status === 'pending';
   const isRejected = question.status === 'rejected';
 
@@ -125,7 +127,7 @@ export const PastQuestionCard: React.FC<PastQuestionCardProps> = ({
               className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
                 isBookmarked
                   ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50'
-                  : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
               }`}
             >
               <Bookmark className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-amber-500' : ''}`} />
@@ -177,7 +179,7 @@ export const PastQuestionCard: React.FC<PastQuestionCardProps> = ({
       </div>
 
       {/* Footer view action */}
-      <div className="px-5 py-3 bg-slate-50 dark:bg-slate-850/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+      <div className="px-5 py-3 bg-slate-50 dark:bg-slate-950/50 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
           <span className="flex items-center gap-1" title="Views count">
             <Eye className="w-3.5 h-3.5 text-slate-400" />
@@ -197,7 +199,7 @@ export const PastQuestionCard: React.FC<PastQuestionCardProps> = ({
               if (onUpgradePrompt) {
                 onUpgradePrompt();
               } else {
-                onView(question);
+                openWalletModal?.('upgrade');
               }
             }}
             id={`view-btn-${question.id}`}

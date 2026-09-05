@@ -165,7 +165,32 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
 
   const badgeIconSize = size === 'xs' ? 'w-3.5 h-3.5' : size === 'lg' ? 'w-5 h-5' : 'w-4 h-4';
 
-  // If user has not upgraded their plan and is not staff/CM, do not render badges
+  // Parse equipped badge robustly whether it is an object or string
+  const parsedBadge = React.useMemo(() => {
+    if (!equippedBadge) return null;
+    if (typeof equippedBadge === 'string') {
+      const match = equippedBadge.match(/^(\p{Emoji}|\S+)\s*(.*)$/u);
+      if (match && match[2]) {
+        return {
+          title: match[2].trim(),
+          icon: match[1].trim(),
+          color: 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/30',
+        };
+      }
+      return {
+        title: equippedBadge,
+        icon: '⭐',
+        color: 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/30',
+      };
+    }
+    const title = (equippedBadge as any).title || (equippedBadge as any).name || '';
+    const icon = (equippedBadge as any).icon || (equippedBadge as any).image || '⭐';
+    const color = (equippedBadge as any).color || 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/30';
+    if (!title && !icon) return null;
+    return { title, icon, color };
+  }, [equippedBadge]);
+
+  // If user has not upgraded their plan and is not staff/CM, show name and equipped badge if any
   if (!hasPremium) {
     return (
       <div className={`inline-flex flex-col ${className}`}>
@@ -173,6 +198,20 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
           <span className={`font-bold text-slate-900 dark:text-slate-100 ${textSizeClass}`}>
             {name}
           </span>
+
+          {parsedBadge && (
+            <span
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-black rounded-md border shadow-2xs shrink-0 ${
+                parsedBadge.color
+              } ${badgeClassName}`}
+              title={`Equipped Honour: ${parsedBadge.title}`}
+            >
+              <span className="shrink-0 text-xs">{parsedBadge.icon}</span>
+              <span className="inline-block max-w-[130px] truncate leading-tight uppercase tracking-wider">
+                {parsedBadge.title}
+              </span>
+            </span>
+          )}
         </div>
 
         {/* Institution Line if requested */}
@@ -217,17 +256,17 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
           isVip={isVipUser}
         />
 
-        {/* Custom Equipped Badge if equipped */}
-        {equippedBadge && (
+        {/* Custom Equipped Badge if equipped (e.g. Apex Scholar, Dome Warlord) */}
+        {parsedBadge && (
           <span
-            className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded-md border ${
-              equippedBadge.color || 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-black rounded-md border shadow-2xs shrink-0 ${
+              parsedBadge.color
             } ${badgeClassName}`}
-            title={`Equipped Title: ${equippedBadge.title}`}
+            title={`Equipped Honour: ${parsedBadge.title}`}
           >
-            <span>{equippedBadge.icon}</span>
-            <span className="hidden sm:inline-block max-w-[80px] truncate">
-              {equippedBadge.title}
+            <span className="shrink-0 text-xs">{parsedBadge.icon}</span>
+            <span className="inline-block max-w-[130px] truncate leading-tight uppercase tracking-wider">
+              {parsedBadge.title}
             </span>
           </span>
         )}

@@ -69,7 +69,16 @@ export const playNotificationSound = () => {
  * Supports clicking to view details or dismissing.
  */
 export const InAppPushToast: React.FC = () => {
-  const { notifications, markNotificationRead, setActiveTab } = useApp();
+  const {
+    notifications,
+    markNotificationRead,
+    setActiveTab,
+    viewMode,
+    setViewMode,
+    navigateToAdminTab,
+    currentUser,
+    openWalletModal,
+  } = useApp();
   const [activeToast, setActiveToast] = useState<NotificationItem | null>(null);
   const lastSeenIdRef = useRef<string | null>(null);
   const isInitializedRef = useRef<boolean>(false);
@@ -116,21 +125,58 @@ export const InAppPushToast: React.FC = () => {
 
   const handleAction = () => {
     markNotificationRead(activeToast.id);
+
+    // If targeted to admin or an admin-specific past question upload
+    const isAdminUser =
+      currentUser?.role === 'admin' ||
+      currentUser?.role === 'super_admin' ||
+      currentUser?.role === 'ADMIN' ||
+      currentUser?.role === 'SUPER_ADMIN';
+
+    if (
+      activeToast.targetRole === 'admin' ||
+      activeToast.actionUrl?.includes('admin:library') ||
+      (isAdminUser && activeToast.type === 'academic_library')
+    ) {
+      navigateToAdminTab('library');
+      setActiveToast(null);
+      return;
+    }
+
     if (activeToast.actionUrl) {
       const target = activeToast.actionUrl.toLowerCase();
-      if (target.includes('chat') || target.includes('daily') || target.includes('gus')) setActiveTab('daily_qa');
-      else if (target.includes('community') || target.includes('feed') || target.includes('minimart')) setActiveTab('community');
-      else if (target.includes('library') || target.includes('past_question')) setActiveTab('library');
-      else if (target.includes('wallet') || target.includes('user') || target.includes('profile')) setActiveTab('home');
-      else setActiveTab('home');
+      if (target.includes('admin') && target.includes('library')) {
+        navigateToAdminTab('library');
+      } else if (target.includes('upgrade') || target.includes('membership') || target.includes('tier')) {
+        openWalletModal('upgrade');
+      } else if (target.startsWith('wallet:')) {
+        const subTab = target.split(':')[1] || 'profile';
+        openWalletModal(subTab as any);
+      } else if (target.includes('profile')) {
+        openWalletModal('profile');
+      } else if (target.includes('wallet')) {
+        openWalletModal('history');
+      } else if (target.includes('gus')) {
+        setActiveTab('gus');
+      } else if (target.includes('chat') || target.includes('daily')) {
+        setActiveTab('daily_qa');
+      } else if (target.includes('community') || target.includes('feed') || target.includes('minimart')) {
+        setActiveTab('community');
+      } else if (target.includes('library') || target.includes('past_question')) {
+        setActiveTab('library');
+      } else {
+        setActiveTab('home');
+      }
     } else if (activeToast.type === 'dome' || activeToast.type === 'league') {
       setActiveTab('home');
     } else if (activeToast.type === 'academic_library' || activeToast.type === 'library') {
       setActiveTab('library');
     } else if (activeToast.type === 'gus') {
-      setActiveTab('daily_qa');
+      setActiveTab('gus');
     } else if (activeToast.type === 'minimart') {
       setActiveTab('community');
+    } else if (activeToast.type === 'reward') {
+      openWalletModal('history');
     } else {
       setActiveTab('home');
     }
@@ -217,7 +263,13 @@ export const InAppPushToast: React.FC = () => {
             onClick={handleAction}
             className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center gap-1 transition cursor-pointer shadow-xs"
           >
-            <span>View</span>
+            <span>
+              {activeToast.targetRole === 'admin' ||
+              activeToast.actionUrl?.includes('library') ||
+              activeToast.type === 'academic_library'
+                ? 'Review in Vault'
+                : 'View'}
+            </span>
             <ArrowRight className="w-3 h-3" />
           </button>
         </div>
