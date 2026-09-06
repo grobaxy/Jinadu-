@@ -116,6 +116,9 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
 
       if (onSeasonUpdated) onSeasonUpdated();
       setActiveSubTab('manage');
+      setTimeout(() => {
+        onClose();
+      }, 1200);
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || 'Failed to start new season.' });
     } finally {

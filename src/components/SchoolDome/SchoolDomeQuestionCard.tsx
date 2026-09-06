@@ -106,7 +106,7 @@ export const SchoolDomeQuestionCard: React.FC<SchoolDomeQuestionCardProps> = ({
               <Swords className="w-4 h-4 animate-pulse" />
             </span>
             <span className="text-xs font-black tracking-wider uppercase text-amber-400">
-              {isActive ? 'Live Elimination Battle' : 'Concluded Question'}
+              {isActive ? 'SCHOOL DOME ELIMINATION CHALLENGE' : 'CONCLUDED ELIMINATION CHALLENGE'}
             </span>
             <span className="text-xs font-bold text-slate-400">
               Question #{question.questionNumber}

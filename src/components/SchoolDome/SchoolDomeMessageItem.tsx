@@ -233,7 +233,7 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
               <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-white/10">
                 <div className="flex items-center gap-1.5 font-black text-xs text-amber-300">
                   <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-                  <span>LIVE Q&A CHALLENGE #{message.competitionRef?.questionNumber || 1}</span>
+                  <span>SCHOOL DOME ELIMINATION CHALLENGE #{message.competitionRef?.questionNumber || 1}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow-xs uppercase tracking-wider">
