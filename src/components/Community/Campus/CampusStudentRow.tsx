@@ -134,6 +134,17 @@ export const CampusStudentRow: React.FC<CampusStudentRowProps> = ({
               <span>Premium</span>
             </span>
           )}
+
+          {/* 5. EQUIPPED HONOUR / SCHOLAR BADGE */}
+          {(student as any).equippedBadge && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0 shadow-2xs"
+              title={`Equipped Honour: ${typeof (student as any).equippedBadge === 'string' ? (student as any).equippedBadge : (((student as any).equippedBadge as any).title || ((student as any).equippedBadge as any).name)}`}
+            >
+              <span className="text-xs">{typeof (student as any).equippedBadge === 'string' ? (student as any).equippedBadge.split(' ')[0] : (((student as any).equippedBadge as any).icon || '⭐')}</span>
+              <span className="max-w-[100px] truncate">{typeof (student as any).equippedBadge === 'string' ? (student as any).equippedBadge.replace(/^\S+\s*/, '') : (((student as any).equippedBadge as any).title || ((student as any).equippedBadge as any).name)}</span>
+            </span>
+          )}
         </div>
       </div>
 

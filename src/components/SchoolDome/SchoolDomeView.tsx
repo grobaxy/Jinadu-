@@ -1,39 +1,50 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useApp, checkIsUserSubscribed } from '../../../context/AppContext';
+import { useApp, checkIsUserSubscribed } from '../../context/AppContext';
 import {
-  ChatroomLiveMessage,
+  SchoolDomeMessage,
+  SchoolDomeSeason,
+  SchoolDomeQuestion,
   SponsorshipCampaign,
   PRIMARY_SUPER_ADMIN_UID,
-} from '../../../types';
-import { ChatroomMessageItem } from './ChatroomMessageItem';
-import { ChatroomComposer } from './ChatroomComposer';
-import { CreateLiveQuestionModal } from './CreateLiveQuestionModal';
+} from '../../types';
+import { SchoolDomeMessageItem } from './SchoolDomeMessageItem';
+import { ChatroomComposer } from '../Community/ChatroomLive/ChatroomComposer';
+import { CreateSchoolDomeQuestionModal } from './CreateSchoolDomeQuestionModal';
+import { SchoolDomeResultsTab } from './SchoolDomeResultsTab';
 import {
-  sendChatroomMessageToFirestore,
-  deleteChatroomMessageFromFirestore,
-  reactChatroomMessageInFirestore,
-  updateUserProfileInFirestore,
+  subscribeSchoolDomeActiveSeason,
+  subscribeSchoolDomeActiveQuestion,
+  subscribeSchoolDomeMessages,
+  sendSchoolDomeMessage,
+  reactSchoolDomeMessage,
+  deleteSchoolDomeMessage,
+  registerUserForSchoolDome,
+} from '../../lib/schoolDomeService';
+import {
   getTodayLocalDateString,
   getSynchronousDailyChatUsage,
   getUserDailyChatUsage,
   recordUserDailyChatResponse,
-  getDailyChatLimitForTier,
-} from '../../../lib/firebase';
+} from '../../lib/firebase';
 import {
   MessageSquare,
   Search,
   Volume2,
   VolumeX,
   ArrowDown,
-  ChevronRight,
   ChevronUp,
   ChevronDown,
   Radio,
   Sparkles,
   Shield,
   ArrowUpRight,
-  HelpCircle,
   Crown,
+  Trophy,
+  Swords,
+  CheckCircle2,
+  Eye,
+  AlertCircle,
+  UserCheck,
 } from 'lucide-react';
 
 // Web Audio API synthesizer for message chimes
@@ -57,7 +68,7 @@ function playAudioTone() {
   }
 }
 
-export const ChatroomLiveView: React.FC = () => {
+export const SchoolDomeView: React.FC = () => {
   const {
     currentUser,
     firebaseUser,
@@ -66,17 +77,44 @@ export const ChatroomLiveView: React.FC = () => {
     setWalletModalTab,
     setIsWalletModalOpen,
     openWalletModal,
-    chatroomMessages,
-    sendChatroomMessage,
-    deleteChatroomMessage,
-    reactChatroomMessage,
     sponsorshipCampaigns,
   } = useApp();
+
+  const [currentSeason, setCurrentSeason] = useState<SchoolDomeSeason | null>(null);
+  const [activeQuestion, setActiveQuestion] = useState<SchoolDomeQuestion | null>(null);
+  const [messages, setMessages] = useState<SchoolDomeMessage[]>([]);
+
+  // Subscriptions to Season, Active Question, and Messages
+  useEffect(() => {
+    const unsubSeason = subscribeSchoolDomeActiveSeason((season) => {
+      setCurrentSeason(season);
+    });
+    return () => unsubSeason();
+  }, []);
+
+  useEffect(() => {
+    if (!currentSeason?.id) return;
+    const unsubQ = subscribeSchoolDomeActiveQuestion(currentSeason.id, (q) => {
+      setActiveQuestion(q);
+    });
+    const unsubMsg = subscribeSchoolDomeMessages(currentSeason.id, (msgs) => {
+      setMessages(msgs);
+    });
+    return () => {
+      unsubQ();
+      unsubMsg();
+    };
+  }, [currentSeason?.id]);
 
   // Grobaax central subscription source of truth
   const membership = (currentUser?.membershipTier || '').toLowerCase();
   const subTier = (currentUser?.subscriptionTier || '').toLowerCase();
-  const plan = (((currentUser as any)?.subscriptionPlan || (currentUser as any)?.planId || (currentUser as any)?.tier || (currentUser as any)?.activePlanId) + '').toLowerCase();
+  const plan = (
+    ((currentUser as any)?.subscriptionPlan ||
+      (currentUser as any)?.planId ||
+      (currentUser as any)?.tier ||
+      (currentUser as any)?.activePlanId) + ''
+  ).toLowerCase();
 
   const isStaffOrAdmin =
     role === 'admin' ||
@@ -132,7 +170,7 @@ export const ChatroomLiveView: React.FC = () => {
   const todayDate = useMemo(() => getTodayLocalDateString(), []);
   const activeUserId = currentUser?.id || currentUser?.uid || firebaseUser?.uid || 'guest';
 
-  // Daily response count (Only increments on successful submission, never on keystrokes/typing)
+  // Daily response count (Only increments on successful submission)
   const [dailyResponseCount, setDailyResponseCount] = useState<number>(() => {
     try {
       const syncVal = getSynchronousDailyChatUsage(activeUserId, todayDate);
@@ -145,7 +183,6 @@ export const ChatroomLiveView: React.FC = () => {
     }
   });
 
-  // Immediate synchronous sync whenever activeUserId, todayDate or currentUser changes
   useEffect(() => {
     if (activeUserId && activeUserId !== 'guest') {
       const syncVal = getSynchronousDailyChatUsage(activeUserId, todayDate);
@@ -154,19 +191,17 @@ export const ChatroomLiveView: React.FC = () => {
         if (currentUser.dailyQaUsage.date === todayDate) {
           latestCount = Math.max(syncVal, currentUser.dailyQaUsage.count || 0);
         } else {
-          // Date is from previous day -> Allowance renewed
           latestCount = 0;
         }
       }
       setDailyResponseCount(latestCount);
 
-      // Background cross-device server check
       let isMounted = true;
       getUserDailyChatUsage(activeUserId, todayDate)
-        .then(usage => {
+        .then((usage) => {
           if (isMounted) {
             if (usage.date === todayDate) {
-              setDailyResponseCount(prev => Math.max(prev, usage.count));
+              setDailyResponseCount((prev) => Math.max(prev, usage.count));
             } else {
               setDailyResponseCount(0);
             }
@@ -182,6 +217,36 @@ export const ChatroomLiveView: React.FC = () => {
 
   const isLimitReached = !isStaffOrAdmin && dailyResponseCount >= maxDailyLimit;
 
+  const [activeMainTab, setActiveMainTab] = useState<'dome' | 'results'>('dome');
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  // Participation & Spectator Status
+  const isRegistrationOpen = Boolean(
+    currentSeason &&
+    !currentSeason.isRegistrationLocked &&
+    !currentSeason.firstQuestionLaunched &&
+    currentSeason.status !== 'ended'
+  );
+  const isUserRegistered = Boolean(currentSeason?.registeredUserIds?.includes(currentUser.id));
+  const isUserEliminated = Boolean(currentSeason?.eliminatedUserIds?.includes(currentUser.id));
+  const isUserStanding = Boolean(currentSeason?.activeUserIds?.includes(currentUser.id));
+  const isSpectator = !isStaffOrAdmin && (!isUserRegistered || isUserEliminated || !isUserStanding);
+
+  const handleRegister = async () => {
+    if (!currentSeason?.id || isRegistering) return;
+    try {
+      setIsRegistering(true);
+      const res = await registerUserForSchoolDome(currentSeason.id, currentUser);
+      if (!res.success) {
+        alert(res.message);
+      }
+    } catch (err: any) {
+      console.error('Registration failed:', err);
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
   const handleOpenUpgrade = () => {
     if (openWalletModal) {
       openWalletModal('upgrade');
@@ -193,10 +258,15 @@ export const ChatroomLiveView: React.FC = () => {
 
   const activeFeedAds = useMemo(() => {
     return (sponsorshipCampaigns || [])
-      .filter(c => {
+      .filter((c) => {
         const isAct = c.status === 'Active' || (c.status as string)?.toLowerCase() === 'active';
         const pl = (c.placement || '').toLowerCase().replace(/[\s_-]/g, '');
-        const isFeed = pl === 'communityfeed' || pl === 'feed' || pl === 'community' || pl === 'feedad' || pl === 'feedcard';
+        const isFeed =
+          pl === 'communityfeed' ||
+          pl === 'feed' ||
+          pl === 'community' ||
+          pl === 'feedad' ||
+          pl === 'feedcard';
         return isAct && isFeed;
       })
       .sort((a, b) => {
@@ -207,18 +277,15 @@ export const ChatroomLiveView: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [replyTarget, setReplyTarget] = useState<ChatroomLiveMessage | null>(null);
+  const [replyTarget, setReplyTarget] = useState<SchoolDomeMessage | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
-  const [isMuted] = useState(false);
   const [isPinnedAdExpanded, setIsPinnedAdExpanded] = useState(true);
   const [activePinnedAdIndex, setActivePinnedAdIndex] = useState(0);
   const [isCreateQuestionModalOpen, setIsCreateQuestionModalOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const isManagerOrAdmin = isStaffOrAdmin;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -229,7 +296,7 @@ export const ChatroomLiveView: React.FC = () => {
     if (!showScrollBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [chatroomMessages.length]);
+  }, [messages.length]);
 
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
@@ -239,12 +306,12 @@ export const ChatroomLiveView: React.FC = () => {
   };
 
   // Filter messages by search query
-  const filteredMessages = chatroomMessages.filter(m => {
+  const filteredMessages = messages.filter((m) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
-      m.messageText.toLowerCase().includes(q) ||
-      m.userName.toLowerCase().includes(q) ||
+      m.messageText?.toLowerCase().includes(q) ||
+      m.userName?.toLowerCase().includes(q) ||
       m.institution?.toLowerCase().includes(q)
     );
   });
@@ -257,7 +324,6 @@ export const ChatroomLiveView: React.FC = () => {
     const M = filteredMessages.length;
     const K = activeFeedAds.length;
 
-    // Show first ad early after message 0 or 1, and cycle every 3-4 messages
     const firstPos = Math.min(1, M - 1);
     map[firstPos] = [activeFeedAds[0]];
 
@@ -271,23 +337,19 @@ export const ChatroomLiveView: React.FC = () => {
     return map;
   }, [activeFeedAds, filteredMessages]);
 
-  const hasUserRepliedToQuestionMessage = (msg: ChatroomLiveMessage): boolean => {
+  const hasUserRepliedToQuestionMessage = (msg: SchoolDomeMessage): boolean => {
     if (msg.type !== 'question') return false;
-    const qId = msg.competitionRef?.questionId || msg.id.replace(/^msg_q_/, '');
+    const qId = msg.competitionRef?.questionId || msg.id.replace(/^dome_msg_q_/, '').replace(/^sdq_/, '');
     const normName = (currentUser?.name || '').toLowerCase().trim();
 
-    // 1. Check if user ID or normalized name is in question competitionRef replied lists
     if (msg.competitionRef?.repliedUserIds?.includes(currentUser.id)) return true;
-    if (normName && msg.competitionRef?.repliedUsernames?.includes(normName)) return true;
+    if (normName && (msg.competitionRef as any)?.repliedUsernames?.includes(normName)) return true;
+    if (msg.competitionRef?.selectedWinners?.some((w) => w.userId === currentUser.id)) return true;
 
-    // 2. Check if user already won or is listed in selectedWinners
-    if (msg.competitionRef?.selectedWinners?.some(w => w.userId === currentUser.id)) return true;
-
-    // 3. Check if user already posted any response message targeting this question in the room
-    const hasUserRepliedInChat = chatroomMessages.some(
-      m =>
+    const hasUserRepliedInChat = messages.some(
+      (m) =>
         m.userId === currentUser.id &&
-        (m.replyTo?.id === msg.id || (qId && m.replyTo?.id === qId) || (qId && m.replyTo?.id === `msg_q_${qId}`))
+        (m.replyTo?.id === msg.id || (qId && m.replyTo?.id === qId) || (qId && m.replyTo?.id === `dome_msg_q_${qId}`))
     );
     if (hasUserRepliedInChat) return true;
 
@@ -297,28 +359,28 @@ export const ChatroomLiveView: React.FC = () => {
   const hasRepliedToTarget = useMemo(() => {
     if (!replyTarget || replyTarget.type !== 'question') return false;
     return hasUserRepliedToQuestionMessage(replyTarget);
-  }, [replyTarget, chatroomMessages, currentUser.id, currentUser?.name]);
+  }, [replyTarget, messages, currentUser.id, currentUser?.name]);
 
-  const handleSendMessage = async (text: string, replyTo?: ChatroomLiveMessage['replyTo']) => {
-    // 1. Immediate Synchronous Check against state & local storage
-    const currentSyncUsage = getSynchronousDailyChatUsage(activeUserId, todayDate);
-    const effectiveCount = Math.max(dailyResponseCount, currentSyncUsage);
-
-    if (!isStaffOrAdmin && effectiveCount >= maxDailyLimit) {
-      setDailyResponseCount(effectiveCount);
-      handleOpenUpgrade();
+  const handleSendMessage = async (text: string, replyTo?: SchoolDomeMessage['replyTo']) => {
+    // Non-registered or eliminated users can spectate but cannot type/participate
+    if (!isStaffOrAdmin && isSpectator) {
       return;
     }
 
     // Prevent replying twice to a question challenge
     if (replyTo?.id) {
       const isTargetingQuestion =
-        replyTo.id.startsWith('msg_q_') ||
-        chatroomMessages.some(m => m.id === replyTo.id && m.type === 'question');
+        replyTo.id.startsWith('dome_msg_q_') ||
+        replyTo.id.startsWith('msg_sdq_') ||
+        messages.some((m) => m.id === replyTo.id && m.type === 'question');
 
       if (isTargetingQuestion) {
-        const targetQMsg = chatroomMessages.find(
-          m => m.id === replyTo.id || (m.competitionRef?.questionId && `msg_q_${m.competitionRef.questionId}` === replyTo.id)
+        const targetQMsg = messages.find(
+          (m) =>
+            m.id === replyTo.id ||
+            (m.competitionRef?.questionId &&
+              (`dome_msg_q_${m.competitionRef.questionId}` === replyTo.id ||
+                `msg_sdq_${m.competitionRef.questionId}` === replyTo.id))
         );
         if (targetQMsg && hasUserRepliedToQuestionMessage(targetQMsg)) {
           return;
@@ -326,32 +388,16 @@ export const ChatroomLiveView: React.FC = () => {
       }
     }
 
-    // 2. Pre-record response in DB and check allowed status FIRST before message broadcast
-    if (!isStaffOrAdmin) {
-      try {
-        const recordResult = await recordUserDailyChatResponse(activeUserId, todayDate, tierName);
-        setDailyResponseCount(recordResult.count);
-        if (!recordResult.allowed) {
-          handleOpenUpgrade();
-          return; // STOP! User has reached limit, do not send message
-        }
-      } catch (recErr) {
-        console.warn('Record allowance pre-flight notice:', recErr);
-        // If local sync check already met limit, stop
-        if (effectiveCount >= maxDailyLimit) {
-          handleOpenUpgrade();
-          return;
-        }
-      }
-    }
-
-    const newMessage: ChatroomLiveMessage = {
-      id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+    const newMessage: SchoolDomeMessage = {
+      id: 'sdm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      seasonId: currentSeason?.id || 'season_dome_1',
       userId: currentUser.id,
       userName: isStaffOrAdmin && !currentUser.name.includes('Support')
         ? `${currentUser.name} 💎 | Moderator`
         : currentUser.name,
-      userAvatar: currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      userAvatar:
+        currentUser.avatar ||
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       institution: currentUser.institution || 'Grobaax Scholar',
       department: currentUser.department,
       level: currentUser.level,
@@ -367,9 +413,9 @@ export const ChatroomLiveView: React.FC = () => {
     };
 
     try {
-      await sendChatroomMessage(newMessage);
+      await sendSchoolDomeMessage(newMessage, currentSeason, activeQuestion);
     } catch (err) {
-      console.warn('Daily Q&A message sync notice:', err);
+      console.warn('School Dome message sync notice:', err);
     }
 
     if (soundEnabled) {
@@ -377,27 +423,23 @@ export const ChatroomLiveView: React.FC = () => {
     }
   };
 
-  // React to a message with emoji
   const handleReactMessage = async (msgId: string, emoji: string) => {
     try {
-      await reactChatroomMessage(msgId, emoji);
+      await reactSchoolDomeMessage(msgId, emoji);
     } catch (err) {
       console.warn('React message notice:', err);
     }
   };
 
-  // Delete message
   const handleDeleteMessage = async (msgId: string) => {
     try {
-      await deleteChatroomMessage(msgId);
+      await deleteSchoolDomeMessage(msgId);
     } catch (err) {
       console.warn('Delete message notice:', err);
     }
   };
 
-  // Mute User
   const handleMuteUser = (_userId: string, userName: string) => {
-    // Non-blocking action notification
     console.info(`User ${userName} muted locally.`);
   };
 
@@ -410,48 +452,29 @@ export const ChatroomLiveView: React.FC = () => {
           <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-100 font-extrabold text-sm sm:text-base">
             <span className="text-blue-500 dark:text-blue-400 font-black text-base sm:text-lg">#</span>
             <span className="text-sm">💬</span>
-            <span className="truncate tracking-tight">daily-ultimate-search</span>
+            <span className="truncate tracking-tight">school-dome</span>
           </div>
 
           {/* Active Live Indicator */}
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
             <Radio className="w-3 h-3 animate-pulse text-emerald-500 shrink-0" />
-            <span>Live Feed</span>
+            <span>Live Arena</span>
           </div>
 
-          {/* Response Counter Header Badge */}
-          <div className={`hidden lg:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition ${
-            isStaffOrAdmin
-              ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20'
-              : isVIP
-              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
-              : isPremium
-              ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30'
-              : isLimitReached
-              ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30'
-              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-          }`}>
-            {isStaffOrAdmin ? (
-              <span>Unlimited responses (Admin)</span>
-            ) : isVIP ? (
-              <span className="flex items-center gap-1">
-                <Crown className="w-3 h-3 text-amber-500 shrink-0" />
-                <span className="font-bold text-amber-600 dark:text-amber-400">VIP Scholar:</span>
-                <span>{dailyResponseCount} / {maxDailyLimit} today</span>
+          {/* Season Statistics Badge */}
+          {currentSeason && (
+            <div className="hidden lg:flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+              <span>Season #{currentSeason.seasonNumber || 1}</span>
+              <span>•</span>
+              <span className="text-amber-600 dark:text-amber-400">
+                {currentSeason.prizePool?.toLocaleString()} {currentSeason.prizeCurrency || 'GP'} Pool
               </span>
-            ) : isPremium ? (
-              <span className="flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-blue-500 shrink-0" />
-                <span className="font-bold text-blue-600 dark:text-blue-400">Premium:</span>
-                <span>{dailyResponseCount} / {maxDailyLimit} today</span>
+              <span>•</span>
+              <span className="text-emerald-600 dark:text-emerald-400">
+                {currentSeason.activeUserIds?.length || 0} Standing
               </span>
-            ) : (
-              <span>
-                {dailyResponseCount} / {maxDailyLimit} responses used today
-                {isLimitReached ? ' (Limit Reached)' : ''}
-              </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Right: Actions */}
@@ -463,20 +486,10 @@ export const ChatroomLiveView: React.FC = () => {
               className="px-2.5 py-1 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer border border-amber-300 shrink-0"
               title="Launch Live Q&A Question Challenge"
             >
-              <span className="w-4 h-4 rounded-full bg-slate-950 text-amber-400 flex items-center justify-center font-black text-[10px]">Q</span>
+              <span className="w-4 h-4 rounded-full bg-slate-950 text-amber-400 flex items-center justify-center font-black text-[10px]">
+                Q
+              </span>
               <span className="hidden sm:inline">Ask Question</span>
-            </button>
-          )}
-
-          {/* Upgrade CTA button in header for Free & Premium users */}
-          {(tierName === 'free' || tierName === 'premium') && (
-            <button
-              onClick={handleOpenUpgrade}
-              className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-blue-900 to-indigo-800 hover:from-blue-800 hover:to-indigo-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs cursor-pointer transition shrink-0"
-              title="Upgrade Subscription Plan"
-            >
-              <Sparkles className="w-3 h-3 text-amber-400" />
-              <span className="hidden md:inline">{tierName === 'free' ? 'Upgrade Plan' : 'Get VIP'}</span>
             </button>
           )}
 
@@ -486,7 +499,7 @@ export const ChatroomLiveView: React.FC = () => {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search messages..."
                 autoFocus
                 className="w-36 sm:w-52 pl-3 pr-7 py-1 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 focus:outline-hidden focus:border-blue-500"
@@ -517,13 +530,113 @@ export const ChatroomLiveView: React.FC = () => {
             className="p-1.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
             title={soundEnabled ? 'Mute Sounds' : 'Unmute Sounds'}
           >
-            {soundEnabled ? <Volume2 className="w-4 h-4 text-blue-600 dark:text-blue-400" /> : <VolumeX className="w-4 h-4" />}
+            {soundEnabled ? (
+              <Volume2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            ) : (
+              <VolumeX className="w-4 h-4" />
+            )}
           </button>
         </div>
       </div>
 
-      {/* Pinned Live Feed Sponsored Card / Partner Initiative */}
-      {activeFeedAds.length > 0 && (
+      {/* 2. SCHOOL DOME TABS: TAB 1: School Dome | TAB 2: Results */}
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveMainTab('dome')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+              activeMainTab === 'dome'
+                ? 'bg-amber-400 text-slate-950 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Swords className="w-3.5 h-3.5" />
+            <span>School Dome</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveMainTab('results')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+              activeMainTab === 'results'
+                ? 'bg-amber-400 text-slate-950 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span>Results</span>
+          </button>
+        </div>
+
+        {/* Live Season Quick Rules / Status Pill */}
+        {currentSeason && (
+          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hidden md:flex items-center gap-2">
+            <span className="flex items-center gap-1">
+              <Shield className="w-3 h-3 text-blue-500" />
+              <span>Correct = Survive • Wrong = Eliminated</span>
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* RENDER TAB 2: RESULTS */}
+      {activeMainTab === 'results' ? (
+        <div className="flex-1 overflow-y-auto">
+          <SchoolDomeResultsTab currentSeason={currentSeason} />
+        </div>
+      ) : (
+        <>
+          {/* Registration & Survival Status Banner */}
+          {currentSeason && (
+            <div className="px-3 sm:px-4 py-2.5 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white border-b border-blue-500/20 shrink-0 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 text-xs min-w-0">
+                {isRegistrationOpen ? (
+                  isUserRegistered ? (
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>You are Registered for Season #{currentSeason.seasonNumber}! Question #1 locks registration.</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-amber-300 font-bold">
+                      <Swords className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>Season #{currentSeason.seasonNumber} Registration is OPEN! Register before Question #1 launches.</span>
+                    </div>
+                  )
+                ) : isUserEliminated ? (
+                  <div className="flex items-center gap-2 text-rose-400 font-medium">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>You were eliminated from Season #{currentSeason.seasonNumber}. Spectator Mode active (watching live).</span>
+                  </div>
+                ) : isUserStanding ? (
+                  <div className="flex items-center gap-2 text-emerald-300 font-bold">
+                    <Shield className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Active Contender • {currentSeason.activeUserIds?.length || 0} scholars standing for {currentSeason.prizePool.toLocaleString()} {currentSeason.prizeCurrency || 'GP'}!</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-slate-300 font-medium">
+                    <Eye className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span>Registration closed upon Question #1 launch. Spectator Mode active (watching live).</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Register Button if open and user not yet registered */}
+              {isRegistrationOpen && !isUserRegistered && (
+                <button
+                  type="button"
+                  disabled={isRegistering}
+                  onClick={handleRegister}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span>{isRegistering ? 'Registering...' : 'Register to Compete'}</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Pinned Live Feed Sponsored Card / Partner Initiative */}
+          {activeFeedAds.length > 0 && (
         <div className="bg-gradient-to-r from-blue-900/10 via-indigo-900/10 to-amber-900/10 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-slate-900/40 border-b border-blue-500/20 px-3 sm:px-4 py-2 transition-all shrink-0">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
@@ -539,7 +652,7 @@ export const ChatroomLiveView: React.FC = () => {
             <div className="flex items-center gap-1.5 shrink-0">
               {activeFeedAds.length > 1 && (
                 <button
-                  onClick={() => setActivePinnedAdIndex(prev => (prev + 1) % activeFeedAds.length)}
+                  onClick={() => setActivePinnedAdIndex((prev) => (prev + 1) % activeFeedAds.length)}
                   className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-white/60 dark:bg-slate-800/60 rounded-md border border-slate-200/50 dark:border-slate-700/50 cursor-pointer"
                   title="Next Sponsored Highlight"
                 >
@@ -571,7 +684,9 @@ export const ChatroomLiveView: React.FC = () => {
           {isPinnedAdExpanded && (
             <div className="mt-2 pt-2 border-t border-blue-500/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
               <div className="flex items-center gap-2">
-                <span className="text-base shrink-0">{activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.logo || '📢'}</span>
+                <span className="text-base shrink-0">
+                  {activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.logo || '📢'}
+                </span>
                 <span className="font-extrabold text-slate-900 dark:text-white shrink-0">
                   {activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.sponsorName}:
                 </span>
@@ -595,10 +710,10 @@ export const ChatroomLiveView: React.FC = () => {
             </div>
             <div>
               <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-base mb-1">
-                Daily Ultimate Search Connected
+                School Dome Connected
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                Be the first to post a daily question or response! Questions, answers, and discussions appear instantly for all users across the platform.
+                Be the first to post a question or response! Questions, answers, and discussions appear instantly for all users across the platform.
               </p>
             </div>
 
@@ -610,7 +725,6 @@ export const ChatroomLiveView: React.FC = () => {
                     key={`empty_feed_ad_${ad.id}_${i}`}
                     className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-950/20 via-white dark:via-slate-900 to-indigo-950/20 border-2 border-blue-500/30 dark:border-blue-500/30 shadow-md space-y-3"
                   >
-                    {/* Header */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-10 h-10 rounded-full bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-lg shrink-0 overflow-hidden">
@@ -643,7 +757,6 @@ export const ChatroomLiveView: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Title & Body */}
                     <div className="space-y-1">
                       <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
                         {ad.title}
@@ -653,14 +766,12 @@ export const ChatroomLiveView: React.FC = () => {
                       </p>
                     </div>
 
-                    {/* Banner */}
                     {ad.banner && (
                       <div className="rounded-xl overflow-hidden max-h-56 border border-slate-200 dark:border-slate-800 shadow-xs">
                         <img src={ad.banner} alt={ad.title} className="w-full h-full object-cover" />
                       </div>
                     )}
 
-                    {/* Footer */}
                     <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                       <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
                         <Shield className="w-3.5 h-3.5 text-blue-500 shrink-0" />
@@ -690,12 +801,13 @@ export const ChatroomLiveView: React.FC = () => {
 
             return (
               <React.Fragment key={msg.id}>
-                <ChatroomMessageItem
+                <SchoolDomeMessageItem
                   message={msg}
                   currentUserId={currentUser.id}
-                  isManagerOrAdmin={isManagerOrAdmin}
+                  isManagerOrAdmin={isStaffOrAdmin}
                   hasRepliedToQuestion={hasUserRepliedToQuestionMessage(msg)}
-                  onReply={m => setReplyTarget(m)}
+                  isSpectator={isSpectator}
+                  onReply={(m) => setReplyTarget(m)}
                   onDelete={handleDeleteMessage}
                   onMuteUser={handleMuteUser}
                   onReact={handleReactMessage}
@@ -707,7 +819,6 @@ export const ChatroomLiveView: React.FC = () => {
                     key={`feed_ad_${ad.id}_${idx}_${adIdx}`}
                     className="my-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-950/20 via-white dark:via-slate-900 to-indigo-950/20 border-2 border-blue-500/30 dark:border-blue-500/30 shadow-md space-y-3 transition-all hover:border-blue-400/50"
                   >
-                    {/* Header */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-10 h-10 rounded-full bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-lg shrink-0 overflow-hidden">
@@ -740,7 +851,6 @@ export const ChatroomLiveView: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Title & Body */}
                     <div className="space-y-1">
                       <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
                         {ad.title}
@@ -750,14 +860,12 @@ export const ChatroomLiveView: React.FC = () => {
                       </p>
                     </div>
 
-                    {/* Banner */}
                     {ad.banner && (
                       <div className="rounded-xl overflow-hidden max-h-56 border border-slate-200 dark:border-slate-800 shadow-xs">
                         <img src={ad.banner} alt={ad.title} className="w-full h-full object-cover" />
                       </div>
                     )}
 
-                    {/* Footer */}
                     <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                       <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
                         <Shield className="w-3.5 h-3.5 text-blue-500 shrink-0" />
@@ -797,30 +905,51 @@ export const ChatroomLiveView: React.FC = () => {
         </button>
       )}
 
-      {/* 3. DISCORD BOTTOM COMPOSER */}
-      <ChatroomComposer
-        onSendMessage={handleSendMessage}
-        replyToMessage={replyTarget}
-        onCancelReply={() => setReplyTarget(null)}
-        isChatMuted={isMuted}
-        channelName="daily-qa"
-        dailyLimit={maxDailyLimit}
-        usedCount={dailyResponseCount}
-        isLimitReached={isLimitReached}
-        tierName={tierName}
-        isManagerOrAdmin={isManagerOrAdmin}
-        hasRepliedToTarget={hasRepliedToTarget}
-        onOpenUpgrade={handleOpenUpgrade}
-        onOpenCreateQuestion={() => setIsCreateQuestionModalOpen(true)}
-      />
+      {/* 3. DISCORD BOTTOM COMPOSER OR SPECTATOR BAR */}
+      {isSpectator ? (
+        <div className="p-3.5 bg-slate-100 dark:bg-slate-800/90 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Eye className="w-4 h-4 text-amber-500 shrink-0" />
+            <span className="truncate">
+              {isUserEliminated
+                ? `You have been eliminated from Season #${currentSeason?.seasonNumber || 1}. You can watch all questions and answers in real-time, but cannot participate.`
+                : `Registration for Season #${currentSeason?.seasonNumber || 1} closed when Question #1 launched. Spectators can watch all questions and answers in real-time.`}
+            </span>
+          </div>
+          <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 font-black text-[11px] border border-amber-500/30 shrink-0 uppercase tracking-wider">
+            Spectator Mode
+          </span>
+        </div>
+      ) : (
+        <ChatroomComposer
+          onSendMessage={handleSendMessage}
+          replyToMessage={replyTarget as any}
+          onCancelReply={() => setReplyTarget(null)}
+          isChatMuted={false}
+          channelName="school-dome"
+          dailyLimit={9999}
+          usedCount={0}
+          isLimitReached={false}
+          tierName={tierName}
+          isManagerOrAdmin={isStaffOrAdmin}
+          hasRepliedToTarget={hasRepliedToTarget}
+          onOpenUpgrade={handleOpenUpgrade}
+          onOpenCreateQuestion={() => setIsCreateQuestionModalOpen(true)}
+        />
+      )}
+        </>
+      )}
 
       {/* Admin Live Question Launcher Modal */}
       {isCreateQuestionModalOpen && (
-        <CreateLiveQuestionModal
+        <CreateSchoolDomeQuestionModal
           isOpen={isCreateQuestionModalOpen}
           onClose={() => setIsCreateQuestionModalOpen(false)}
+          season={currentSeason}
           adminUid={currentUser.id}
           adminName={currentUser.name}
+          defaultWinnerCount={1}
+          defaultGpReward={500}
         />
       )}
     </div>

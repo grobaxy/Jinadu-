@@ -1,29 +1,30 @@
 import React from 'react';
 import {
-  ChatroomLiveMessage,
-} from '../../../types';
+  SchoolDomeMessage,
+} from '../../types';
 import {
   Reply,
   Trash2,
   VolumeX,
-  Shield,
   Building2,
   Trophy,
   Sparkles,
-  HelpCircle,
   Clock,
   CheckCircle2,
+  Eye,
+  ShieldAlert,
 } from 'lucide-react';
-import { UserBadgeItem } from '../../ui/UserBadgeItem';
-import { useApp } from '../../../context/AppContext';
-import { getUserProfileDoc } from '../../../lib/firebase';
+import { UserBadgeItem } from '../ui/UserBadgeItem';
+import { useApp } from '../../context/AppContext';
+import { getUserProfileDoc } from '../../lib/firebase';
 
-interface ChatroomMessageItemProps {
-  message: ChatroomLiveMessage;
+interface SchoolDomeMessageItemProps {
+  message: SchoolDomeMessage;
   currentUserId?: string;
   isManagerOrAdmin?: boolean;
   hasRepliedToQuestion?: boolean;
-  onReply?: (message: ChatroomLiveMessage) => void;
+  isSpectator?: boolean;
+  onReply?: (message: SchoolDomeMessage) => void;
   onDelete?: (messageId: string) => void;
   onMuteUser?: (userId: string, userName: string) => void;
   onReact?: (messageId: string, emoji: string) => void;
@@ -32,11 +33,12 @@ interface ChatroomMessageItemProps {
 const COMMON_EMOJIS = ['🔥', '❤️', '👏', '👍', '⚡', '💯'];
 const userEquippedBadgeCache = new Map<string, any>();
 
-export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
+export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
   message,
   currentUserId,
   isManagerOrAdmin,
   hasRepliedToQuestion,
+  isSpectator = false,
   onReply,
   onDelete,
   onMuteUser,
@@ -153,7 +155,7 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
 
   return (
     <div
-      id={`chat-msg-${message.id}`}
+      id={`dome-msg-${message.id}`}
       className="group relative flex flex-col px-2 sm:px-3 py-1.5 hover:bg-slate-100/70 dark:hover:bg-slate-800/40 rounded-xl transition-colors"
     >
       {/* Discord-style Curved Reply Header */}
@@ -234,12 +236,15 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
                   <span>LIVE Q&A CHALLENGE #{message.competitionRef?.questionNumber || 1}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow-xs">
-                    <Trophy className="w-3 h-3" />
-                    +{message.competitionRef?.gpRewardPerWinner || 50} GP each
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow-xs uppercase tracking-wider">
+                    <span>⚔️ Survival Round</span>
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 font-bold text-[10px] border border-blue-400/30">
-                    First {message.competitionRef?.winnerCountLimit || 5} scholars
+                  <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 font-bold text-[10px] border border-blue-400/30 uppercase">
+                    {(message as any).targetTier === 'vip'
+                      ? 'VIP Contenders'
+                      : (message as any).targetTier === 'premium'
+                      ? 'Premium Contenders'
+                      : 'All Contenders (Free)'}
                   </span>
                 </div>
               </div>
@@ -251,13 +256,18 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
               <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
                 <span className="text-[11px] text-blue-200/80 flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-blue-300" />
-                  Type your answer in the chat
+                  Type your answer in the chat (Correct = Survive • Wrong = Eliminated)
                 </span>
 
                 {hasRepliedToQuestion ? (
                   <div className="px-3 py-1 bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Answer Submitted (1 Attempt Allowed)</span>
+                    <span>Answer Submitted (Evaluating Survival)</span>
+                  </div>
+                ) : isSpectator ? (
+                  <div className="px-3 py-1 bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold rounded-xl flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Spectator Mode</span>
                   </div>
                 ) : onReply ? (
                   <button
@@ -270,7 +280,7 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
                 ) : null}
               </div>
             </div>
-          ) : message.type === 'announcement' ? (
+          ) : message.type === 'announcement' || message.type === 'system' ? (
             <div className="mt-1 p-2.5 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-amber-100 leading-relaxed font-medium">
               {message.messageText}
             </div>
@@ -324,7 +334,7 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
                   className="flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition cursor-pointer font-medium"
                   title="Reply to message"
                 >
-                  <Reply className="w-3 h-3 -scale-x-100" />
+                  <Reply className="w-3.5 h-3.5 -scale-x-100" />
                   <span>Reply</span>
                 </button>
               )}

@@ -739,7 +739,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUser]);
 
   // Central Upgrade Promotional Card State
-  // Appears after 30 seconds of entering the app for free users, with a continuous 2-minute recurrence interval after dismissal
+  // Appears every 10 minutes for free users, with a continuous 10-minute recurrence interval after dismissal
   const [isUpgradePromoVisible, setIsUpgradePromoVisible] = useState<boolean>(false);
   const dismissedAtRef = useRef<number | null>(null);
   const initialTriggerDoneRef = useRef<boolean>(false);
@@ -752,7 +752,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isUserSubscribed]);
 
-  // Initial 30-second entrance timer for free users
+  // Initial 10-minute entrance timer for free users
   useEffect(() => {
     if (isUserSubscribed || initialTriggerDoneRef.current) return;
 
@@ -761,12 +761,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsUpgradePromoVisible(true);
         initialTriggerDoneRef.current = true;
       }
-    }, 30 * 1000); // 30 seconds initial delay
+    }, 10 * 60 * 1000); // 10 minutes initial delay
 
     return () => clearTimeout(initialTimer);
   }, [isUserSubscribed, currentUser]);
 
-  // 2-minute continuous recurrence timer for free users after dismissal
+  // 10-minute continuous recurrence timer for free users after dismissal
   useEffect(() => {
     if (isUserSubscribed) return;
 
@@ -780,13 +780,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // If promo is already active/visible, do not duplicate
       if (isUpgradePromoVisible) return;
 
-      // Check if 2-minute interval (120,000 ms) has elapsed since dismissal
+      // Check if 10-minute interval (600,000 ms) has elapsed since dismissal
       if (dismissedAtRef.current !== null) {
         const now = Date.now();
         const timeSinceDismiss = now - dismissedAtRef.current;
 
-        // Re-display promotion every 2 minutes for free users
-        if (timeSinceDismiss >= 2 * 60 * 1000) {
+        // Re-display promotion every 10 minutes for free users
+        if (timeSinceDismiss >= 10 * 60 * 1000) {
           setIsUpgradePromoVisible(true);
           dismissedAtRef.current = null;
         }
@@ -3920,9 +3920,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const sendChatroomMessage = async (message: ChatroomLiveMessage): Promise<void> => {
+    const finalMsg: ChatroomLiveMessage = {
+      ...message,
+      equippedBadge: message.equippedBadge || (message.userId === currentUser.id ? currentUser.equippedBadge : undefined),
+    };
+
     setChatroomMessages(prev => {
-      const exists = prev.some(m => m.id === message.id);
-      const updated = exists ? prev.map(m => m.id === message.id ? message : m) : [...prev, message];
+      const exists = prev.some(m => m.id === finalMsg.id);
+      const updated = exists ? prev.map(m => m.id === finalMsg.id ? finalMsg : m) : [...prev, finalMsg];
       try {
         localStorage.setItem('grobax_chatroom_messages', JSON.stringify(updated));
       } catch {}
@@ -3930,7 +3935,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     try {
-      await sendChatroomMessageToFirestore(message);
+      await sendChatroomMessageToFirestore(finalMsg);
     } catch (err) {
       console.warn('Notice syncing chatroom message to Firestore:', err);
     }
@@ -4082,6 +4087,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const badgeItem = badgeStore.find(b => b.id === badgeId) || currentUser.badges.find(b => b.id === badgeId);
     if (!badgeItem) {
       setCurrentUser(prev => ({ ...prev, equippedBadgeId: undefined, equippedBadge: undefined }));
+      setChatroomMessages(prev => {
+        const updated = prev.map(m =>
+          m.userId === (firebaseUser?.uid || currentUser.id)
+            ? { ...m, equippedBadge: undefined }
+            : m
+        );
+        try {
+          localStorage.setItem('grobax_chatroom_messages', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
       if (firebaseUser) {
         try {
           await updateUserProfileInFirestore(firebaseUser.uid, {
@@ -4094,10 +4110,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return;
     }
+    const badgeTitle = 'name' in badgeItem ? badgeItem.name : badgeItem.title;
+    const badgeIcon = 'image' in badgeItem ? badgeItem.image : badgeItem.icon;
     const equippedBadgeObj = {
       id: badgeItem.id,
-      title: 'name' in badgeItem ? badgeItem.name : badgeItem.title,
-      icon: 'image' in badgeItem ? badgeItem.image : badgeItem.icon,
+      title: badgeTitle,
+      name: badgeTitle,
+      icon: badgeIcon,
       color: badgeItem.color || 'bg-amber-500/20 text-amber-400 border-amber-500/30',
     };
     setCurrentUser(prev => ({
@@ -4105,6 +4124,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       equippedBadgeId: badgeId,
       equippedBadge: equippedBadgeObj,
     }));
+    setChatroomMessages(prev => {
+      const updated = prev.map(m =>
+        m.userId === (firebaseUser?.uid || currentUser.id)
+          ? { ...m, equippedBadge: equippedBadgeObj }
+          : m
+      );
+      try {
+        localStorage.setItem('grobax_chatroom_messages', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
     if (firebaseUser) {
       try {
         await updateUserProfileInFirestore(firebaseUser.uid, {

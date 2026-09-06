@@ -7,8 +7,8 @@ import { useApp } from '../../context/AppContext';
  * 
  * Floating modal/pop-up prompt for free/non-subscribed users.
  * Appears dynamically over the active interface in pop-up mode.
- * - Initial appearance: 30 seconds after entering the app for free users.
- * - Re-appearance: 2-minute continuous interval after dismissal.
+ * - Initial appearance: 10 minutes after entering the app for free users.
+ * - Re-appearance: 10-minute continuous interval after dismissal.
  * - Disappears immediately when the user subscribes.
  */
 export const UpgradePromoPopup: React.FC = () => {

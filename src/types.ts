@@ -120,6 +120,7 @@ export type AdminTabType =
   | 'gus'
   | 'group_battle'
   | 'events'
+  | 'school_dome'
   | 'community'
   | 'chatroom_live'
   | 'announcements'
@@ -138,7 +139,7 @@ export type AdminTabType =
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 
-export type TabType = 'home' | 'gus' | 'daily_qa' | 'library' | 'community';
+export type TabType = 'home' | 'gus' | 'daily_qa' | 'school_dome' | 'library' | 'community';
 
 // ==========================================
 // GROBAAX AI LIBRARY TYPES & SCHEMAS
@@ -2693,6 +2694,88 @@ export interface CampusStudentCard {
   connectionStatus: 'none' | 'pending_sent' | 'pending_received' | 'accepted' | 'rejected' | 'self';
   requestId?: string;
   joinedCampus?: boolean;
+}
+
+// ==========================================
+// SCHOOL DOME COMPETITION SYSTEM TYPES
+// ==========================================
+
+export type SchoolDomeSeasonStatus = 'upcoming' | 'registration_open' | 'active' | 'ended';
+
+export interface SchoolDomeWinner {
+  userId: string;
+  userName: string;
+  avatar?: string;
+  institution?: string;
+  department?: string;
+  prizeWon: number;
+}
+
+export interface SchoolDomeSeason {
+  id: string;
+  seasonNumber: number;
+  title: string;
+  description?: string;
+  prizePool: number; // e.g. 50000
+  prizeCurrency: 'NGN' | 'GP';
+  status: SchoolDomeSeasonStatus;
+  registeredUserIds: string[];
+  activeUserIds: string[]; // Participants still standing
+  eliminatedUserIds: string[]; // Participants knocked out
+  isRegistrationLocked: boolean; // Permanently locked the moment first question is launched
+  firstQuestionLaunched: boolean;
+  currentQuestionNumber: number;
+  totalQuestionsLaunched: number;
+  createdAt: number;
+  startedAt?: number;
+  endedAt?: number;
+  winners?: SchoolDomeWinner[];
+  rules?: string[];
+}
+
+export type SchoolDomeParticipantStatus = 'active' | 'eliminated' | 'winner';
+
+export interface SchoolDomeParticipant {
+  id: string;
+  seasonId: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  institution?: string;
+  department?: string;
+  level?: string;
+  isPremium?: boolean;
+  status: SchoolDomeParticipantStatus;
+  registeredAt: number;
+  eliminatedAtQuestionNumber?: number;
+  eliminatedAt?: number;
+  correctAnswersCount: number;
+}
+
+export interface SchoolDomeQuestion {
+  id: string;
+  seasonId: string;
+  questionNumber: number;
+  questionText: string;
+  correctAnswer: string;
+  acceptedAlternativeAnswers?: string[];
+  timeLimitSeconds: number;
+  targetTier?: 'free' | 'premium' | 'vip';
+  startAt: number;
+  endAt: number;
+  status: 'active' | 'closed';
+  survivorUserIds?: string[];
+  eliminatedUserIds?: string[];
+  totalSubmissionsCount: number;
+  repliedUserIds?: string[];
+  repliedUsernames?: string[];
+  createdAt: number;
+  createdByUid?: string;
+  createdByName?: string;
+}
+
+export interface SchoolDomeMessage extends ChatroomLiveMessage {
+  seasonId?: string;
 }
 
 

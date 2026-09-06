@@ -193,6 +193,16 @@ export const CampusCard: React.FC = () => {
                     PREMIUM
                   </span>
                 )}
+
+                {/* Equipped Honour / Trophy Badge */}
+                {currentUser?.equippedBadge && (
+                  <span
+                    className="px-1.5 py-0.5 rounded-md text-xs font-black bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 inline-flex items-center justify-center shadow-2xs"
+                    title={`Equipped Honour: ${typeof currentUser.equippedBadge === 'string' ? currentUser.equippedBadge : ((currentUser.equippedBadge as any).title || (currentUser.equippedBadge as any).name)}`}
+                  >
+                    <span>{typeof currentUser.equippedBadge === 'string' ? currentUser.equippedBadge.split(' ')[0] : ((currentUser.equippedBadge as any).icon || '⭐')}</span>
+                  </span>
+                )}
               </div>
 
               <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">
@@ -252,18 +262,6 @@ export const CampusCard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            {!isVip && (
-              <button
-                type="button"
-                id="campus-card-upgrade-tier-btn"
-                onClick={() => openWalletModal('upgrade')}
-                className="px-3.5 py-2 rounded-xl text-xs font-black text-amber-950 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 shadow-xs transition active:scale-98 cursor-pointer flex items-center gap-1.5"
-              >
-                <Crown className="w-3.5 h-3.5 text-amber-800" />
-                <span>Upgrade</span>
-              </button>
-            )}
-
             <button
               type="button"
               id="campus-card-open-profile-btn"

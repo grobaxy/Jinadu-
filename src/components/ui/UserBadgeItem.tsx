@@ -201,15 +201,12 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
 
           {parsedBadge && (
             <span
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-black rounded-md border shadow-2xs shrink-0 ${
+              className={`inline-flex items-center justify-center px-1.5 py-0.5 text-xs rounded-md border shadow-2xs shrink-0 ${
                 parsedBadge.color
               } ${badgeClassName}`}
               title={`Equipped Honour: ${parsedBadge.title}`}
             >
-              <span className="shrink-0 text-xs">{parsedBadge.icon}</span>
-              <span className="inline-block max-w-[130px] truncate leading-tight uppercase tracking-wider">
-                {parsedBadge.title}
-              </span>
+              <span className="shrink-0">{parsedBadge.icon}</span>
             </span>
           )}
         </div>
@@ -259,15 +256,12 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
         {/* Custom Equipped Badge if equipped (e.g. Apex Scholar, Dome Warlord) */}
         {parsedBadge && (
           <span
-            className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-black rounded-md border shadow-2xs shrink-0 ${
+            className={`inline-flex items-center justify-center px-1.5 py-0.5 text-xs rounded-md border shadow-2xs shrink-0 ${
               parsedBadge.color
             } ${badgeClassName}`}
             title={`Equipped Honour: ${parsedBadge.title}`}
           >
-            <span className="shrink-0 text-xs">{parsedBadge.icon}</span>
-            <span className="inline-block max-w-[130px] truncate leading-tight uppercase tracking-wider">
-              {parsedBadge.title}
-            </span>
+            <span className="shrink-0">{parsedBadge.icon}</span>
           </span>
         )}
 

@@ -25,6 +25,7 @@ import { AdminSettingsView } from './AdminSettingsView';
 import { AdminLibraryView } from './AdminLibraryView';
 import { AdminAirtimeDataView } from './AdminAirtimeDataView';
 import { AdminTransactionsView } from './AdminTransactionsView';
+import { AdminSchoolDomeView } from './AdminSchoolDomeView';
 
 import {
   LayoutDashboard,
@@ -52,6 +53,7 @@ import {
   Trophy,
   CheckCheck,
   Inbox,
+  Swords,
 } from 'lucide-react';
 
 interface AdminPanelLayoutProps {
@@ -135,6 +137,7 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
       title: 'EVENTS & COMPETITIONS',
       items: [
         { id: 'events' as AdminTabType, label: 'Official Events Catalog', icon: Calendar, badge: 'Live' },
+        { id: 'school_dome' as AdminTabType, label: 'School Dome Arena', icon: Swords, badge: 'Arena' },
       ],
     },
     {
@@ -190,6 +193,8 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
         return <AdminUsersView />;
       case 'events':
         return <AdminEventsView />;
+      case 'school_dome':
+        return <AdminSchoolDomeView />;
       case 'community':
         return <AdminCommunityView />;
       case 'announcements':

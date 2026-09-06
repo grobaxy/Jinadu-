@@ -609,11 +609,10 @@ export const WalletModal: React.FC = () => {
                     />
                     {currentUser.equippedBadge ? (
                       <div
-                        className="absolute -bottom-2 -right-2 px-2.5 py-1 rounded-xl bg-amber-500 text-slate-950 font-black text-xs shadow-md flex items-center gap-1 border-2 border-white dark:border-slate-900"
+                        className="absolute -bottom-2 -right-2 p-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-sm shadow-md flex items-center justify-center border-2 border-white dark:border-slate-900"
                         title={`Equipped Badge: ${currentUser.equippedBadge.name}`}
                       >
                         <span>{currentUser.equippedBadge.icon}</span>
-                        <span className="hidden sm:inline text-[10px] uppercase tracking-wider">{currentUser.equippedBadge.name}</span>
                       </div>
                     ) : (
                       <button
@@ -1074,9 +1073,8 @@ export const WalletModal: React.FC = () => {
                       <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
                         <span>Scholar Achievements, Honours & Trophy Cabinet</span>
                         {currentUser.equippedBadge && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-xs font-black shadow-xs flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-xs font-black shadow-xs flex items-center justify-center" title={`Equipped Badge: ${currentUser.equippedBadge.name}`}>
                             <span>{currentUser.equippedBadge.icon}</span>
-                            <span>{currentUser.equippedBadge.name}</span>
                           </span>
                         )}
                       </h3>
@@ -1227,17 +1225,14 @@ export const WalletModal: React.FC = () => {
                             {badge.image}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <h5 className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
-                                {badge.name}
-                              </h5>
-                              {isEquipped && (
+                            {isEquipped && (
+                              <div className="mb-1">
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
                                   Equipped
                                 </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">
+                              </div>
+                            )}
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
                               {badge.description}
                             </p>
                           </div>

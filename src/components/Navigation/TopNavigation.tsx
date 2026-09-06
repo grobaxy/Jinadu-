@@ -24,7 +24,6 @@ import {
   Smartphone,
   Shield,
   Megaphone,
-  Crown,
 } from 'lucide-react';
 
 interface TopNavigationProps {
@@ -66,6 +65,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
   const navItems = [
     { id: 'home', label: 'Home', icon: Home, badgeKey: 'home' },
     { id: 'daily_qa', label: 'Daily Ultimate search', icon: Trophy, badgeKey: 'daily_qa' },
+    { id: 'school_dome', label: 'School Dome', icon: Swords, badgeKey: 'school_dome' },
     { id: 'library', label: 'Library', icon: BookOpen, badgeKey: 'library' },
     { id: 'community', label: 'Community', icon: Users, badgeKey: 'community' },
   ];
@@ -287,19 +287,6 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
                 </>
               )}
             </div>
-
-            {currentUser?.tier !== 'vip' && (
-              <button
-                type="button"
-                id="top-nav-upgrade-btn"
-                onClick={() => openWalletModal('upgrade')}
-                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-xs transition cursor-pointer active:scale-95 shrink-0"
-                title="Upgrade Membership Tier"
-              >
-                <Crown className="w-3.5 h-3.5 text-amber-950 shrink-0" />
-                <span>Upgrade</span>
-              </button>
-            )}
 
             <WalletButton className="shrink-0" />
           </div>

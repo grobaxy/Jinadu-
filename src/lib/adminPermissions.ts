@@ -77,6 +77,7 @@ export function getTabsForRole(role?: ManagerRole | null, uid?: string | null): 
       'gus',
       'group_battle',
       'events',
+      'school_dome',
       'community',
       'chatroom_live',
       'announcements',
@@ -105,6 +106,7 @@ export function getTabsForRole(role?: ManagerRole | null, uid?: string | null): 
       'gus',
       'group_battle',
       'events',
+      'school_dome',
       'community',
       'chatroom_live',
       'announcements',
@@ -149,6 +151,7 @@ export function getTabsForRole(role?: ManagerRole | null, uid?: string | null): 
       break;
     case 'EVENTS_MANAGER':
       tabs.add('events');
+      tabs.add('school_dome');
       break;
     case 'COMMUNITY_ANNOUNCEMENT_MANAGER':
       tabs.add('community');

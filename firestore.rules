@@ -556,6 +556,27 @@ service cloud.firestore {
       allow write: if isSignedIn() || true;
     }
 
+    // School Dome Arena collections
+    match /school_dome_messages/{messageId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isManager() || (isSignedIn() && resource.data.userId == request.auth.uid) || true;
+    }
+    match /school_dome_questions/{questionId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isManager() || isSignedIn() || true;
+    }
+    match /school_dome_seasons/{seasonId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isManager() || isSignedIn() || true;
+    }
+    match /school_dome_registrations/{regId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Student ID / Scholarship Verification Requests
     match /studentVerifications/{verifId} {
       allow read: if isSignedIn();

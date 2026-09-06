@@ -31,6 +31,7 @@ import {
   Users,
   BookOpen,
   Smartphone,
+  Swords,
 } from 'lucide-react';
 
 export const HomeTab: React.FC = () => {
@@ -105,13 +106,44 @@ export const HomeTab: React.FC = () => {
             </p>
 
             <p className="text-xs sm:text-sm lg:text-base text-slate-600 dark:text-slate-300 max-w-3xl leading-relaxed font-medium">
-              Grobaax is an education-focused platform where students discover useful academic resources in the <strong>Academic Library</strong>, test knowledge through <strong>Daily Ultimate Search</strong>, recharge instant <strong>VTU Airtime & Data</strong>, connect with fellow scholars via the <strong>Campus Mini Mart</strong>, and build verified student networks on <strong>Campus</strong>.
+              Grobaax is an education-focused platform where students discover useful academic resources in the <strong>Academic Library</strong>, test knowledge through <strong>Daily Ultimate Search</strong>, represent their institution as the last school standing in the <strong>School Dome Arena</strong>, recharge instant <strong>VTU Airtime & Data</strong>, connect with fellow scholars via the <strong>Campus Mini Mart</strong>, and build verified student networks on <strong>Campus</strong>.
             </p>
           </div>
 
           {/* Academic & Platform Pillars Quick Action / Highlight Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-            {/* 1. Daily Ultimate Search Pillar */}
+            {/* 1. School Dome Arena Pillar */}
+            <div
+              id="home-pillar-school-dome-card"
+              onClick={() => setActiveTab('school_dome')}
+              className="p-5 rounded-2xl bg-gradient-to-br from-amber-500/10 via-slate-50 to-amber-500/5 dark:from-amber-950/20 dark:via-slate-800/80 dark:to-slate-900 hover:bg-white dark:hover:bg-slate-800 border border-amber-500/30 hover:border-amber-500/60 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 group-hover:scale-105 transition-transform">
+                  <Swords className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                      School Dome Arena
+                    </h2>
+                    <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[9px] font-black border border-amber-500/30">
+                      CHAMPIONSHIP
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Represent your institution as the Last School Standing! Survive elimination rounds of rapid academic questions to claim achievement and your equal share of the grand GP prize pool.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-amber-500/20 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-amber-600 dark:text-amber-400">
+                <span>Enter School Dome</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+
+            {/* 2. Daily Ultimate Search Pillar */}
             <div
               id="home-pillar-gus-card"
               onClick={() => setActiveTab('daily_qa')}
@@ -274,6 +306,68 @@ export const HomeTab: React.FC = () => {
       {/* ======================================================== */}
       <section id="home-campus-card-section">
         <CampusCard />
+      </section>
+
+      {/* ======================================================== */}
+      {/* 1.6 SCHOOL DOME ARENA: LAST SCHOOL STANDING SPOTLIGHT    */}
+      {/* ======================================================== */}
+      <section
+        id="home-school-dome-spotlight-section"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-blue-950 border border-amber-500/40 shadow-xl text-white p-6 sm:p-8 lg:p-10"
+      >
+        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 -mb-8 -ml-8 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="space-y-3 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs font-black uppercase tracking-wider">
+              <Swords className="w-3.5 h-3.5 text-amber-400" />
+              <span>Inter-Campus Elimination Arena</span>
+            </div>
+
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white">
+              Represent Your School as the Last School Standing
+            </h2>
+
+            <p className="text-xs sm:text-sm lg:text-base text-slate-300 leading-relaxed font-medium">
+              Step into the ultimate inter-campus arena where collegiate pride meets supreme academic survival. Students from universities, polytechnics, and colleges across Nigeria enter high-intensity live elimination rounds to champion their school's glory. Survive question after question, outlast rival institutions, and stand tall when everyone else falls. The Last Scholars Standing secure monumental campus achievement, national prestige, and an equal split of the season's grand GP prize pool!
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3 pt-2 text-xs font-bold text-amber-300">
+              <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+                <Trophy className="w-4 h-4 text-amber-400" />
+                <span>Equal GP Prize Split</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+                <GraduationCap className="w-4 h-4 text-blue-400" />
+                <span>Inter-Campus Achievement</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+                <Flame className="w-4 h-4 text-rose-400" />
+                <span>Last School Standing</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row lg:flex-col gap-3 w-full sm:w-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab('school_dome')}
+              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-sm transition shadow-lg hover:shadow-xl cursor-pointer flex items-center justify-center gap-2 group active:scale-95"
+            >
+              <Swords className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+              <span>Enter School Dome Arena</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('school_dome')}
+              className="px-6 py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white border border-white/20 font-bold text-sm transition cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+            >
+              <Award className="w-4 h-4 text-amber-400" />
+              <span>View Season Results</span>
+            </button>
+          </div>
+        </div>
       </section>
 
       {/* ======================================================== */}

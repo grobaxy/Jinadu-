@@ -624,6 +624,50 @@
           ]
         }
       ]
+    },
+    "school_dome_questions": {
+      "indexes": [
+        {
+          "fields": [
+            { "fieldPath": "seasonId", "order": "ASCENDING" },
+            { "fieldPath": "questionNumber", "order": "ASCENDING" }
+          ]
+        },
+        {
+          "fields": [
+            { "fieldPath": "seasonId", "order": "ASCENDING" },
+            { "fieldPath": "status", "order": "ASCENDING" }
+          ]
+        }
+      ]
+    },
+    "school_dome_messages": {
+      "indexes": [
+        {
+          "fields": [
+            { "fieldPath": "timestamp", "order": "ASCENDING" }
+          ]
+        }
+      ]
+    },
+    "school_dome_seasons": {
+      "indexes": [
+        {
+          "fields": [
+            { "fieldPath": "status", "order": "ASCENDING" }
+          ]
+        }
+      ]
+    },
+    "school_dome_registrations": {
+      "indexes": [
+        {
+          "fields": [
+            { "fieldPath": "seasonId", "order": "ASCENDING" },
+            { "fieldPath": "userId", "order": "ASCENDING" }
+          ]
+        }
+      ]
     }
   }
 }

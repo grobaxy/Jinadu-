@@ -82,6 +82,8 @@ export const AdminCommunityView: React.FC<AdminCommunityViewProps> = ({
       department: 'Head Moderator',
       level: 'Admin',
       isPremium: true,
+      membershipTier: 'VIP SCHOLAR',
+      equippedBadge: (currentUser as any)?.equippedBadge || (userProfile as any)?.equippedBadge,
       messageText: text,
       timestamp: Date.now(),
       type: 'normal',
