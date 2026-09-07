@@ -45,17 +45,29 @@ import {
 import { compressAvatarImage } from '../utils/imageCompressor';
 import baseFirebaseConfig from '../../firebase-applet-config.json';
 
-// Support Vercel / custom environment variables with fallback to bundled config
-const metaEnv = ((import.meta as any)?.env || {}) as Record<string, string>;
+// Safely resolve environment variables in both Vite client and Node/CJS environments without esbuild warnings
+const safeGetEnv = (key: string): string => {
+  if (typeof process !== 'undefined' && process?.env && process.env[key]) {
+    return process.env[key] as string;
+  }
+  try {
+    const metaGetter = new Function('try { return import.meta.env; } catch(e) { return {}; }');
+    const envObj = metaGetter();
+    return (envObj && envObj[key]) || '';
+  } catch {
+    return '';
+  }
+};
+
 const firebaseConfig = {
-  apiKey: metaEnv.VITE_FIREBASE_API_KEY || baseFirebaseConfig.apiKey,
-  authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN || baseFirebaseConfig.authDomain,
-  projectId: metaEnv.VITE_FIREBASE_PROJECT_ID || baseFirebaseConfig.projectId,
-  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || baseFirebaseConfig.storageBucket,
-  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || baseFirebaseConfig.messagingSenderId,
-  appId: metaEnv.VITE_FIREBASE_APP_ID || baseFirebaseConfig.appId,
-  firestoreDatabaseId: metaEnv.VITE_FIRESTORE_DATABASE_ID || (baseFirebaseConfig as any).firestoreDatabaseId,
-  oAuthClientId: metaEnv.VITE_OAUTH_CLIENT_ID || (baseFirebaseConfig as any).oAuthClientId,
+  apiKey: safeGetEnv('VITE_FIREBASE_API_KEY') || baseFirebaseConfig.apiKey,
+  authDomain: safeGetEnv('VITE_FIREBASE_AUTH_DOMAIN') || baseFirebaseConfig.authDomain,
+  projectId: safeGetEnv('VITE_FIREBASE_PROJECT_ID') || baseFirebaseConfig.projectId,
+  storageBucket: safeGetEnv('VITE_FIREBASE_STORAGE_BUCKET') || baseFirebaseConfig.storageBucket,
+  messagingSenderId: safeGetEnv('VITE_FIREBASE_MESSAGING_SENDER_ID') || baseFirebaseConfig.messagingSenderId,
+  appId: safeGetEnv('VITE_FIREBASE_APP_ID') || baseFirebaseConfig.appId,
+  firestoreDatabaseId: safeGetEnv('VITE_FIRESTORE_DATABASE_ID') || (baseFirebaseConfig as any).firestoreDatabaseId,
+  oAuthClientId: safeGetEnv('VITE_OAUTH_CLIENT_ID') || (baseFirebaseConfig as any).oAuthClientId,
 };
 import {
   MasterInstitution,
