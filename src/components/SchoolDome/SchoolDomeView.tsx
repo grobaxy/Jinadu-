@@ -576,63 +576,54 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
 
       {/* Registration & Survival Status Banner */}
       {currentSeason && (
-        <div className="px-3 sm:px-4 py-2.5 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white border-b border-blue-500/20 shrink-0 flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2 text-xs min-w-0">
-                {isRegistrationOpen ? (
-                  isUserRegistered ? (
-                    <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>You are Registered for Season #{currentSeason.seasonNumber}! Question #1 locks registration.</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-amber-300 font-bold">
-                      <Swords className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span>Season #{currentSeason.seasonNumber} Registration is OPEN! Register before Question #1 launches.</span>
-                    </div>
-                  )
-                ) : isUserEliminated ? (
-                  <div className="flex items-center gap-2 text-rose-400 font-medium">
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                    <span>You were eliminated from Season #{currentSeason.seasonNumber}. Spectator Mode active (watching live).</span>
-                  </div>
-                ) : isUserStanding ? (
-                  <div className="flex items-center gap-2 text-emerald-300 font-bold">
-                    <Shield className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Active Contender • {currentSeason.activeUserIds?.length || 0} scholars standing for {currentSeason.prizePool.toLocaleString()} {currentSeason.prizeCurrency || 'GP'}!</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-slate-300 font-medium">
-                    <Eye className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span>Registration closed upon Question #1 launch. Spectator Mode active (watching live).</span>
-                  </div>
-                )}
+        <div className="px-3 sm:px-4 py-2 bg-transparent text-slate-800 dark:text-slate-100 border-b border-slate-200/70 dark:border-slate-800/80 shrink-0 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-xs min-w-0">
+            {isRegistrationOpen ? (
+              isUserRegistered ? (
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>You are Registered for Season #{currentSeason.seasonNumber}! Question #1 locks registration.</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold">
+                  <Swords className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>Season #{currentSeason.seasonNumber} Registration is OPEN! Register before Question #1 launches.</span>
+                </div>
+              )
+            ) : isUserEliminated ? (
+              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-medium">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>You were eliminated from Season #{currentSeason.seasonNumber}. Spectator Mode active (watching live).</span>
               </div>
-
-              {/* Register Button if open and user not yet registered */}
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsRulesModalOpen(true)}
-                  className="text-[11px] font-bold text-amber-300 hover:text-amber-200 underline flex items-center gap-1 cursor-pointer"
-                >
-                  <ScrollText className="w-3 h-3" />
-                  <span>Arena Rules</span>
-                </button>
-
-                {isRegistrationOpen && !isUserRegistered && (
-                  <button
-                    type="button"
-                    disabled={isRegistering}
-                    onClick={handleRegister}
-                    className="px-3.5 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
-                  >
-                    <UserCheck className="w-4 h-4" />
-                    <span>{isRegistering ? 'Registering...' : 'Register to Compete'}</span>
-                  </button>
-                )}
+            ) : isUserStanding ? (
+              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                <Shield className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>Active Contender • {currentSeason.activeUserIds?.length || 0} scholars standing for {currentSeason.prizePool.toLocaleString()} {currentSeason.prizeCurrency || 'GP'}!</span>
               </div>
+            ) : (
+              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-medium">
+                <Eye className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>Registration closed upon Question #1 launch. Spectator Mode active (watching live).</span>
+              </div>
+            )}
+          </div>
+
+          {/* Register Button if open and user not yet registered */}
+          {isRegistrationOpen && !isUserRegistered && (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={isRegistering}
+                onClick={handleRegister}
+                className="px-3.5 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>{isRegistering ? 'Registering...' : 'Register to Compete'}</span>
+              </button>
             </div>
           )}
+        </div>
+      )}
 
       {/* PINNED ACTIVE QUESTION CARD WITH ADMIN-SET COUNTDOWN */}
       {activeQuestion && activeQuestion.status === 'active' && activeQuestion.endAt > Date.now() && (
