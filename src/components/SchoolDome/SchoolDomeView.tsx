@@ -7,6 +7,8 @@ import {
   PRIMARY_SUPER_ADMIN_UID,
 } from '../../types';
 import { SchoolDomeMessageItem } from './SchoolDomeMessageItem';
+import { SchoolDomeQuestionCard } from './SchoolDomeQuestionCard';
+import { SchoolDomeRulesModal } from './SchoolDomeRulesModal';
 import { ChatroomComposer } from '../Community/ChatroomLive/ChatroomComposer';
 import { CreateSchoolDomeQuestionModal } from './CreateSchoolDomeQuestionModal';
 import { SchoolDomeResultsTab } from './SchoolDomeResultsTab';
@@ -44,6 +46,7 @@ import {
   Eye,
   AlertCircle,
   UserCheck,
+  ScrollText,
 } from 'lucide-react';
 
 // Web Audio API synthesizer for message chimes
@@ -81,6 +84,8 @@ export const SchoolDomeView: React.FC = () => {
   const [currentSeason, setCurrentSeason] = useState<SchoolDomeSeason | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<SchoolDomeQuestion | null>(null);
   const [messages, setMessages] = useState<SchoolDomeMessage[]>([]);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'arena' | 'results'>('arena');
 
   // Subscriptions to Season, Active Question, and Messages
   useEffect(() => {
@@ -317,6 +322,11 @@ export const SchoolDomeView: React.FC = () => {
   }, [replyTarget, messages, currentUser.id, currentUser?.name]);
 
   const handleSendMessage = async (text: string, replyTo?: SchoolDomeMessage['replyTo']) => {
+    // Whenever admin clicks End Season, typing is completely unavailable for all users
+    if (currentSeason?.status === 'ended') {
+      return;
+    }
+
     // Non-registered or eliminated users can spectate but cannot type/participate
     if (!isStaffOrAdmin && isSpectator) {
       return;
@@ -410,10 +420,32 @@ export const SchoolDomeView: React.FC = () => {
             <span className="truncate tracking-tight">school-dome</span>
           </div>
 
-          {/* Active Live Indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-            <Radio className="w-3 h-3 animate-pulse text-emerald-500 shrink-0" />
-            <span>Live Arena</span>
+          {/* Arena vs Results View Mode Toggle */}
+          <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700/80">
+            <button
+              type="button"
+              onClick={() => setActiveTab('arena')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'arena'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Radio className={`w-3 h-3 ${activeTab === 'arena' ? 'animate-pulse text-emerald-500' : ''}`} />
+              <span>Arena</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('results')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'results'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Trophy className={`w-3 h-3 ${activeTab === 'results' ? 'text-amber-500' : ''}`} />
+              <span>Champions</span>
+            </button>
           </div>
 
           {/* Season Statistics Badge */}
@@ -434,6 +466,17 @@ export const SchoolDomeView: React.FC = () => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Rules Button (Visible on the top of the school dome card) */}
+          <button
+            type="button"
+            onClick={() => setIsRulesModalOpen(true)}
+            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60 font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
+            title="View School Dome Arena Rules set by Admin"
+          >
+            <ScrollText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>Rules</span>
+          </button>
+
           {/* Admin Launch Live Question Button */}
           {isStaffOrAdmin && (
             <button
@@ -529,26 +572,85 @@ export const SchoolDomeView: React.FC = () => {
               </div>
 
               {/* Register Button if open and user not yet registered */}
-              {isRegistrationOpen && !isUserRegistered && (
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  disabled={isRegistering}
-                  onClick={handleRegister}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
+                  onClick={() => setIsRulesModalOpen(true)}
+                  className="text-[11px] font-bold text-amber-300 hover:text-amber-200 underline flex items-center gap-1 cursor-pointer"
                 >
-                  <UserCheck className="w-4 h-4" />
-                  <span>{isRegistering ? 'Registering...' : 'Register to Compete'}</span>
+                  <ScrollText className="w-3 h-3" />
+                  <span>Arena Rules</span>
                 </button>
-              )}
+
+                {isRegistrationOpen && !isUserRegistered && (
+                  <button
+                    type="button"
+                    disabled={isRegistering}
+                    onClick={handleRegister}
+                    className="px-3.5 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>{isRegistering ? 'Registering...' : 'Register to Compete'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
-      {/* 2. MAIN MESSAGE STREAM */}
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 bg-slate-50/50 dark:bg-slate-950/40"
-      >
+      {/* PINNED ACTIVE QUESTION CARD WITH ADMIN-SET COUNTDOWN */}
+      {activeQuestion && activeQuestion.status === 'active' && activeQuestion.endAt > Date.now() && (
+        <div className="p-2.5 sm:p-4 border-b border-amber-500/30 bg-slate-950/70 shrink-0">
+          <SchoolDomeQuestionCard
+            question={activeQuestion}
+            season={currentSeason}
+            currentUser={currentUser}
+            hasRepliedToQuestion={activeQuestion.repliedUserIds?.includes(currentUser.id) || false}
+            isUserRegistered={isUserRegistered}
+            isUserStanding={isUserStanding}
+            onReplyToAnswer={() => {
+              const qMsg = messages.find(m => m.competitionRef?.questionId === activeQuestion.id);
+              if (qMsg) {
+                setReplyTarget(qMsg);
+              } else {
+                setReplyTarget({
+                  id: 'msg_sdq_' + activeQuestion.id,
+                  userId: activeQuestion.createdByUid || 'admin',
+                  userName: activeQuestion.createdByName || 'School Dome Arbiter',
+                  messageText: activeQuestion.questionText,
+                  timestamp: activeQuestion.createdAt,
+                  type: 'question',
+                  competitionRef: {
+                    competitionId: 'school_dome',
+                    questionId: activeQuestion.id,
+                    questionNumber: activeQuestion.questionNumber,
+                    totalQuestions: 20,
+                    questionText: activeQuestion.questionText,
+                    status: 'active',
+                    gpRewardPerWinner: 500,
+                    winnerCountLimit: 1,
+                    allowFreeParticipation: true,
+                    timeLimitSeconds: activeQuestion.timeLimitSeconds,
+                    startAt: activeQuestion.startAt,
+                    endAt: activeQuestion.endAt,
+                  },
+                } as any);
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {/* CONTENT: EITHER CHAMPIONS RESULTS BOARD OR LIVE ARENA */}
+      {activeTab === 'results' ? (
+        <SchoolDomeResultsTab currentSeason={currentSeason} />
+      ) : (
+        <>
+          {/* 2. MAIN MESSAGE STREAM */}
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 bg-slate-50/50 dark:bg-slate-950/40"
+          >
         {filteredMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-4 sm:p-6 space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
@@ -594,37 +696,78 @@ export const SchoolDomeView: React.FC = () => {
         </button>
       )}
 
-      {/* 3. DISCORD BOTTOM COMPOSER OR SPECTATOR BAR */}
-      {isSpectator ? (
-        <div className="p-3.5 bg-slate-100 dark:bg-slate-800/90 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <Eye className="w-4 h-4 text-amber-500 shrink-0" />
-            <span className="truncate">
-              {isUserEliminated
-                ? `You have been eliminated from Season #${currentSeason?.seasonNumber || 1}. You can watch all questions and answers in real-time, but cannot participate.`
-                : `Registration for Season #${currentSeason?.seasonNumber || 1} closed when Question #1 launched. Spectators can watch all questions and answers in real-time.`}
-            </span>
-          </div>
-          <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 font-black text-[11px] border border-amber-500/30 shrink-0 uppercase tracking-wider">
-            Spectator Mode
-          </span>
-        </div>
-      ) : (
-        <ChatroomComposer
-          onSendMessage={handleSendMessage}
-          replyToMessage={replyTarget as any}
-          onCancelReply={() => setReplyTarget(null)}
-          isChatMuted={false}
-          channelName="school-dome"
-          dailyLimit={9999}
-          usedCount={0}
-          isLimitReached={false}
-          tierName={tierName}
-          isManagerOrAdmin={isStaffOrAdmin}
-          hasRepliedToTarget={hasRepliedToTarget}
-          onOpenUpgrade={handleOpenUpgrade}
-          onOpenCreateQuestion={() => setIsCreateQuestionModalOpen(true)}
-        />
+          {/* 3. DISCORD BOTTOM COMPOSER OR SPECTATOR BAR OR SEASON ENDED (TYPING UNAVAILABLE) */}
+          {currentSeason?.status === 'ended' ? (
+            <div className="p-3.5 sm:p-4 bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/30">
+                  <Trophy className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-black text-slate-900 dark:text-white text-xs sm:text-sm">
+                      Season #{currentSeason?.seasonNumber || 1} Has Concluded
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+                      Typing Unavailable
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    The competition has ended. All prizes have been distributed equally to the surviving champions.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsRulesModalOpen(true)}
+                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  View Rules
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('results')}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trophy className="w-3.5 h-3.5" />
+                  <span>Champions Board</span>
+                </button>
+              </div>
+            </div>
+          ) : isSpectator ? (
+            <div className="p-3.5 bg-slate-100 dark:bg-slate-800/90 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <Eye className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="truncate">
+                  {isUserEliminated
+                    ? `You have been eliminated from Season #${currentSeason?.seasonNumber || 1}. You can watch all questions and answers in real-time, but cannot participate.`
+                    : `Registration for Season #${currentSeason?.seasonNumber || 1} closed when Question #1 launched. Spectators can watch all questions and answers in real-time.`}
+                </span>
+              </div>
+              <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 font-black text-[11px] border border-amber-500/30 shrink-0 uppercase tracking-wider">
+                Spectator Mode
+              </span>
+            </div>
+          ) : (
+            <ChatroomComposer
+              onSendMessage={handleSendMessage}
+              replyToMessage={replyTarget as any}
+              onCancelReply={() => setReplyTarget(null)}
+              isChatMuted={false}
+              channelName="school-dome"
+              dailyLimit={9999}
+              usedCount={0}
+              isLimitReached={false}
+              tierName={tierName}
+              isManagerOrAdmin={isStaffOrAdmin}
+              hasRepliedToTarget={hasRepliedToTarget}
+              onOpenUpgrade={handleOpenUpgrade}
+              onOpenCreateQuestion={() => setIsCreateQuestionModalOpen(true)}
+            />
+          )}
+        </>
       )}
 
       {/* Admin Live Question Launcher Modal */}
@@ -639,6 +782,13 @@ export const SchoolDomeView: React.FC = () => {
           defaultGpReward={500}
         />
       )}
+
+      {/* Rules Popup Card */}
+      <SchoolDomeRulesModal
+        isOpen={isRulesModalOpen}
+        onClose={() => setIsRulesModalOpen(false)}
+        season={currentSeason}
+      />
     </div>
   );
 };

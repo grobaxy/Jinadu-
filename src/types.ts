@@ -2230,6 +2230,9 @@ export interface ChatroomLiveMessage {
     gpRewardPerWinner: number;
     winnerCountLimit: number;
     allowFreeParticipation: boolean;
+    timeLimitSeconds?: number;
+    startAt?: number;
+    endAt?: number;
     repliedUserIds?: string[];
     repliedUsernames?: string[];
     selectedWinners?: Array<{

@@ -78,6 +78,18 @@ export const SchoolDomeQuestionCard: React.FC<SchoolDomeQuestionCardProps> = ({
   const activeStandingCount = season?.activeUserIds?.length ?? survivors.length;
   const prizePoolText = season ? `${season.prizeCurrency === 'NGN' ? '₦' : ''}${season.prizePool.toLocaleString()} ${season.prizeCurrency === 'GP' ? 'GP' : ''}` : '₦50,000';
 
+  const formatTime = (secs: number) => {
+    if (secs <= 0) return 'Time Expired';
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    if (m > 0) {
+      return `${m}:${s < 10 ? '0' : ''}${s} remaining`;
+    }
+    return `${s}s remaining`;
+  };
+
+  const totalTimeText = totalTime >= 60 ? `${Math.round(totalTime / 60)} min` : `${totalTime}s`;
+
   return (
     <div
       id={`school-dome-question-card-${question.id}`}
@@ -126,7 +138,7 @@ export const SchoolDomeQuestionCard: React.FC<SchoolDomeQuestionCardProps> = ({
         </div>
 
         {/* Prize Pool & Countdown Clock */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <div className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full border border-blue-500/30 text-xs font-black flex items-center gap-1.5">
             <Trophy className="w-3.5 h-3.5 text-amber-400" />
             <span>
@@ -134,18 +146,24 @@ export const SchoolDomeQuestionCard: React.FC<SchoolDomeQuestionCardProps> = ({
             </span>
           </div>
 
+          <div className="hidden sm:flex items-center gap-1 text-xs text-slate-300 font-bold px-2 py-1 bg-white/5 rounded-lg border border-white/10">
+            <span>Time Limit: <strong>{totalTimeText}</strong></span>
+          </div>
+
           <div
-            className={`px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 border ${
+            className={`px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 border shadow-sm ${
               isActive
                 ? secondsRemaining <= 15
-                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse'
-                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  ? 'bg-rose-500/25 text-rose-300 border-rose-500/50 animate-pulse'
+                  : secondsRemaining <= 30
+                  ? 'bg-amber-500/25 text-amber-300 border-amber-500/50'
+                  : 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50'
                 : 'bg-slate-800 text-slate-400 border-slate-700'
             }`}
           >
-            <Clock className="w-3.5 h-3.5" />
+            <Clock className={`w-3.5 h-3.5 ${isActive ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
             <span>
-              {isActive ? `${secondsRemaining}s Left` : 'Time Expired'}
+              {isActive ? `⏱️ ${formatTime(secondsRemaining)}` : '⌛ Time Expired'}
             </span>
           </div>
         </div>

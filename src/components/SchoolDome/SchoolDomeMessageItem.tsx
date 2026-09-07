@@ -33,6 +33,88 @@ interface SchoolDomeMessageItemProps {
 const COMMON_EMOJIS = ['🔥', '❤️', '👏', '👍', '⚡', '💯'];
 const userEquippedBadgeCache = new Map<string, any>();
 
+const QuestionCardCountdown: React.FC<{
+  competitionRef?: SchoolDomeMessage['competitionRef'];
+  timestamp: number;
+}> = ({ competitionRef, timestamp }) => {
+  const timeLimit = competitionRef?.timeLimitSeconds || 300;
+  const endAt = competitionRef?.endAt || (timestamp + timeLimit * 1000);
+  const isExplicitClosed = competitionRef?.status === 'closed';
+
+  const [remaining, setRemaining] = React.useState<number>(() => {
+    if (isExplicitClosed) return 0;
+    return Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+  });
+
+  React.useEffect(() => {
+    if (isExplicitClosed) {
+      setRemaining(0);
+      return;
+    }
+    const update = () => {
+      const diff = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+      setRemaining(diff);
+    };
+    update();
+    const timer = setInterval(update, 500);
+    return () => clearInterval(timer);
+  }, [endAt, isExplicitClosed]);
+
+  const isExpired = isExplicitClosed || remaining <= 0;
+  const progressPercent = Math.max(0, Math.min(100, (remaining / timeLimit) * 100));
+
+  const formatRemaining = (s: number) => {
+    if (s <= 0) return 'Time Expired';
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    if (mins > 0) {
+      return `${mins}:${secs < 10 ? '0' : ''}${secs} remaining`;
+    }
+    return `${secs}s remaining`;
+  };
+
+  const limitText = timeLimit >= 60 ? `${Math.round(timeLimit / 60)} min` : `${timeLimit}s`;
+
+  return (
+    <div className="pt-1 space-y-1.5 w-full">
+      <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+        <div className="flex items-center gap-1.5 text-blue-200/90 text-[11px] font-semibold">
+          <Clock className="w-3.5 h-3.5 text-blue-300 shrink-0" />
+          <span>Time Limit: <strong className="text-white font-black">{limitText}</strong> (Admin Set)</span>
+        </div>
+
+        <div
+          className={`px-2.5 py-0.5 rounded-full text-xs font-black flex items-center gap-1.5 border shadow-xs ${
+            isExpired
+              ? 'bg-slate-800/80 text-slate-400 border-slate-700'
+              : remaining <= 15
+              ? 'bg-rose-500/25 text-rose-300 border-rose-500/50 animate-pulse'
+              : remaining <= 30
+              ? 'bg-amber-500/25 text-amber-300 border-amber-500/50'
+              : 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50'
+          }`}
+        >
+          <Clock className={`w-3.5 h-3.5 ${!isExpired ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
+          <span>{isExpired ? '⌛ Time Expired' : `⏱️ ${formatRemaining(remaining)}`}</span>
+        </div>
+      </div>
+
+      {!isExpired && (
+        <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${
+              remaining <= 15
+                ? 'bg-gradient-to-r from-rose-500 to-amber-400'
+                : 'bg-gradient-to-r from-amber-400 to-emerald-400'
+            }`}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
   message,
   currentUserId,
@@ -252,6 +334,12 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
               <div className="text-sm sm:text-base font-bold text-white leading-snug">
                 {message.competitionRef?.questionText || message.messageText}
               </div>
+
+              {/* Admin-Set Time Limit & Live Countdown Timer */}
+              <QuestionCardCountdown
+                competitionRef={message.competitionRef}
+                timestamp={message.timestamp}
+              />
 
               <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
                 <span className="text-[11px] text-blue-200/80 flex items-center gap-1">
