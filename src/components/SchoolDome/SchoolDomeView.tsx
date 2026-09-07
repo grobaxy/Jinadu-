@@ -322,8 +322,8 @@ export const SchoolDomeView: React.FC = () => {
   }, [replyTarget, messages, currentUser.id, currentUser?.name]);
 
   const handleSendMessage = async (text: string, replyTo?: SchoolDomeMessage['replyTo']) => {
-    // Whenever admin clicks End Season, typing is completely unavailable for all users
-    if (currentSeason?.status === 'ended') {
+    // Whenever admin clicks End Season, typing is strictly unavailable for regular users; admin remains open
+    if (currentSeason?.status === 'ended' && !isStaffOrAdmin) {
       return;
     }
 
@@ -696,8 +696,8 @@ export const SchoolDomeView: React.FC = () => {
         </button>
       )}
 
-          {/* 3. DISCORD BOTTOM COMPOSER OR SPECTATOR BAR OR SEASON ENDED (TYPING UNAVAILABLE) */}
-          {currentSeason?.status === 'ended' ? (
+          {/* 3. DISCORD BOTTOM COMPOSER OR SPECTATOR BAR OR SEASON ENDED (TYPING UNAVAILABLE STRICTLY FOR REGULAR USERS) */}
+          {currentSeason?.status === 'ended' && !isStaffOrAdmin ? (
             <div className="p-3.5 sm:p-4 bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/30">
@@ -751,21 +751,48 @@ export const SchoolDomeView: React.FC = () => {
               </span>
             </div>
           ) : (
-            <ChatroomComposer
-              onSendMessage={handleSendMessage}
-              replyToMessage={replyTarget as any}
-              onCancelReply={() => setReplyTarget(null)}
-              isChatMuted={false}
-              channelName="school-dome"
-              dailyLimit={9999}
-              usedCount={0}
-              isLimitReached={false}
-              tierName={tierName}
-              isManagerOrAdmin={isStaffOrAdmin}
-              hasRepliedToTarget={hasRepliedToTarget}
-              onOpenUpgrade={handleOpenUpgrade}
-              onOpenCreateQuestion={() => setIsCreateQuestionModalOpen(true)}
-            />
+            <div className="flex flex-col shrink-0">
+              {currentSeason?.status === 'ended' && isStaffOrAdmin && (
+                <div className="px-3.5 py-2 bg-amber-500/10 dark:bg-amber-950/40 border-t border-amber-500/30 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 min-w-0">
+                    <Shield className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span className="font-bold truncate">
+                      Season #{currentSeason.seasonNumber || 1} Concluded • Admin Channel Open
+                    </span>
+                    <span className="hidden md:inline text-[11px] text-slate-600 dark:text-slate-300 truncate">
+                      (Typing is locked for regular participants, but open for administrators)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('results')}
+                      className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                    >
+                      View Champions
+                    </button>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40">
+                      Admin Mode
+                    </span>
+                  </div>
+                </div>
+              )}
+              <ChatroomComposer
+                onSendMessage={handleSendMessage}
+                replyToMessage={replyTarget as any}
+                onCancelReply={() => setReplyTarget(null)}
+                isChatMuted={false}
+                channelName="school-dome"
+                dailyLimit={9999}
+                usedCount={0}
+                isLimitReached={false}
+                tierName={tierName}
+                isManagerOrAdmin={isStaffOrAdmin}
+                hasRepliedToTarget={hasRepliedToTarget}
+                onOpenUpgrade={handleOpenUpgrade}
+                onOpenCreateQuestion={() => setIsCreateQuestionModalOpen(true)}
+              />
+            </div>
           )}
         </>
       )}
