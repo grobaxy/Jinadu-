@@ -5429,6 +5429,9 @@ export const createChatroomLiveQuestionInFirestore = async (
         gpRewardPerWinner: gpReward,
         winnerCountLimit: winnerLimit,
         allowFreeParticipation: true,
+        timeLimitSeconds: timeLimit,
+        startAt: now,
+        endAt: endAt,
       },
       reactions: { '🎯': 1, '⚡': 1 },
     };
