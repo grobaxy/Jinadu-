@@ -23,6 +23,13 @@ import {
   Settings,
   Play,
   Square,
+  Trophy,
+  AlertCircle,
+  X,
+  Users,
+  Award,
+  Sparkles,
+  ShieldCheck,
 } from 'lucide-react';
 
 export const AdminSchoolDomeView: React.FC = () => {
@@ -37,6 +44,15 @@ export const AdminSchoolDomeView: React.FC = () => {
   const [isAdminSeasonModalOpen, setIsAdminSeasonModalOpen] = useState(false);
   const [seasonModalInitialTab, setSeasonModalInitialTab] = useState<'manage' | 'new_season'>('manage');
   const [isEndingSeason, setIsEndingSeason] = useState(false);
+  const [isConfirmEndModalOpen, setIsConfirmEndModalOpen] = useState(false);
+  const [endSeasonError, setEndSeasonError] = useState<string | null>(null);
+  const [endSeasonSuccessResult, setEndSeasonSuccessResult] = useState<{
+    seasonNumber: number;
+    winnersCount: number;
+    prizePerWinner: number;
+    totalPrize: number;
+    currency: string;
+  } | null>(null);
 
   useEffect(() => {
     const unsub = subscribeSchoolDomeActiveSeason((s) => {
@@ -76,22 +92,33 @@ export const AdminSchoolDomeView: React.FC = () => {
     setIsAdminSeasonModalOpen(true);
   };
 
-  const handleDirectEndSeason = async () => {
+  const handleDirectEndSeason = () => {
+    if (!currentSeason) return;
+    setEndSeasonError(null);
+    setEndSeasonSuccessResult(null);
+    setIsConfirmEndModalOpen(true);
+  };
+
+  const executeConcludeSeason = async () => {
     if (!currentSeason) return;
     if (currentSeason.status === 'ended') {
-      alert('This season has already concluded.');
+      setEndSeasonError('This season has already concluded.');
       return;
     }
-    const count = currentSeason.activeUserIds?.length || 0;
-    const confirmMsg = `Are you sure you want to END ${currentSeason.title}?\n\n• Prize Pool: ${prizePrefix}${prizePool.toLocaleString()}${prizeSuffix}\n• Last People Standing: ${count} scholars\n• Equal Share: ${prizePrefix}${prizePerWinner.toLocaleString()}${prizeSuffix} each\n\nAll last scholars standing will have their prize credited directly to their GROBAAX wallets immediately.`;
-    if (!window.confirm(confirmMsg)) return;
 
     try {
       setIsEndingSeason(true);
+      setEndSeasonError(null);
       const res = await endSchoolDomeSeasonAndDistributePrize(currentSeason.id, currentUser.id, currentUser.name);
-      alert(`Season #${currentSeason.seasonNumber} concluded successfully!\n${res.winners.length} winner(s) received ${prizePrefix}${res.prizePerWinner.toLocaleString()}${prizeSuffix} credited directly to their GROBAAX wallets.`);
+      setEndSeasonSuccessResult({
+        seasonNumber: currentSeason.seasonNumber,
+        winnersCount: res.winners.length,
+        prizePerWinner: res.prizePerWinner,
+        totalPrize: currentSeason.prizePool,
+        currency: currentSeason.prizeCurrency || 'GP',
+      });
     } catch (err: any) {
-      alert(`Failed to end season: ${err?.message || err}`);
+      setEndSeasonError(err?.message || 'Failed to end season and split prize pool.');
     } finally {
       setIsEndingSeason(false);
     }
@@ -273,6 +300,151 @@ export const AdminSchoolDomeView: React.FC = () => {
             adminName={currentUser?.name}
             initialTab={seasonModalInitialTab}
           />
+
+          {/* End Season & Prize Distribution Modal */}
+          {isConfirmEndModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmEndModalOpen(false)}
+                  className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                {endSeasonSuccessResult ? (
+                  <div className="text-center space-y-4 py-2">
+                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto ring-8 ring-emerald-500/10">
+                      <Trophy className="w-8 h-8 animate-bounce" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                        Season #{endSeasonSuccessResult.seasonNumber} Concluded!
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Prizes have been successfully split and distributed directly into scholars' wallets.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/60 text-center">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Pool</span>
+                        <span className="text-sm font-black text-amber-500">
+                          {prizePrefix}{endSeasonSuccessResult.totalPrize.toLocaleString()}{prizeSuffix}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Winners</span>
+                        <span className="text-sm font-black text-emerald-500">
+                          {endSeasonSuccessResult.winnersCount} Scholars
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Per Winner</span>
+                        <span className="text-sm font-black text-blue-500">
+                          {prizePrefix}{endSeasonSuccessResult.prizePerWinner.toLocaleString()}{prizeSuffix}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20 text-left text-xs text-blue-800 dark:text-blue-300 flex items-start gap-2">
+                      <Sparkles className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold">Automated Systems Dispatched:</p>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                          Individual winner push notifications sent, wallet balance credited with verified transaction logs, and official Results announcement broadcasted across Grobaax.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsConfirmEndModalOpen(false)}
+                      className="w-full py-2.5 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-900 font-bold text-xs rounded-xl transition cursor-pointer"
+                    >
+                      Done
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                        <AlertCircle className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                          Conclude Season #{currentSeason.seasonNumber}?
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {currentSeason.title}
+                        </p>
+                      </div>
+                    </div>
+
+                    {endSeasonError && (
+                      <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-600 dark:text-rose-400 font-medium">
+                        {endSeasonError}
+                      </div>
+                    )}
+
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-2.5 text-xs">
+                      <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                        <span>Total Prize Pool:</span>
+                        <strong className="text-amber-500 font-black text-sm">
+                          {prizePrefix}{prizePool.toLocaleString()}{prizeSuffix}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                        <span>Scholars Last Standing:</span>
+                        <strong className="text-emerald-500 font-black text-sm">
+                          {standingCount} scholar{standingCount === 1 ? '' : 's'}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <span>Equal Share Per Scholar:</span>
+                        <strong className="text-blue-500 font-black text-sm">
+                          {prizePrefix}{prizePerWinner.toLocaleString()}{prizeSuffix} each
+                        </strong>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Concluded seasons freeze competition questions, lock survival statuses, credit winners' Grobaax wallets immediately, and post celebratory announcements in the Results tab.
+                    </p>
+
+                    <div className="flex items-center gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsConfirmEndModalOpen(false)}
+                        className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isEndingSeason || currentSeason.status === 'ended'}
+                        onClick={executeConcludeSeason}
+                        className="flex-1 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+                      >
+                        {isEndingSeason ? (
+                          <>
+                            <span className="animate-spin text-xs">↻</span>
+                            <span>Splitting Prize...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-4 h-4" />
+                            <span>Confirm & Distribute</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

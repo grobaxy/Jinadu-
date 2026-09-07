@@ -1232,6 +1232,9 @@ export const WalletModal: React.FC = () => {
                                 </span>
                               </div>
                             )}
+                            <h5 className="font-extrabold text-xs text-slate-900 dark:text-white truncate mb-0.5">
+                              {badge.name}
+                            </h5>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
                               {badge.description}
                             </p>

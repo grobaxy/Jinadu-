@@ -4,7 +4,6 @@ import {
   SchoolDomeMessage,
   SchoolDomeSeason,
   SchoolDomeQuestion,
-  SponsorshipCampaign,
   PRIMARY_SUPER_ADMIN_UID,
 } from '../../types';
 import { SchoolDomeMessageItem } from './SchoolDomeMessageItem';
@@ -77,7 +76,6 @@ export const SchoolDomeView: React.FC = () => {
     setWalletModalTab,
     setIsWalletModalOpen,
     openWalletModal,
-    sponsorshipCampaigns,
   } = useApp();
 
   const [currentSeason, setCurrentSeason] = useState<SchoolDomeSeason | null>(null);
@@ -255,32 +253,11 @@ export const SchoolDomeView: React.FC = () => {
     }
   };
 
-  const activeFeedAds = useMemo(() => {
-    return (sponsorshipCampaigns || [])
-      .filter((c) => {
-        const isAct = c.status === 'Active' || (c.status as string)?.toLowerCase() === 'active';
-        const pl = (c.placement || '').toLowerCase().replace(/[\s_-]/g, '');
-        const isFeed =
-          pl === 'communityfeed' ||
-          pl === 'feed' ||
-          pl === 'community' ||
-          pl === 'feedad' ||
-          pl === 'feedcard';
-        return isAct && isFeed;
-      })
-      .sort((a, b) => {
-        const pVal = (p?: string) => (p === 'Top' ? 3 : p === 'High' ? 2 : p === 'Medium' ? 1 : 0);
-        return pVal(b.priority) - pVal(a.priority);
-      });
-  }, [sponsorshipCampaigns]);
-
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [replyTarget, setReplyTarget] = useState<SchoolDomeMessage | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
-  const [isPinnedAdExpanded, setIsPinnedAdExpanded] = useState(true);
-  const [activePinnedAdIndex, setActivePinnedAdIndex] = useState(0);
   const [isCreateQuestionModalOpen, setIsCreateQuestionModalOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -314,27 +291,6 @@ export const SchoolDomeView: React.FC = () => {
       m.institution?.toLowerCase().includes(q)
     );
   });
-
-  // Pre-calculate which ads to render after each message index
-  const adsAfterMessageMap = useMemo(() => {
-    const map: { [msgIdx: number]: SponsorshipCampaign[] } = {};
-    if (activeFeedAds.length === 0 || filteredMessages.length === 0) return map;
-
-    const M = filteredMessages.length;
-    const K = activeFeedAds.length;
-
-    const firstPos = Math.min(1, M - 1);
-    map[firstPos] = [activeFeedAds[0]];
-
-    let adCursor = 1;
-    for (let i = firstPos + 3; i < M; i += 3) {
-      if (!map[i]) map[i] = [];
-      map[i].push(activeFeedAds[adCursor % K]);
-      adCursor++;
-    }
-
-    return map;
-  }, [activeFeedAds, filteredMessages]);
 
   const hasUserRepliedToQuestionMessage = (msg: SchoolDomeMessage): boolean => {
     if (msg.type !== 'question') return false;
@@ -587,68 +543,6 @@ export const SchoolDomeView: React.FC = () => {
             </div>
           )}
 
-          {/* Pinned Live Feed Sponsored Card / Partner Initiative */}
-          {activeFeedAds.length > 0 && (
-        <div className="bg-gradient-to-r from-blue-900/10 via-indigo-900/10 to-amber-900/10 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-slate-900/40 border-b border-blue-500/20 px-3 sm:px-4 py-2 transition-all shrink-0">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 uppercase tracking-wider flex items-center gap-1 shrink-0">
-                <Sparkles className="w-2.5 h-2.5 text-amber-500" />
-                {activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.badgeLabel || 'Featured Partner'}
-              </span>
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                {activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.title}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              {activeFeedAds.length > 1 && (
-                <button
-                  onClick={() => setActivePinnedAdIndex((prev) => (prev + 1) % activeFeedAds.length)}
-                  className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-white/60 dark:bg-slate-800/60 rounded-md border border-slate-200/50 dark:border-slate-700/50 cursor-pointer"
-                  title="Next Sponsored Highlight"
-                >
-                  {(activePinnedAdIndex % activeFeedAds.length) + 1}/{activeFeedAds.length} ↻
-                </button>
-              )}
-              {activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.destinationUrl && (
-                <a
-                  href={activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.destinationUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] rounded-lg transition flex items-center gap-1 shadow-xs cursor-pointer"
-                >
-                  <span>{activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.ctaText || 'Learn More'}</span>
-                  <ArrowUpRight className="w-3 h-3" />
-                </a>
-              )}
-              <button
-                onClick={() => setIsPinnedAdExpanded(!isPinnedAdExpanded)}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                title={isPinnedAdExpanded ? 'Collapse' : 'Expand'}
-              >
-                {isPinnedAdExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Expanded detail banner */}
-          {isPinnedAdExpanded && (
-            <div className="mt-2 pt-2 border-t border-blue-500/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
-              <div className="flex items-center gap-2">
-                <span className="text-base shrink-0">
-                  {activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.logo || '📢'}
-                </span>
-                <span className="font-extrabold text-slate-900 dark:text-white shrink-0">
-                  {activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.sponsorName}:
-                </span>
-                <span className="line-clamp-1">{activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.text}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* 2. MAIN MESSAGE STREAM */}
       <div
         ref={scrollContainerRef}
@@ -668,179 +562,22 @@ export const SchoolDomeView: React.FC = () => {
                 Be the first to post a question or response! Questions, answers, and discussions appear instantly for all users across the platform.
               </p>
             </div>
-
-            {/* Render all active feed ads in empty state */}
-            {activeFeedAds.length > 0 && (
-              <div className="w-full max-w-lg text-left pt-2 space-y-4">
-                {activeFeedAds.map((ad, i) => (
-                  <div
-                    key={`empty_feed_ad_${ad.id}_${i}`}
-                    className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-950/20 via-white dark:via-slate-900 to-indigo-950/20 border-2 border-blue-500/30 dark:border-blue-500/30 shadow-md space-y-3"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-lg shrink-0 overflow-hidden">
-                          {ad.logo && (ad.logo.startsWith('http') || ad.logo.startsWith('data:')) ? (
-                            <img src={ad.logo} alt={ad.sponsorName} className="w-full h-full object-cover" />
-                          ) : (
-                            <span>{ad.logo || '📢'}</span>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-sm font-extrabold text-slate-900 dark:text-white truncate">
-                              {ad.sponsorName}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 uppercase tracking-wider flex items-center gap-1 shrink-0">
-                              <Sparkles className="w-2.5 h-2.5 text-amber-500" />
-                              {ad.badgeLabel || 'Sponsored'}
-                            </span>
-                          </div>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 block truncate">
-                            Official Partner Initiative • Promoted
-                          </span>
-                        </div>
-                      </div>
-
-                      {ad.tag && (
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">
-                          #{ad.tag}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
-                        {ad.title}
-                      </h4>
-                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                        {ad.text}
-                      </p>
-                    </div>
-
-                    {ad.banner && (
-                      <div className="rounded-xl overflow-hidden max-h-56 border border-slate-200 dark:border-slate-800 shadow-xs">
-                        <img src={ad.banner} alt={ad.title} className="w-full h-full object-cover" />
-                      </div>
-                    )}
-
-                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                        <Shield className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        <span className="truncate">Verified Grobaax Institutional Ad</span>
-                      </span>
-
-                      {ad.destinationUrl && (
-                        <a
-                          href={ad.destinationUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer shrink-0"
-                        >
-                          <span>{ad.ctaText || 'Learn More'}</span>
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         ) : (
-          filteredMessages.map((msg, idx) => {
-            const adsAfterThisMsg = adsAfterMessageMap[idx] || [];
-
-            return (
-              <React.Fragment key={msg.id}>
-                <SchoolDomeMessageItem
-                  message={msg}
-                  currentUserId={currentUser.id}
-                  isManagerOrAdmin={isStaffOrAdmin}
-                  hasRepliedToQuestion={hasUserRepliedToQuestionMessage(msg)}
-                  isSpectator={isSpectator}
-                  onReply={(m) => setReplyTarget(m)}
-                  onDelete={handleDeleteMessage}
-                  onMuteUser={handleMuteUser}
-                  onReact={handleReactMessage}
-                />
-
-                {/* Embedded Live Feed Ad Cards */}
-                {adsAfterThisMsg.map((ad, adIdx) => (
-                  <div
-                    key={`feed_ad_${ad.id}_${idx}_${adIdx}`}
-                    className="my-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-950/20 via-white dark:via-slate-900 to-indigo-950/20 border-2 border-blue-500/30 dark:border-blue-500/30 shadow-md space-y-3 transition-all hover:border-blue-400/50"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-lg shrink-0 overflow-hidden">
-                          {ad.logo && (ad.logo.startsWith('http') || ad.logo.startsWith('data:')) ? (
-                            <img src={ad.logo} alt={ad.sponsorName} className="w-full h-full object-cover" />
-                          ) : (
-                            <span>{ad.logo || '📢'}</span>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-sm font-extrabold text-slate-900 dark:text-white truncate">
-                              {ad.sponsorName}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 uppercase tracking-wider flex items-center gap-1 shrink-0">
-                              <Sparkles className="w-2.5 h-2.5 text-amber-500" />
-                              {ad.badgeLabel || 'Sponsored'}
-                            </span>
-                          </div>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 block truncate">
-                            Official Partner Initiative • Promoted
-                          </span>
-                        </div>
-                      </div>
-
-                      {ad.tag && (
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">
-                          #{ad.tag}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
-                        {ad.title}
-                      </h4>
-                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                        {ad.text}
-                      </p>
-                    </div>
-
-                    {ad.banner && (
-                      <div className="rounded-xl overflow-hidden max-h-56 border border-slate-200 dark:border-slate-800 shadow-xs">
-                        <img src={ad.banner} alt={ad.title} className="w-full h-full object-cover" />
-                      </div>
-                    )}
-
-                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                        <Shield className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        <span className="truncate">Verified Grobaax Institutional Ad</span>
-                      </span>
-
-                      {ad.destinationUrl && (
-                        <a
-                          href={ad.destinationUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer shrink-0"
-                        >
-                          <span>{ad.ctaText || 'Learn More'}</span>
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </React.Fragment>
-            );
-          })
+          filteredMessages.map((msg) => (
+            <SchoolDomeMessageItem
+              key={msg.id}
+              message={msg}
+              currentUserId={currentUser.id}
+              isManagerOrAdmin={isStaffOrAdmin}
+              hasRepliedToQuestion={hasUserRepliedToQuestionMessage(msg)}
+              isSpectator={isSpectator}
+              onReply={(m) => setReplyTarget(m)}
+              onDelete={handleDeleteMessage}
+              onMuteUser={handleMuteUser}
+              onReact={handleReactMessage}
+            />
+          ))
         )}
 
         <div ref={messagesEndRef} />

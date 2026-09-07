@@ -38,6 +38,7 @@ export const AdminWalletManager: React.FC = () => {
     adminAdjustTargetUserGp,
     badgeStore,
     addBadgeToStore,
+    deleteBadgeFromStore,
     updateBadgeInStore,
     sponsorshipCampaigns,
     addSponsorshipCampaign,
@@ -542,6 +543,18 @@ export const AdminWalletManager: React.FC = () => {
                   <div className="text-[10px] text-amber-400 font-bold">{b.gpPrice} GP</div>
                   <div className="text-[10px] text-slate-400 line-clamp-1">{b.description}</div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Remove "${b.name}" badge from store?`)) {
+                      deleteBadgeFromStore(b.id);
+                    }
+                  }}
+                  title="Delete Badge"
+                  className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             ))}
           </div>

@@ -24,6 +24,7 @@ import {
   UserProfile,
   PRIMARY_SUPER_ADMIN_UID,
 } from '../types';
+import { grobaxNotificationService } from './notificationService';
 
 // Completed Season 1 (Permanent Historical Record)
 export const COMPLETED_SEASON_1: SchoolDomeSeason = {
@@ -879,6 +880,24 @@ export async function createSchoolDomeQuestion(
       console.warn('Firestore set question message notice (fallback enabled):', msgErr);
     }
 
+    // Broadcast live question notification to all scholars
+    try {
+      const notifDoc = doc(collection(db, 'notifications'));
+      await setDoc(notifDoc, {
+        id: notifDoc.id,
+        title: `⚡ Live School Dome Question #${nextQNumber}!`,
+        message: `Question #${nextQNumber} is now live in the School Dome Arena (${targetTier.toUpperCase()} tier). Answer before time runs out!`,
+        type: 'dome',
+        isRead: false,
+        timestamp: Date.now(),
+        createdAt: serverTimestamp(),
+        actionUrl: 'school_dome',
+      });
+      grobaxNotificationService.incrementSection('school_dome', 1);
+    } catch (notifErr) {
+      console.warn('Could not dispatch live question notification:', notifErr);
+    }
+
     return newQuestion;
   } catch (err: any) {
     console.error('Error creating School Dome question:', err);
@@ -1081,31 +1100,52 @@ export async function endSchoolDomeSeasonAndDistributePrize(
           });
 
           // Credit winner's wallet directly with GP
-          await updateDoc(doc(db, 'users', uId), {
+          await setDoc(doc(db, 'users', uId), {
+            gpBalance: increment(prizePerWinner),
             gp: increment(prizePerWinner),
             walletBalance: increment(prizePerWinner),
             totalGpEarned: increment(prizePerWinner),
             updatedAt: serverTimestamp(),
-          }).catch(() => {});
+          }, { merge: true }).catch(() => {});
 
-          // Create permanent transaction record
+          // Create permanent transaction record in authoritative walletTransactions collection
           try {
-            const txDoc = doc(collection(db, 'wallet_transactions'));
+            const txDoc = doc(collection(db, 'walletTransactions'));
             await setDoc(txDoc, {
               id: txDoc.id,
               userId: uId,
-              type: 'credit',
-              category: 'school_dome_prize',
+              userName: uSnap.exists() ? ((uSnap.data() as UserProfile).name || 'Scholar') : 'Scholar',
+              type: 'Credit',
+              action: 'Credit',
+              category: 'School Dome Prize',
               amount: prizePerWinner,
+              unit: 'GP',
               currency: 'GP',
-              description: `School Dome Season #${seasonData.seasonNumber} Champion Prize (Equal Share)`,
-              status: 'completed',
+              description: `School Dome Season #${seasonData.seasonNumber || 1} Champion Prize (Equal Share)`,
+              status: 'Completed',
               timestamp: Date.now(),
               createdAt: serverTimestamp(),
+              source: 'School Dome Prize',
             });
           } catch (txErr) {
             console.warn('Could not record wallet transaction:', txErr);
           }
+
+          // Send individual winner notification
+          try {
+            const notifDoc = doc(collection(db, 'notifications'));
+            await setDoc(notifDoc, {
+              id: notifDoc.id,
+              userId: uId,
+              title: '🏆 School Dome Champion Prize Credited!',
+              message: `Congratulations! You survived as a champion in ${seasonData.title}! Your equal share of ${prizePerWinner.toLocaleString()} GP has been deposited directly into your wallet.`,
+              type: 'dome',
+              isRead: false,
+              timestamp: Date.now(),
+              createdAt: serverTimestamp(),
+              actionUrl: 'school_dome_results',
+            });
+          } catch {}
         } else {
           winners.push({
             userId: uId,
@@ -1180,6 +1220,36 @@ export async function endSchoolDomeSeasonAndDistributePrize(
       type: 'announcement',
       reactions: { '👑': 10, '🏆': 8, '🎉': 12 },
     });
+
+    // Broadcast announcement notification to all scholars and update results badge
+    try {
+      const broadNotif = doc(collection(db, 'notifications'));
+      await setDoc(broadNotif, {
+        id: broadNotif.id,
+        title: `🏆 ${seasonData.title} Has Concluded!`,
+        message: `Season #${seasonData.seasonNumber || 1} has ended! Check out the final survivors and winners in the Results tab.`,
+        type: 'dome',
+        isRead: false,
+        timestamp: Date.now(),
+        createdAt: serverTimestamp(),
+        actionUrl: 'school_dome_results',
+      });
+      grobaxNotificationService.incrementSection('school_dome_results', 1);
+    } catch {}
+
+    // Update localStorage fallback active season
+    try {
+      const stored = localStorage.getItem('grobax_school_dome_active_season');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.id === seasonId) {
+          parsed.status = 'ended';
+          parsed.endedAt = Date.now();
+          parsed.winners = winners;
+          localStorage.setItem('grobax_school_dome_active_season', JSON.stringify(parsed));
+        }
+      }
+    } catch {}
 
     return { winners, prizePerWinner };
   } catch (err) {

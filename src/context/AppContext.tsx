@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, User as FirebaseUser } from 'firebase/auth';
-import { collection, doc, setDoc, addDoc, serverTimestamp, onSnapshot, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
+import { collection, doc, setDoc, addDoc, deleteDoc, serverTimestamp, onSnapshot, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
 import {
   grobaxDataService,
   institutionRepo,
@@ -351,6 +351,7 @@ interface AppContextType {
 
   // GP Store Badges
   addBadgeToStore: (badge: Omit<BadgeStoreItem, 'id'>) => void;
+  deleteBadgeFromStore: (id: string) => Promise<void>;
   updateBadgeInStore: (id: string, patch: Partial<BadgeStoreItem>) => void;
   equipBadge: (badgeId: string) => void;
 
@@ -2512,6 +2513,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('One-time sponsors getDocs notice:', err);
       });
 
+    // 8b. Real-time GP Store Badges catalog synchronization
+    const gpStoreQuery = query(collection(db, 'gpStore'), limit(50));
+    const unsubGpStore = onSnapshot(
+      gpStoreQuery,
+      (snap) => {
+        if (!snap.empty) {
+          const loadedBadges: BadgeStoreItem[] = snap.docs.map((docSnap) => {
+            const data = docSnap.data();
+            return {
+              id: docSnap.id,
+              name: data.name || data.title || 'Honour Badge',
+              image: data.image || data.icon || '🏆',
+              gpPrice: typeof data.gpPrice === 'number' ? data.gpPrice : (Number(data.gpPrice) || 100),
+              description: data.description || '',
+              active: data.active !== false,
+              color: data.color || 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+              createdDate: data.createdDate || new Date().toISOString().split('T')[0],
+              purchasesCount: data.purchasesCount || 0,
+            };
+          });
+
+          const merged = [...loadedBadges];
+          MOCK_BADGES_STORE.forEach((defBadge) => {
+            if (!merged.some((b) => b.id === defBadge.id || b.name.toLowerCase() === defBadge.name.toLowerCase())) {
+              merged.push(defBadge);
+            }
+          });
+          setBadgeStore(merged);
+        }
+      },
+      (err) => {
+        console.warn('gpStore onSnapshot notice:', err);
+      }
+    );
+
     // 9. Authoritative Student GP Withdrawals Listener (Scoped: user gets own 15, admin gets 50)
     const wdQuery = isUserAdmin
       ? query(collection(db, 'withdrawals'), limit(50))
@@ -2590,6 +2626,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubTx();
       unsubWithdrawals();
       unsubPastQuestions();
+      unsubGpStore();
     };
   }, [currentUser.id, currentUser.role, firebaseUser?.uid]);
 
@@ -4069,7 +4106,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addBadgeToStore = (badge: Omit<BadgeStoreItem, 'id'>) => {
+  const addBadgeToStore = async (badge: Omit<BadgeStoreItem, 'id'>) => {
     const newBadge: BadgeStoreItem = {
       ...badge,
       id: 'b_' + Date.now(),
@@ -4077,6 +4114,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       purchasesCount: 0,
     };
     setBadgeStore(prev => [newBadge, ...prev]);
+    try {
+      await setDoc(doc(db, 'gpStore', newBadge.id), {
+        ...newBadge,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('Failed to save badge to Firestore gpStore:', err);
+    }
+  };
+
+  const deleteBadgeFromStore = async (id: string) => {
+    setBadgeStore(prev => prev.filter(b => b.id !== id));
+    try {
+      await deleteDoc(doc(db, 'gpStore', id));
+    } catch (err) {
+      console.warn('Failed to delete badge from Firestore gpStore:', err);
+    }
   };
 
   const updateBadgeInStore = (id: string, patch: Partial<BadgeStoreItem>) => {
@@ -5027,6 +5082,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminAdjustGpBalance,
         adminAdjustTargetUserGp,
         addBadgeToStore,
+        deleteBadgeFromStore,
         updateBadgeInStore,
         equipBadge,
         sponsorshipCampaigns,

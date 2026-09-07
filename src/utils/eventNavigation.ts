@@ -30,6 +30,14 @@ export function resolveEventChannel(event: PlatformEventItem): EventTargetChanne
 
   // 2. Explicit targetTab specified on the event
   if (event.targetTab) {
+    if (event.targetTab === 'school_dome') {
+      return {
+        tab: 'school_dome',
+        label: 'School Dome Arena',
+        actionText: 'Enter School Dome Arena',
+        badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+      };
+    }
     if ((event.targetTab as string) === 'profile') {
       return {
         tab: 'home',
@@ -107,6 +115,14 @@ export function resolveEventChannel(event: PlatformEventItem): EventTargetChanne
 
   // 4. Fallback checking title and description content
   const lower = `${event.title} ${event.description || ''}`.toLowerCase();
+  if (lower.includes('dome') || lower.includes('school dome')) {
+    return {
+      tab: 'school_dome',
+      label: 'School Dome Arena',
+      actionText: 'Enter School Dome Arena',
+      badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    };
+  }
   if (lower.includes('mart') || lower.includes('product') || lower.includes('market') || lower.includes('trade')) {
     return {
       tab: 'community',

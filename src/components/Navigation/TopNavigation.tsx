@@ -79,6 +79,12 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
       if (tabId === 'daily_qa') {
         clearSectionNotification('chatroom');
       }
+      if (tabId === 'school_dome') {
+        clearSectionNotification('school_dome');
+      }
+      if (tabId === 'school_dome_results') {
+        clearSectionNotification('school_dome_results');
+      }
     }
   };
 

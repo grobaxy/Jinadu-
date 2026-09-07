@@ -57,6 +57,8 @@ class GrobaaxNotificationService {
     league: 0,
     gus: 0,
     daily_qa: 0,
+    school_dome: 0,
+    school_dome_results: 0,
     library: 0,
     community: 0,
     sug: 0,
@@ -372,11 +374,16 @@ class GrobaaxNotificationService {
     const campusCount = this.eventCounts['campus'] || 0;
     const communityTotal = userFeedCount + minimartCount + annCount + campusCount;
 
+    const schoolDomeCount = this.eventCounts['school_dome'] || 0;
+    const schoolDomeResultsCount = this.eventCounts['school_dome_results'] || 0;
+
     this.userCounts = {
       home: homeCount,
       league: leagueCount,
       gus: gusCount,
       daily_qa: chatCount,
+      school_dome: schoolDomeCount,
+      school_dome_results: schoolDomeResultsCount,
       library: libraryCount,
       community: communityTotal,
       sug: 0,

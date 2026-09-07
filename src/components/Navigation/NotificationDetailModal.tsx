@@ -56,8 +56,9 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
       return;
     }
 
+    const target = (notification.actionUrl || '').toLowerCase();
+
     if (notification.actionUrl) {
-      const target = notification.actionUrl.toLowerCase();
       if (target.includes('upgrade') || target.includes('membership') || target.includes('tier')) {
         openWalletModal('upgrade');
         return;
@@ -93,6 +94,15 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
       }
     }
 
+    if (notification.type === 'dome' || target.includes('dome') || target.includes('school_dome')) {
+      if (target.includes('result')) {
+        setActiveTab('school_dome_results');
+      } else {
+        setActiveTab('school_dome');
+      }
+      return;
+    }
+
     if (notification.type === 'reward') {
       openWalletModal('history');
     } else if (notification.type === 'gus') {
@@ -106,6 +116,12 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
 
   const getActionLabel = () => {
     const target = (notification.actionUrl || '').toLowerCase();
+    if (target.includes('dome') || notification.type === 'dome') {
+      if (target.includes('result')) {
+        return { label: 'View Season Results & Winners', icon: <Trophy className="w-4 h-4 text-amber-300" /> };
+      }
+      return { label: 'Enter School Dome Arena', icon: <Swords className="w-4 h-4 text-amber-300" /> };
+    }
     if (target.includes('upgrade') || target.includes('tier') || target.includes('membership')) {
       return { label: 'Explore Membership Tiers', icon: <Crown className="w-4 h-4 text-amber-300" /> };
     }

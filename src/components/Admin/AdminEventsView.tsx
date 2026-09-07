@@ -735,6 +735,7 @@ export function AdminEventsView() {
                       className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs focus:border-blue-500 focus:outline-hidden"
                     >
                       <option value="">Default (Auto-mapped by Category)</option>
+                      <option value="school_dome">School Dome Arena</option>
                       <option value="daily_qa">Daily Ultimate Search (GUS)</option>
                       <option value="community">Community / Campus / Mini Mart</option>
                       <option value="home">Home Hub</option>
