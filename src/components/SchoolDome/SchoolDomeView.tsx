@@ -70,7 +70,11 @@ function playAudioTone() {
   }
 }
 
-export const SchoolDomeView: React.FC = () => {
+interface SchoolDomeViewProps {
+  initialTab?: 'arena' | 'results';
+}
+
+export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'arena' }) => {
   const {
     currentUser,
     firebaseUser,
@@ -85,7 +89,13 @@ export const SchoolDomeView: React.FC = () => {
   const [activeQuestion, setActiveQuestion] = useState<SchoolDomeQuestion | null>(null);
   const [messages, setMessages] = useState<SchoolDomeMessage[]>([]);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'arena' | 'results'>('arena');
+  const [activeTab, setActiveTab] = useState<'arena' | 'results'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Subscriptions to Season, Active Question, and Messages
   useEffect(() => {

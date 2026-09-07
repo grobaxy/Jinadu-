@@ -24,7 +24,6 @@ import {
   Smartphone,
   Shield,
   Megaphone,
-  Award,
 } from 'lucide-react';
 
 interface TopNavigationProps {
@@ -67,7 +66,6 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
     { id: 'home', label: 'Home', icon: Home, badgeKey: 'home' },
     { id: 'daily_qa', label: 'Daily Ultimate search', icon: Trophy, badgeKey: 'daily_qa' },
     { id: 'school_dome', label: 'School Dome', icon: Swords, badgeKey: 'school_dome' },
-    { id: 'school_dome_results', label: 'Results', icon: Award, badgeKey: 'school_dome_results' },
     { id: 'library', label: 'Library', icon: BookOpen, badgeKey: 'library' },
     { id: 'community', label: 'Community', icon: Users, badgeKey: 'community' },
   ];
@@ -81,8 +79,6 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
       }
       if (tabId === 'school_dome') {
         clearSectionNotification('school_dome');
-      }
-      if (tabId === 'school_dome_results') {
         clearSectionNotification('school_dome_results');
       }
     }
