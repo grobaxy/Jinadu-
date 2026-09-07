@@ -10,6 +10,7 @@ import {
   VolumeX,
   AlertCircle,
   Sparkles,
+  Lock,
 } from 'lucide-react';
 
 interface ChatroomComposerProps {
@@ -25,6 +26,8 @@ interface ChatroomComposerProps {
   tierName?: 'free' | 'premium' | 'vip' | 'admin';
   isManagerOrAdmin?: boolean;
   hasRepliedToTarget?: boolean;
+  isQuestionPlanIneligible?: boolean;
+  questionPlanIneligibleReason?: string;
   onOpenUpgrade?: () => void;
   onOpenCreateQuestion?: () => void;
 }
@@ -44,6 +47,8 @@ export const ChatroomComposer: React.FC<ChatroomComposerProps> = ({
   tierName = 'free',
   isManagerOrAdmin = false,
   hasRepliedToTarget = false,
+  isQuestionPlanIneligible = false,
+  questionPlanIneligibleReason,
   onOpenUpgrade,
   onOpenCreateQuestion,
 }) => {
@@ -51,7 +56,9 @@ export const ChatroomComposer: React.FC<ChatroomComposerProps> = ({
   const [showEmojiBar, setShowEmojiBar] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isQuestionReplyBlocked = Boolean(replyToMessage?.type === 'question' && hasRepliedToTarget);
+  const isQuestionReplyBlocked = Boolean(
+    replyToMessage?.type === 'question' && (hasRepliedToTarget || isQuestionPlanIneligible)
+  );
 
   useEffect(() => {
     if (replyToMessage && inputRef.current && !isQuestionReplyBlocked) {
@@ -135,8 +142,40 @@ export const ChatroomComposer: React.FC<ChatroomComposerProps> = ({
         </div>
       )}
 
+      {/* Question Reply Filtered (Subscription Plan Ineligible) Notice */}
+      {replyToMessage?.type === 'question' && isQuestionPlanIneligible && (
+        <div className="mb-2.5 p-2.5 sm:p-3 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-300 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+            <span>
+              <strong>Subscription Plan Filtered:</strong> {questionPlanIneligibleReason || 'This question requires an upgraded subscription plan. You are filtered from replying without elimination.'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {onOpenUpgrade && (
+              <button
+                type="button"
+                onClick={onOpenUpgrade}
+                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[11px] cursor-pointer"
+              >
+                Upgrade Plan
+              </button>
+            )}
+            {onCancelReply && (
+              <button
+                type="button"
+                onClick={onCancelReply}
+                className="p-1 hover:bg-amber-500/20 rounded-lg text-amber-600 dark:hover:text-amber-200 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Question Reply Already Submitted Notice */}
-      {isQuestionReplyBlocked && (
+      {replyToMessage?.type === 'question' && !isQuestionPlanIneligible && hasRepliedToTarget && (
         <div className="mb-2.5 p-2.5 sm:p-3 rounded-xl bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/30 flex items-center justify-between gap-2 text-xs text-rose-700 dark:text-rose-300 animate-in fade-in duration-150">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />

@@ -4772,7 +4772,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
 
       const refsToTest = Array.from(
-        new Set([urlRef, pendingData?.reference, ...recentRefs].filter(Boolean) as string[])
+        new Set(
+          [urlRef, pendingData?.reference, ...recentRefs]
+            .filter((r): r is string => Boolean(r) && typeof r === 'string' && r.trim().length > 0 && r !== 'undefined' && r !== 'null')
+            .map(r => r.trim())
+        )
       );
 
       if (refsToTest.length === 0) {

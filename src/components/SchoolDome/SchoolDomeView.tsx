@@ -20,6 +20,9 @@ import {
   reactSchoolDomeMessage,
   deleteSchoolDomeMessage,
   registerUserForSchoolDome,
+  checkScholarSchoolDomePlanEligibility,
+  closeSchoolDomeQuestion,
+  extendSchoolDomeQuestionTime,
 } from '../../lib/schoolDomeService';
 import {
   getTodayLocalDateString,
@@ -331,6 +334,23 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
     return hasUserRepliedToQuestionMessage(replyTarget);
   }, [replyTarget, messages, currentUser.id, currentUser?.name]);
 
+  // Subscription plan eligibility for the active question
+  const questionPlanEligibility = useMemo(() => {
+    return checkScholarSchoolDomePlanEligibility(currentUser, activeQuestion);
+  }, [currentUser, activeQuestion]);
+
+  // Subscription plan eligibility for the current reply target
+  const replyTargetPlanEligibility = useMemo(() => {
+    if (!replyTarget || replyTarget.type !== 'question') {
+      return { isEligible: true, userPlanName: '', requiredPlanText: '' };
+    }
+    const targetQId =
+      replyTarget.competitionRef?.questionId ||
+      replyTarget.id.replace(/^dome_msg_q_/, '').replace(/^msg_sdq_/, '');
+    const qObj = activeQuestion?.id === targetQId ? activeQuestion : activeQuestion;
+    return checkScholarSchoolDomePlanEligibility(currentUser, qObj);
+  }, [replyTarget, activeQuestion, currentUser]);
+
   const handleSendMessage = async (text: string, replyTo?: SchoolDomeMessage['replyTo']) => {
     // Whenever admin clicks End Season, typing is strictly unavailable for regular users; admin remains open
     if (currentSeason?.status === 'ended' && !isStaffOrAdmin) {
@@ -350,6 +370,13 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
         messages.some((m) => m.id === replyTo.id && m.type === 'question');
 
       if (isTargetingQuestion) {
+        if (!replyTargetPlanEligibility.isEligible && !isStaffOrAdmin) {
+          alert(
+            `Your subscription plan (${replyTargetPlanEligibility.userPlanName}) is not eligible to answer this question. Required: ${replyTargetPlanEligibility.requiredPlanText}. Your tournament standing is safe.`
+          );
+          return;
+        }
+
         const targetQMsg = messages.find(
           (m) =>
             m.id === replyTo.id ||
@@ -614,10 +641,24 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
             question={activeQuestion}
             season={currentSeason}
             currentUser={currentUser}
+            isManagerOrAdmin={isStaffOrAdmin}
             hasRepliedToQuestion={activeQuestion.repliedUserIds?.includes(currentUser.id) || false}
             isUserRegistered={isUserRegistered}
             isUserStanding={isUserStanding}
+            isUserPlanEligible={questionPlanEligibility.isEligible}
+            userPlanName={questionPlanEligibility.userPlanName}
+            requiredPlanText={questionPlanEligibility.requiredPlanText}
+            planIneligibleReason={questionPlanEligibility.reason}
+            onOpenUpgrade={handleOpenUpgrade}
+            onCloseQuestion={isStaffOrAdmin ? (qId) => closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', qId) : undefined}
+            onExtendTime={isStaffOrAdmin ? (qId, extra) => extendSchoolDomeQuestionTime(qId, extra) : undefined}
             onReplyToAnswer={() => {
+              if (!questionPlanEligibility.isEligible && !isStaffOrAdmin) {
+                alert(
+                  `This question requires: ${questionPlanEligibility.requiredPlanText}. Your current plan is ${questionPlanEligibility.userPlanName}. Ineligible contenders are filtered without elimination.`
+                );
+                return;
+              }
               const qMsg = messages.find(m => m.competitionRef?.questionId === activeQuestion.id);
               if (qMsg) {
                 setReplyTarget(qMsg);
@@ -642,6 +683,7 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
                     timeLimitSeconds: activeQuestion.timeLimitSeconds,
                     startAt: activeQuestion.startAt,
                     endAt: activeQuestion.endAt,
+                    repliedUserIds: [],
                   },
                 } as any);
               }
@@ -799,6 +841,12 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
                 tierName={tierName}
                 isManagerOrAdmin={isStaffOrAdmin}
                 hasRepliedToTarget={hasRepliedToTarget}
+                isQuestionPlanIneligible={Boolean(
+                  !isStaffOrAdmin &&
+                    replyTarget?.type === 'question' &&
+                    !replyTargetPlanEligibility.isEligible
+                )}
+                questionPlanIneligibleReason={replyTargetPlanEligibility.reason}
                 onOpenUpgrade={handleOpenUpgrade}
                 onOpenCreateQuestion={() => setIsCreateQuestionModalOpen(true)}
               />

@@ -26,6 +26,205 @@ import {
 } from '../types';
 import { grobaxNotificationService } from './notificationService';
 
+export interface ScholarPlanEligibilityResult {
+  isEligible: boolean;
+  userTierName: 'free' | 'premium' | 'vip' | 'admin';
+  userPlanName: string;
+  userPlanId: string;
+  requiredPlanText: string;
+  reason?: string;
+}
+
+/**
+ * Evaluates whether a user's subscription tier or specific plan allows them to answer a School Dome question.
+ * Filters out ineligible users while protecting them from unfair elimination.
+ */
+export function checkScholarSchoolDomePlanEligibility(
+  user: any,
+  question: SchoolDomeQuestion | null | undefined
+): ScholarPlanEligibilityResult {
+  // If no question is active or provided, all are eligible
+  if (!question) {
+    return {
+      isEligible: true,
+      userTierName: 'free',
+      userPlanName: 'Free Scholar',
+      userPlanId: '',
+      requiredPlanText: 'All Scholars',
+    };
+  }
+
+  // 1. Resolve Admin & Arbiter Privileges (Moderators and staff can always test/answer questions)
+  const role = (user?.role || '').toLowerCase();
+  const email = (user?.email || '').toLowerCase();
+  const userName = (user?.name || user?.userName || '').toLowerCase();
+  const userId = user?.id || user?.userId || '';
+
+  const isStaffOrAdmin =
+    role === 'admin' ||
+    role === 'super_admin' ||
+    role === 'community_manager' ||
+    role === 'staff' ||
+    Boolean(user?.managerRole) ||
+    email === 'grobaxycompany@gmail.com' ||
+    userId === 'aGZBTsB4BBNvlY1A69hwfAb5DCJ3' ||
+    userId === 'iH02BTcB4B0BV2YLA60WwFAi50CJ3' ||
+    userName.includes('admin') ||
+    userName.includes('moderator') ||
+    userName.includes('staff');
+
+  if (isStaffOrAdmin) {
+    return {
+      isEligible: true,
+      userTierName: 'admin',
+      userPlanName: 'Staff / Arbiter Pass',
+      userPlanId: 'admin_pass',
+      requiredPlanText: 'Admin Access',
+    };
+  }
+
+  // 2. Resolve User's Effective Subscription Tier & Plan
+  const membership = ((user?.membershipTier || '') + '').toLowerCase();
+  const subTier = ((user?.subscriptionTier || '') + '').toLowerCase();
+  const rawPlanId = ((user?.activePlanId || user?.planId || user?.tier || '') + '').toLowerCase();
+  const subPlanName = ((user?.subscriptionPlan || '') + '').toLowerCase();
+
+  const isExpired = user?.subscriptionExpiry
+    ? new Date(user.subscriptionExpiry).getTime() <= Date.now()
+    : false;
+
+  const isVip = !isExpired && Boolean(
+    user?.isVip ||
+    user?.gusTier === 'Titan' ||
+    rawPlanId.includes('titan') ||
+    rawPlanId.includes('vip') ||
+    membership.includes('vip') ||
+    membership.includes('titan') ||
+    subTier.includes('vip') ||
+    subTier.includes('titan') ||
+    subPlanName.includes('vip') ||
+    subPlanName.includes('titan') ||
+    subPlanName.includes('annual')
+  );
+
+  const isPremium = !isExpired && (isVip || Boolean(
+    user?.isPremium ||
+    user?.isSubscribed ||
+    (rawPlanId && !rawPlanId.includes('free')) ||
+    (membership && !membership.includes('free') && membership !== 'starter scholar' && !membership.includes('scholar (starter)') && membership.trim().length > 0) ||
+    (subTier && !subTier.includes('free') && subTier !== 'starter scholar' && !subTier.includes('scholar (starter)') && subTier.trim().length > 0) ||
+    (subPlanName && !subPlanName.includes('free') && subPlanName !== 'starter scholar' && subPlanName.trim().length > 0)
+  ));
+
+  const userTierName: 'free' | 'premium' | 'vip' = isVip ? 'vip' : isPremium ? 'premium' : 'free';
+
+  const userPlanName =
+    (user?.subscriptionPlan && !user.subscriptionPlan.toLowerCase().includes('free') && user.subscriptionPlan) ||
+    (user?.subscriptionTier && !user.subscriptionTier.toLowerCase().includes('free') && user.subscriptionTier) ||
+    (user?.membershipTier && !user.membershipTier.toLowerCase().includes('free') && user.membershipTier) ||
+    (rawPlanId === 'plan_titan_naira' ? 'Grobaax Titan Annual VIP' :
+     rawPlanId === 'plan_pro_naira' ? 'Champions Pro Scholar' :
+     rawPlanId === 'plan_basic_naira' ? 'Scholar Starter Plan' :
+     isVip ? 'VIP Scholar' :
+     isPremium ? 'Premium Scholar' : 'Free Scholar');
+
+  // 3. Resolve Question Requirements
+  const targetTier = (question.targetTier || 'free').toLowerCase();
+  const allowedPlanIds = question.allowedPlanIds || [];
+  const targetPlanName = question.targetPlanName;
+
+  let requiredPlanText = 'All Contenders';
+  if (targetPlanName) {
+    requiredPlanText = targetPlanName;
+  } else if (allowedPlanIds.length > 0) {
+    requiredPlanText = allowedPlanIds.map(pid => {
+      if (pid === 'plan_titan_naira') return 'Titan VIP';
+      if (pid === 'plan_pro_naira') return 'Champions Pro';
+      if (pid === 'plan_basic_naira') return 'Scholar Starter';
+      return pid;
+    }).join(' / ');
+  } else if (targetTier === 'vip') {
+    requiredPlanText = 'VIP / Titan Only';
+  } else if (targetTier === 'premium') {
+    requiredPlanText = 'Premium & VIP Subscribers';
+  }
+
+  // If question is open to everyone
+  if (targetTier === 'free' || targetTier === 'all' || (!targetTier && allowedPlanIds.length === 0 && !targetPlanName)) {
+    return {
+      isEligible: true,
+      userTierName,
+      userPlanName,
+      userPlanId: rawPlanId,
+      requiredPlanText: 'All Contenders',
+    };
+  }
+
+  // If specific plan IDs are enforced on this question
+  if (allowedPlanIds.length > 0) {
+    const matchesPlan = allowedPlanIds.some(pid => {
+      const p = pid.toLowerCase();
+      return (
+        rawPlanId === p ||
+        rawPlanId.includes(p) ||
+        subPlanName.includes(p) ||
+        subTier.includes(p) ||
+        (p.includes('titan') && isVip) ||
+        (p.includes('vip') && isVip) ||
+        (p.includes('pro') && (rawPlanId.includes('pro') || isVip)) ||
+        (p.includes('basic') && isPremium)
+      );
+    });
+
+    if (!matchesPlan) {
+      return {
+        isEligible: false,
+        userTierName,
+        userPlanName,
+        userPlanId: rawPlanId,
+        requiredPlanText,
+        reason: `Requires ${requiredPlanText}. Your plan: ${userPlanName}.`,
+      };
+    }
+  }
+
+  // If question requires VIP
+  if (targetTier === 'vip') {
+    if (!isVip) {
+      return {
+        isEligible: false,
+        userTierName,
+        userPlanName,
+        userPlanId: rawPlanId,
+        requiredPlanText,
+        reason: `Exclusive to VIP & Titan subscribers. Your plan: ${userPlanName}.`,
+      };
+    }
+  }
+
+  // If question requires Premium
+  if (targetTier === 'premium') {
+    if (!isPremium && !isVip) {
+      return {
+        isEligible: false,
+        userTierName,
+        userPlanName,
+        userPlanId: rawPlanId,
+        requiredPlanText,
+        reason: `Requires an active Premium or VIP subscription plan. Your plan: Free Scholar.`,
+      };
+    }
+  }
+
+  return {
+    isEligible: true,
+    userTierName,
+    userPlanName,
+    userPlanId: rawPlanId,
+    requiredPlanText,
+  };
+}
+
 // Completed Season 1 (Permanent Historical Record)
 export const COMPLETED_SEASON_1: SchoolDomeSeason = {
   id: 'season_dome_1',
@@ -530,7 +729,8 @@ export async function registerUserForSchoolDome(
       return { success: true, message: 'You are already registered for this season!' };
     }
 
-    // Add participant
+    // Add participant with full subscription plan tracking
+    const planEligibility = checkScholarSchoolDomePlanEligibility(user, null);
     const partRef = doc(db, 'school_dome_registrations', `${seasonId}_${user.id}`);
     const participant: SchoolDomeParticipant = {
       id: `${seasonId}_${user.id}`,
@@ -541,7 +741,12 @@ export async function registerUserForSchoolDome(
       institution: user.institution,
       department: user.department,
       level: user.level,
-      isPremium: Boolean(user.isPremium || user.isVip),
+      isPremium: Boolean(user.isPremium || user.isVip || planEligibility.userTierName !== 'free'),
+      isVip: Boolean(user.isVip || planEligibility.userTierName === 'vip'),
+      subscriptionTier: user.subscriptionTier,
+      subscriptionPlan: user.subscriptionPlan || planEligibility.userPlanName,
+      planId: user.activePlanId || user.planId || planEligibility.userPlanId,
+      membershipTier: user.membershipTier,
       status: 'active',
       registeredAt: Date.now(),
       correctAnswersCount: 0,
@@ -569,7 +774,8 @@ export async function registerUserForSchoolDome(
       userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       institution: user.institution || 'Grobaax Arena',
       isPremium: true,
-      messageText: `🎟️ ${user.name} (${user.institution || 'Scholar'}) has entered the Arena for ${seasonData.title}! Total Contenders: ${updatedRegistered.length}.`,
+      subscriptionPlan: planEligibility.userPlanName,
+      messageText: `🎟️ ${user.name} (${user.institution || 'Scholar'}) [${planEligibility.userPlanName}] has entered the Arena for ${seasonData.title}! Total Contenders: ${updatedRegistered.length}.`,
       timestamp: Date.now(),
       type: 'system',
       reactions: { '🔥': 1 },
@@ -588,7 +794,10 @@ export async function sendSchoolDomeMessage(
   message: SchoolDomeMessage,
   currentSeason: SchoolDomeSeason | null,
   activeQuestion: SchoolDomeQuestion | null
-): Promise<{ outcome?: 'survived' | 'eliminated' | 'spectating' | 'normal' }> {
+): Promise<{
+  outcome?: 'survived' | 'eliminated' | 'spectating' | 'normal' | 'ineligible_plan';
+  reason?: string;
+}> {
   try {
     const msgRef = doc(db, 'school_dome_messages', message.id);
     const cleanMsg = JSON.parse(JSON.stringify(message, (_, v) => (v === undefined ? null : v)));
@@ -608,6 +817,17 @@ export async function sendSchoolDomeMessage(
       // If user is not registered or already eliminated, they are a spectator
       if (!isRegistered || !isStillStanding) {
         return { outcome: 'spectating' };
+      }
+
+      // Check subscription plan eligibility for this question
+      const planEligibility = checkScholarSchoolDomePlanEligibility(message, activeQuestion);
+      if (!planEligibility.isEligible) {
+        // User's subscription plan is not eligible to answer this question.
+        // Filter out without eliminating them from the tournament!
+        return {
+          outcome: 'ineligible_plan',
+          reason: planEligibility.reason || `Question restricted to ${planEligibility.requiredPlanText}`,
+        };
       }
 
       // Check if user already attempted this question
@@ -753,7 +973,9 @@ export async function createSchoolDomeQuestion(
     correctAnswer: string;
     acceptedAlternativeAnswers?: string[];
     timeLimitSeconds?: number;
-    targetTier?: 'free' | 'premium' | 'vip';
+    targetTier?: 'free' | 'premium' | 'vip' | 'all';
+    allowedPlanIds?: string[];
+    targetPlanName?: string;
     questionNumber?: number;
     winnerLimit?: number;
     gpRewardPerWinner?: number;
@@ -769,6 +991,8 @@ export async function createSchoolDomeQuestion(
     const winnerLimit = Number(questionData.winnerLimit) || 1;
     const gpReward = Number(questionData.gpRewardPerWinner) || 500;
     const targetTier = questionData.targetTier || 'free';
+    const allowedPlanIds = questionData.allowedPlanIds;
+    const targetPlanName = questionData.targetPlanName;
 
     const seasonRef = doc(db, 'school_dome_seasons', seasonId);
     const seasonSnap = await getDoc(seasonRef);
@@ -827,6 +1051,8 @@ export async function createSchoolDomeQuestion(
       acceptedAlternativeAnswers: (questionData.acceptedAlternativeAnswers || []).map(s => s.trim()).filter(Boolean),
       timeLimitSeconds: timeLimit,
       targetTier,
+      allowedPlanIds,
+      targetPlanName,
       startAt: now,
       endAt,
       status: 'active',
@@ -848,6 +1074,7 @@ export async function createSchoolDomeQuestion(
     }
 
     // Post official question message to feed
+    const targetLabel = targetPlanName || (targetTier === 'vip' ? 'VIP Only' : targetTier === 'premium' ? 'Premium & VIP' : 'Open to All');
     const qMessage: SchoolDomeMessage = {
       id: 'msg_sdq_' + qId,
       seasonId,
@@ -859,6 +1086,7 @@ export async function createSchoolDomeQuestion(
       level: 'Master',
       isPremium: true,
       isVip: true,
+      subscriptionPlan: targetLabel,
       messageText: newQuestion.questionText,
       timestamp: now,
       type: 'question',
@@ -892,7 +1120,7 @@ export async function createSchoolDomeQuestion(
       await setDoc(notifDoc, {
         id: notifDoc.id,
         title: `⚡ Live School Dome Question #${nextQNumber}!`,
-        message: `Question #${nextQNumber} is now live in the School Dome Arena (${targetTier.toUpperCase()} tier). Answer before time runs out!`,
+        message: `Question #${nextQNumber} is now live in the School Dome Arena (${targetLabel}). Answer before time runs out!`,
         type: 'dome',
         isRead: false,
         timestamp: Date.now(),
@@ -916,6 +1144,9 @@ export async function createSchoolDomeQuestion(
       correctAnswer: questionData.correctAnswer.trim(),
       acceptedAlternativeAnswers: (questionData.acceptedAlternativeAnswers || []).map(s => s.trim()).filter(Boolean),
       timeLimitSeconds: Math.max(15, Number(questionData.timeLimitSeconds) || 300),
+      targetTier: questionData.targetTier || 'free',
+      allowedPlanIds: questionData.allowedPlanIds,
+      targetPlanName: questionData.targetPlanName,
       startAt: Date.now(),
       endAt: Date.now() + 300 * 1000,
       status: 'active',
@@ -950,18 +1181,39 @@ export async function closeSchoolDomeQuestion(
       updatedAt: serverTimestamp(),
     });
 
-    // Update season active standing: Anyone active who DID NOT survive this question is now eliminated
+    // Update season active standing:
+    // If question was open to everyone, all non-survivors are eliminated.
+    // If question was restricted to a specific subscription plan/tier, scholars who were not eligible to answer are protected!
     const seasonRef = doc(db, 'school_dome_seasons', seasonId);
     const seasonSnap = await getDoc(seasonRef);
 
     if (seasonSnap.exists()) {
       const sData = seasonSnap.data() as SchoolDomeSeason;
       const currentActive = sData.activeUserIds || [];
-      const newlyEliminated = currentActive.filter(id => !survivors.includes(id));
+
+      const isRestrictedQuestion =
+        (qData.targetTier && qData.targetTier !== 'free' && qData.targetTier !== 'all') ||
+        Boolean(qData.allowedPlanIds && qData.allowedPlanIds.length > 0) ||
+        Boolean(qData.targetPlanName);
+
+      let newlyEliminated: string[] = [];
+      let updatedActive: string[] = [];
+
+      if (isRestrictedQuestion) {
+        // In a restricted round, only users who specifically answered incorrectly are eliminated
+        const explicitlyEliminated = qData.eliminatedUserIds || [];
+        newlyEliminated = currentActive.filter(id => explicitlyEliminated.includes(id));
+        updatedActive = currentActive.filter(id => !explicitlyEliminated.includes(id));
+      } else {
+        // In an open round, non-survivors are eliminated
+        newlyEliminated = currentActive.filter(id => !survivors.includes(id));
+        updatedActive = survivors;
+      }
+
       const updatedEliminated = Array.from(new Set([...(sData.eliminatedUserIds || []), ...newlyEliminated]));
 
       await updateDoc(seasonRef, {
-        activeUserIds: survivors,
+        activeUserIds: updatedActive,
         eliminatedUserIds: updatedEliminated,
         updatedAt: serverTimestamp(),
       });
@@ -975,7 +1227,7 @@ export async function closeSchoolDomeQuestion(
         userName: 'School Dome Arbiter 🛡️',
         userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         institution: 'Grobaax Arena HQ',
-        messageText: `🏁 QUESTION #${qData.questionNumber} CONCLUDED!\nOfficial Answer: « ${qData.correctAnswer} »\n\n⚡ ${survivors.length} scholars survived and remain standing for the prize pool!\n❌ ${newlyEliminated.length} contenders eliminated this round.`,
+        messageText: `🏁 QUESTION #${qData.questionNumber} CONCLUDED!\nOfficial Answer: « ${qData.correctAnswer} »\n\n⚡ ${survivors.length} scholars answered correctly and survived!\n👥 ${updatedActive.length} contenders remain standing for the grand prize pool.`,
         timestamp: Date.now(),
         type: 'announcement',
         reactions: { '👏': 3, '🔥': 2 },

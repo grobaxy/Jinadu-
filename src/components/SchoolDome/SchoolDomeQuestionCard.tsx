@@ -27,6 +27,11 @@ interface SchoolDomeQuestionCardProps {
   hasRepliedToQuestion?: boolean;
   isUserRegistered?: boolean;
   isUserStanding?: boolean;
+  isUserPlanEligible?: boolean;
+  userPlanName?: string;
+  requiredPlanText?: string;
+  planIneligibleReason?: string;
+  onOpenUpgrade?: () => void;
   onCloseQuestion?: (questionId: string) => void;
   onExtendTime?: (questionId: string, extraSeconds: number) => void;
   onReplyToAnswer?: (question: SchoolDomeQuestion) => void;
@@ -40,6 +45,11 @@ export const SchoolDomeQuestionCard: React.FC<SchoolDomeQuestionCardProps> = ({
   hasRepliedToQuestion,
   isUserRegistered = false,
   isUserStanding = false,
+  isUserPlanEligible = true,
+  userPlanName,
+  requiredPlanText,
+  planIneligibleReason,
+  onOpenUpgrade,
   onCloseQuestion,
   onExtendTime,
   onReplyToAnswer,
@@ -123,15 +133,34 @@ export const SchoolDomeQuestionCard: React.FC<SchoolDomeQuestionCardProps> = ({
             <span className="text-xs font-bold text-slate-400">
               Question #{question.questionNumber}
             </span>
-            {question.targetTier && (
-              <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
-                question.targetTier === 'vip'
+            {(question.targetPlanName || question.targetTier) && (
+              <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                question.targetPlanName
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : question.targetTier === 'vip'
                   ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
                   : question.targetTier === 'premium'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                   : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
               }`}>
-                {question.targetTier === 'vip' ? '👑 VIP' : question.targetTier === 'premium' ? '⭐ Premium' : '🌐 Free'}
+                {question.targetPlanName ? (
+                  <>
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span>{question.targetPlanName}</span>
+                  </>
+                ) : question.targetTier === 'vip' ? (
+                  <>
+                    <Crown className="w-3 h-3 text-purple-400" />
+                    <span>👑 VIP Only</span>
+                  </>
+                ) : question.targetTier === 'premium' ? (
+                  <>
+                    <Sparkles className="w-3 h-3 text-blue-400" />
+                    <span>⭐ Premium & VIP</span>
+                  </>
+                ) : (
+                  <span>🌐 Open to All</span>
+                )}
               </span>
             )}
           </div>
@@ -235,6 +264,15 @@ export const SchoolDomeQuestionCard: React.FC<SchoolDomeQuestionCardProps> = ({
                 <span className="text-rose-300">
                   <span className="font-bold text-rose-400">Knocked Out:</span> You were eliminated in an earlier round. Enjoy spectating the finale!
                 </span>
+              ) : !isUserPlanEligible ? (
+                <div className="flex items-center gap-2 text-amber-300">
+                  <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>
+                    <strong className="text-amber-400 font-black">Plan Filtered:</strong> Question #{question.questionNumber} is restricted to{' '}
+                    <span className="underline decoration-amber-400 font-bold text-white">{requiredPlanText || 'higher plan'}</span> scholars.
+                    {' '}(Your Plan: <span className="font-bold text-amber-300">{userPlanName || 'Free Scholar'}</span>). You are filtered out from answering without elimination.
+                  </span>
+                </div>
               ) : (
                 <span>
                   Reply directly in the live chat below with your exact answer.
@@ -242,7 +280,25 @@ export const SchoolDomeQuestionCard: React.FC<SchoolDomeQuestionCardProps> = ({
               )}
             </div>
 
-            {isUserStanding && !hasRepliedToQuestion && onReplyToAnswer && (
+            {isUserStanding && !hasRepliedToQuestion && !isUserPlanEligible && (
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 select-none">
+                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Ineligible for Q#{question.questionNumber}</span>
+                </div>
+                {onOpenUpgrade && (
+                  <button
+                    type="button"
+                    onClick={onOpenUpgrade}
+                    className="px-3 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-sm transition hover:scale-105 cursor-pointer"
+                  >
+                    Upgrade Plan
+                  </button>
+                )}
+              </div>
+            )}
+
+            {isUserStanding && !hasRepliedToQuestion && isUserPlanEligible && onReplyToAnswer && (
               <button
                 type="button"
                 onClick={() => onReplyToAnswer(question)}

@@ -22,6 +22,65 @@ function getPublicKey(): string {
   return 'pk_live_70e9ddbaca92590a8bfbd673b80abb40f083ac96';
 }
 
+interface SafePaystackResult<T = any> {
+  ok: boolean;
+  status: number;
+  data: T | null;
+  rawText: string;
+  isJson: boolean;
+}
+
+// Resilient fetch helper that handles non-JSON / HTML / Cloudflare error responses safely without SyntaxError
+async function safePaystackFetch<T = any>(
+  url: string,
+  options: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+  } = {}
+): Promise<SafePaystackResult<T>> {
+  try {
+    const response = await fetch(url, {
+      method: options.method || 'GET',
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Grobaax/1.0 (Academic Network; Node.js)',
+        ...(options.headers || {}),
+      },
+      body: options.body,
+    });
+
+    const rawText = await response.text();
+    let data: T | null = null;
+    let isJson = false;
+
+    if (rawText && rawText.trim().length > 0) {
+      try {
+        data = JSON.parse(rawText);
+        isJson = true;
+      } catch {
+        isJson = false;
+      }
+    }
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      data,
+      rawText,
+      isJson,
+    };
+  } catch (err: any) {
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      rawText: err?.message || 'Network communication error',
+      isJson: false,
+    };
+  }
+}
+
 // GET /api/paystack/public-key
 paystackRouter.get('/public-key', (_req, res) => {
   const publicKey = getPublicKey();
@@ -72,46 +131,55 @@ paystackRouter.post('/initialize', async (req, res) => {
     // If live/test secret key is provided, initialize directly with Paystack API
     if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
       try {
-        const response = await fetch('https://api.paystack.co/transaction/initialize', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${secretKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: cleanEmail,
-            amount: amountInKobo,
-            reference,
-            currency: 'NGN',
-            callback_url: resolvedCallback || undefined,
-            channels: ['card', 'bank', 'bank_transfer', 'ussd', 'qr', 'mobile_money'],
-            metadata: {
-              userId: userId || 'scholar',
-              scholar_uid: userId || 'scholar',
-              userName: userName || 'Scholar',
-              userEmail: cleanEmail,
-              planId: planId || 'premium_1m',
-              planName: planName || 'Premium',
-              amountNaira: Number(amountNaira),
-              platform: 'grobax_web',
-              timestamp: Date.now(),
-              custom_fields: [
-                {
-                  display_name: 'Plan Name',
-                  variable_name: 'plan_name',
-                  value: planName || 'Premium',
-                },
-                {
-                  display_name: 'Scholar UID',
-                  variable_name: 'scholar_uid',
-                  value: userId || 'unknown',
-                },
-              ],
+        const { ok, status, data, rawText, isJson } = await safePaystackFetch(
+          'https://api.paystack.co/transaction/initialize',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${secretKey}`,
+              'Content-Type': 'application/json',
             },
-          }),
-        });
+            body: JSON.stringify({
+              email: cleanEmail,
+              amount: amountInKobo,
+              reference,
+              currency: 'NGN',
+              callback_url: resolvedCallback || undefined,
+              channels: ['card', 'bank', 'bank_transfer', 'ussd', 'qr', 'mobile_money'],
+              metadata: {
+                userId: userId || 'scholar',
+                scholar_uid: userId || 'scholar',
+                userName: userName || 'Scholar',
+                userEmail: cleanEmail,
+                planId: planId || 'premium_1m',
+                planName: planName || 'Premium',
+                amountNaira: Number(amountNaira),
+                platform: 'grobax_web',
+                timestamp: Date.now(),
+                custom_fields: [
+                  {
+                    display_name: 'Plan Name',
+                    variable_name: 'plan_name',
+                    value: planName || 'Premium',
+                  },
+                  {
+                    display_name: 'Scholar UID',
+                    variable_name: 'scholar_uid',
+                    value: userId || 'unknown',
+                  },
+                ],
+              },
+            }),
+          }
+        );
 
-        const data = await response.json();
+        if (!isJson) {
+          console.warn(`[Paystack Initialize] Paystack returned non-JSON body (HTTP ${status}):`, rawText.slice(0, 150));
+          return res.status(502).json({
+            success: false,
+            error: `Paystack API returned an unexpected response (HTTP ${status}). Please check network status and retry.`,
+          });
+        }
 
         if (data && data.status && data.data) {
           return res.json({
@@ -129,7 +197,7 @@ paystackRouter.post('/initialize', async (req, res) => {
           // Return clear error if Paystack rejected parameters
           return res.status(400).json({
             success: false,
-            error: data.message || 'Failed to initialize Paystack transaction.',
+            error: data?.message || 'Failed to initialize Paystack transaction.',
           });
         }
       } catch (apiErr: any) {
@@ -194,7 +262,7 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
 
     // 1. Attempt Paystack Charge with bank_transfer channel
     try {
-      const chargeResponse = await fetch('https://api.paystack.co/charge', {
+      const chargeResult = await safePaystackFetch('https://api.paystack.co/charge', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${secretKey}`,
@@ -222,7 +290,7 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
         }),
       });
 
-      const chargeData = await chargeResponse.json();
+      const chargeData = chargeResult.data;
 
       if (chargeData && chargeData.status && chargeData.data) {
         const d = chargeData.data;
@@ -251,7 +319,7 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
     }
 
     // Fallback: Initialize transaction with bank_transfer channel
-    const initResponse = await fetch('https://api.paystack.co/transaction/initialize', {
+    const initResult = await safePaystackFetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${secretKey}`,
@@ -277,7 +345,7 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
       }),
     });
 
-    const initData = await initResponse.json();
+    const initData = initResult.data;
     if (initData && initData.status && initData.data) {
       return res.json({
         success: true,
@@ -291,7 +359,7 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
 
     return res.status(400).json({
       success: false,
-      error: initData.message || 'Could not generate transfer account from Paystack.',
+      error: initData?.message || 'Could not generate transfer account from Paystack.',
     });
   } catch (err: any) {
     console.error('[Paystack Charge Transfer] Error:', err);
@@ -302,29 +370,43 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
   }
 });
 
-// GET /api/paystack/verify/:reference
-paystackRouter.get('/verify/:reference', async (req, res) => {
+// GET /api/paystack/verify/:reference and /api/paystack/verify?reference=...
+const handlePaystackVerify = async (req: express.Request, res: express.Response) => {
   try {
-    const { reference } = req.params;
-    if (!reference) {
+    const rawRef = ((req.params.reference || (req.query.reference as string) || '') as string).trim();
+    if (!rawRef || rawRef === 'undefined' || rawRef === 'null') {
       return res.status(400).json({
         success: false,
+        verified: false,
+        status: 'failed',
         error: 'Payment reference parameter is required.',
       });
     }
 
+    const reference = rawRef;
     const secretKey = getSecretKey();
 
     if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
       try {
-        const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${secretKey}`,
-          },
-        });
+        const { ok, status, data, rawText, isJson } = await safePaystackFetch(
+          `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${secretKey}`,
+            },
+          }
+        );
 
-        const data = await response.json();
+        if (!isJson) {
+          console.warn(`[Paystack Verify] Paystack returned non-JSON response (HTTP ${status}) for reference ${reference}:`, rawText.slice(0, 120));
+          return res.json({
+            success: false,
+            verified: false,
+            status: 'failed',
+            error: `Paystack API returned an unexpected response (HTTP ${status}). Please retry in a few moments.`,
+          });
+        }
 
         if (data && data.status && data.data) {
           const tx = data.data;
@@ -371,14 +453,15 @@ paystackRouter.get('/verify/:reference', async (req, res) => {
             success: false,
             verified: false,
             status: 'failed',
-            error: data.message || 'Transaction could not be verified by Paystack.',
+            error: data?.message || 'Transaction could not be verified by Paystack.',
           });
         }
       } catch (err: any) {
-        console.error('[Paystack Verify] Error:', err);
-        return res.status(502).json({
+        console.warn('[Paystack Verify] Notice connecting to Paystack API:', err?.message || err);
+        return res.json({
           success: false,
           verified: false,
+          status: 'failed',
           error: 'Failed to verify transaction with Paystack API.',
         });
       }
@@ -402,7 +485,10 @@ paystackRouter.get('/verify/:reference', async (req, res) => {
       error: err.message || 'Error verifying transaction.',
     });
   }
-});
+};
+
+paystackRouter.get('/verify/:reference', handlePaystackVerify);
+paystackRouter.get('/verify', handlePaystackVerify);
 
 // POST /api/paystack/activate - Explicit activation endpoint called by client or admin
 paystackRouter.post('/activate', async (req, res) => {
@@ -419,11 +505,14 @@ paystackRouter.post('/activate', async (req, res) => {
     // If secret key available, verify transaction with Paystack first
     if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
       try {
-        const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${secretKey}` },
-        });
-        const verifyData = await verifyRes.json();
+        const verifyResult = await safePaystackFetch(
+          `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+          {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${secretKey}` },
+          }
+        );
+        const verifyData = verifyResult.data;
         if (verifyData && verifyData.data) {
           if (verifyData.data.status !== 'success') {
             return res.status(400).json({
@@ -534,13 +623,15 @@ paystackRouter.get('/sensor-status', async (req, res) => {
       const secretKey = getSecretKey();
       if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
         try {
-          const resp = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-            headers: {
-              Authorization: `Bearer ${secretKey}`,
-              'Content-Type': 'application/json',
-            },
-          });
-          const json = await resp.json();
+          const resp = await safePaystackFetch(
+            `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+            {
+              headers: {
+                Authorization: `Bearer ${secretKey}`,
+              },
+            }
+          );
+          const json = resp.data;
           if (json && json.status && json.data) {
             const tx = json.data;
             const isSuccess = tx.status === 'success';

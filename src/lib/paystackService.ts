@@ -61,7 +61,7 @@ export function loadPaystackInlineScript(): Promise<boolean> {
   });
 }
 
-// Helper to safely parse JSON from responses, avoiding 'Unexpected token A' when Vercel or proxies return plain text/HTML errors
+// Helper to safely parse JSON from responses, avoiding 'Unexpected token <' or 'Unexpected token A' when proxies return plain text/HTML errors
 async function safeParseResponse(res: Response, fallbackErrorMessage: string): Promise<any> {
   let text = '';
   try {
@@ -80,19 +80,31 @@ async function safeParseResponse(res: Response, fallbackErrorMessage: string): P
     };
   }
 
-  try {
-    return JSON.parse(text);
-  } catch (_parseErr) {
-    // If response was plain text or HTML (such as Vercel's "A server error has occurred")
-    if (text.includes('A server error') || text.includes('FUNCTION_INVOCATION_FAILED')) {
+  const trimmed = text.trim();
+  // Check if response was HTML (e.g. <!DOCTYPE html> or <html... from proxy or SPA fallback)
+  if (trimmed.startsWith('<') || res.headers.get('content-type')?.includes('text/html')) {
+    if (trimmed.includes('A server error') || trimmed.includes('FUNCTION_INVOCATION_FAILED')) {
       return {
         success: false,
-        error: 'Payment server is currently initializing on Vercel. You can still complete your payment securely via the Card or Web Checkout button below.',
+        error: 'Payment server is currently initializing. You can complete your transaction securely via the Card or Web Checkout button.',
         isVercelFunctionError: true,
       };
     }
     return {
       success: false,
+      verified: false,
+      status: 'failed',
+      error: `Service returned HTML (HTTP ${res.status}). Reference may be unverified or server is refreshing.`,
+    };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (_parseErr) {
+    return {
+      success: false,
+      verified: false,
+      status: 'failed',
       error: `Server error (${res.status}): ${text.slice(0, 120).trim()}`,
     };
   }
@@ -222,15 +234,29 @@ export async function initializePaystackTransaction(params: {
 
 // Verify transaction on backend
 export async function verifyPaystackTransaction(reference: string): Promise<PaystackVerifyResponse> {
+  const trimmed = (reference || '').trim();
+  if (!trimmed || trimmed === 'undefined' || trimmed === 'null') {
+    return {
+      success: false,
+      verified: false,
+      status: 'failed',
+      error: 'No valid payment reference provided for verification.',
+    };
+  }
+
   try {
-    const res = await fetch(`/api/paystack/verify/${encodeURIComponent(reference)}`);
+    const res = await fetch(`/api/paystack/verify/${encodeURIComponent(trimmed)}`, {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
     return await safeParseResponse(res, 'Verification connection failed.');
   } catch (err: any) {
     return {
       success: false,
       verified: false,
       status: 'error',
-      error: err.message || 'Verification connection failed.',
+      error: err?.message || 'Verification connection failed.',
     };
   }
 }

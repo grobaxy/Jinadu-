@@ -39,12 +39,24 @@ export const CreateSchoolDomeQuestionModal: React.FC<CreateSchoolDomeQuestionMod
   const [questionText, setQuestionText] = useState('');
   const [correctAnswer, setCorrectAnswer] = useState('');
   const [alternativeAnswers, setAlternativeAnswers] = useState('');
-  const [targetTier, setTargetTier] = useState<'free' | 'premium' | 'vip'>('free');
+  const [targetTier, setTargetTier] = useState<'free' | 'premium' | 'vip' | 'all'>('free');
+  const [selectedPlanFilter, setSelectedPlanFilter] = useState<string>('all');
   const [timeLimitSeconds, setTimeLimitSeconds] = useState(defaultTimeLimitSeconds || 120);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   if (!isOpen) return null;
+
+  const handlePlanFilterChange = (val: string) => {
+    setSelectedPlanFilter(val);
+    if (val === 'all') {
+      setTargetTier('free');
+    } else if (val === 'plan_titan_naira' || val === 'tier_vip') {
+      setTargetTier('vip');
+    } else {
+      setTargetTier('premium');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +84,24 @@ export const CreateSchoolDomeQuestionModal: React.FC<CreateSchoolDomeQuestionMod
 
       const seasonId = season?.id || 'season_dome_1';
 
+      let allowedPlanIds: string[] | undefined = undefined;
+      let targetPlanName: string | undefined = undefined;
+
+      if (selectedPlanFilter === 'plan_basic_naira') {
+        allowedPlanIds = ['plan_basic_naira', 'plan_pro_naira', 'plan_titan_naira'];
+        targetPlanName = 'Scholar Starter Plan (₦1,000) & Above';
+      } else if (selectedPlanFilter === 'plan_pro_naira') {
+        allowedPlanIds = ['plan_pro_naira', 'plan_titan_naira'];
+        targetPlanName = 'Champions Pro Scholar (₦2,500) & Above';
+      } else if (selectedPlanFilter === 'plan_titan_naira') {
+        allowedPlanIds = ['plan_titan_naira'];
+        targetPlanName = 'Grobaax Titan Annual VIP';
+      } else if (selectedPlanFilter === 'tier_premium') {
+        targetPlanName = 'Premium & VIP Subscribers';
+      } else if (selectedPlanFilter === 'tier_vip') {
+        targetPlanName = 'VIP / Titan Only';
+      }
+
       const createdQ = await createSchoolDomeQuestion(
         seasonId,
         {
@@ -80,6 +110,8 @@ export const CreateSchoolDomeQuestionModal: React.FC<CreateSchoolDomeQuestionMod
           acceptedAlternativeAnswers: altArray,
           timeLimitSeconds: Number(timeLimitSeconds),
           targetTier,
+          allowedPlanIds,
+          targetPlanName,
         },
         adminUid,
         adminName
@@ -92,6 +124,7 @@ export const CreateSchoolDomeQuestionModal: React.FC<CreateSchoolDomeQuestionMod
       setQuestionText('');
       setCorrectAnswer('');
       setAlternativeAnswers('');
+      setSelectedPlanFilter('all');
       onClose();
     } catch (err: any) {
       console.error('Error creating School Dome question:', err);
@@ -191,36 +224,38 @@ export const CreateSchoolDomeQuestionModal: React.FC<CreateSchoolDomeQuestionMod
             />
           </div>
 
-          {/* Target Contender Tier Selection */}
-          <div className="space-y-1.5 pt-1">
+          {/* Target Contender Tier & Subscription Plan Selection */}
+          <div className="space-y-2 pt-1">
             <label className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Users className="w-4 h-4 text-amber-500" />
-                <span>Eligibility / Target Tier</span>
+                <span>Eligibility / Allowed Subscription Plan</span>
               </span>
               <span className="text-[11px] text-slate-400 font-normal">
                 Who can answer this question
               </span>
             </label>
+
+            {/* Quick Tier Buttons */}
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => setTargetTier('free')}
+                onClick={() => handlePlanFilterChange('all')}
                 className={`px-3 py-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all ${
-                  targetTier === 'free'
+                  selectedPlanFilter === 'all'
                     ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-400 ring-2 ring-emerald-500/20'
                     : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
                 }`}
               >
-                <span>FREE</span>
+                <span>FREE (ALL)</span>
                 <span className="text-[10px] font-normal opacity-80">All Contenders</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setTargetTier('premium')}
+                onClick={() => handlePlanFilterChange('tier_premium')}
                 className={`px-3 py-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all ${
-                  targetTier === 'premium'
+                  selectedPlanFilter === 'tier_premium'
                     ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-700 dark:text-amber-400 ring-2 ring-amber-500/20'
                     : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
                 }`}
@@ -231,16 +266,50 @@ export const CreateSchoolDomeQuestionModal: React.FC<CreateSchoolDomeQuestionMod
 
               <button
                 type="button"
-                onClick={() => setTargetTier('vip')}
+                onClick={() => handlePlanFilterChange('tier_vip')}
                 className={`px-3 py-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all ${
-                  targetTier === 'vip'
+                  selectedPlanFilter === 'tier_vip' || selectedPlanFilter === 'plan_titan_naira'
                     ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-700 dark:text-purple-400 ring-2 ring-purple-500/20'
                     : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
                 }`}
               >
-                <span>VIP</span>
+                <span>VIP / TITAN</span>
                 <span className="text-[10px] font-normal opacity-80">VIP Only</span>
               </button>
+            </div>
+
+            {/* Granular Subscription Plan Selector */}
+            <div className="pt-1">
+              <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1 block">
+                Filter by Exact Subscription Plan (Optional):
+              </label>
+              <select
+                value={selectedPlanFilter}
+                onChange={e => handlePlanFilterChange(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20"
+              >
+                <option value="all">🌐 All Contenders (Free, Basic, Pro, Titan VIP)</option>
+                <option value="plan_basic_naira">🥉 Scholar Starter Plan (₦1,000 / mo) & Above</option>
+                <option value="plan_pro_naira">🥈 Champions Pro Scholar (₦2,500 / mo) & Above</option>
+                <option value="plan_titan_naira">👑 Grobaax Titan Annual VIP (₦25,000 / yr) Exclusively</option>
+                <option value="tier_premium">⭐ Any Paid Plan (Premium / VIP)</option>
+                <option value="tier_vip">👑 VIP / Titan Subscribers Only</option>
+              </select>
+            </div>
+
+            {/* Real-time Eligibility Rule Preview */}
+            <div className="p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 rounded-xl text-[11px] text-blue-900 dark:text-blue-300 flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+              <div>
+                <strong>Dome Filter Rule:</strong>{' '}
+                {selectedPlanFilter === 'all' && 'All standing contenders are eligible to answer.'}
+                {selectedPlanFilter === 'plan_basic_naira' && 'Only scholars on Scholar Starter (₦1k) or higher can answer.'}
+                {selectedPlanFilter === 'plan_pro_naira' && 'Only scholars on Champions Pro (₦2.5k) or Titan VIP can answer.'}
+                {selectedPlanFilter === 'plan_titan_naira' && 'Exclusively reserved for Grobaax Titan Annual VIP members.'}
+                {selectedPlanFilter === 'tier_premium' && 'Scholars with any active Premium or VIP subscription plan can answer.'}
+                {selectedPlanFilter === 'tier_vip' && 'Only VIP & Titan scholars can answer.'}
+                {' '}Ineligible contenders are filtered out without being eliminated.
+              </div>
             </div>
           </div>
 

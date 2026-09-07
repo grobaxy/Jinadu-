@@ -2748,6 +2748,11 @@ export interface SchoolDomeParticipant {
   department?: string;
   level?: string;
   isPremium?: boolean;
+  isVip?: boolean;
+  subscriptionTier?: string;
+  subscriptionPlan?: string;
+  planId?: string;
+  membershipTier?: string;
   status: SchoolDomeParticipantStatus;
   registeredAt: number;
   eliminatedAtQuestionNumber?: number;
@@ -2763,7 +2768,9 @@ export interface SchoolDomeQuestion {
   correctAnswer: string;
   acceptedAlternativeAnswers?: string[];
   timeLimitSeconds: number;
-  targetTier?: 'free' | 'premium' | 'vip';
+  targetTier?: 'free' | 'premium' | 'vip' | 'all';
+  allowedPlanIds?: string[]; // Specific subscription plan IDs (e.g. 'plan_basic_naira', 'plan_pro_naira', 'plan_titan_naira')
+  targetPlanName?: string; // Display name of specific plan requirement (e.g. "Scholar Starter Plan", "Grobaax Titan Annual VIP")
   startAt: number;
   endAt: number;
   status: 'active' | 'closed';
@@ -2779,6 +2786,9 @@ export interface SchoolDomeQuestion {
 
 export interface SchoolDomeMessage extends ChatroomLiveMessage {
   seasonId?: string;
+  subscriptionTier?: string;
+  subscriptionPlan?: string;
+  planId?: string;
 }
 
 
