@@ -7,7 +7,6 @@ import {
   PRIMARY_SUPER_ADMIN_UID,
 } from '../../types';
 import { SchoolDomeMessageItem } from './SchoolDomeMessageItem';
-import { SchoolDomeQuestionCard } from './SchoolDomeQuestionCard';
 import { SchoolDomeRulesModal } from './SchoolDomeRulesModal';
 import { ChatroomComposer } from '../Community/ChatroomLive/ChatroomComposer';
 import { CreateSchoolDomeQuestionModal } from './CreateSchoolDomeQuestionModal';
@@ -143,6 +142,20 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
     currentUser?.email === 'grobaxycompany@gmail.com' ||
     currentUser?.name?.toLowerCase().includes('admin') ||
     currentUser?.name?.toLowerCase().includes('staff');
+
+  // Auto-close active question when countdown timer expires for admins/staff in background
+  useEffect(() => {
+    if (!activeQuestion || activeQuestion.status !== 'active' || !isStaffOrAdmin) return;
+    const diff = activeQuestion.endAt - Date.now();
+    if (diff <= 0) {
+      closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', activeQuestion.id);
+      return;
+    }
+    const timer = setTimeout(() => {
+      closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', activeQuestion.id);
+    }, Math.max(100, diff));
+    return () => clearTimeout(timer);
+  }, [activeQuestion?.id, activeQuestion?.status, activeQuestion?.endAt, isStaffOrAdmin, currentSeason?.id]);
 
   const isActivelySubscribed = isUserSubscribed || checkIsUserSubscribed(currentUser);
 
@@ -625,64 +638,6 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
         </div>
       )}
 
-      {/* PINNED ACTIVE QUESTION CARD WITH ADMIN-SET COUNTDOWN */}
-      {activeQuestion && activeQuestion.status === 'active' && activeQuestion.endAt > Date.now() && (
-        <div className="p-2.5 sm:p-4 border-b border-amber-500/30 bg-slate-950/70 shrink-0">
-          <SchoolDomeQuestionCard
-            question={activeQuestion}
-            season={currentSeason}
-            currentUser={currentUser}
-            isManagerOrAdmin={isStaffOrAdmin}
-            hasRepliedToQuestion={activeQuestion.repliedUserIds?.includes(currentUser.id) || false}
-            isUserRegistered={isUserRegistered}
-            isUserStanding={isUserStanding}
-            isUserPlanEligible={questionPlanEligibility.isEligible}
-            userPlanName={questionPlanEligibility.userPlanName}
-            requiredPlanText={questionPlanEligibility.requiredPlanText}
-            planIneligibleReason={questionPlanEligibility.reason}
-            onOpenUpgrade={handleOpenUpgrade}
-            onCloseQuestion={isStaffOrAdmin ? (qId) => closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', qId) : undefined}
-            onExtendTime={isStaffOrAdmin ? (qId, extra) => extendSchoolDomeQuestionTime(qId, extra) : undefined}
-            onReplyToAnswer={() => {
-              if (!questionPlanEligibility.isEligible && !isStaffOrAdmin) {
-                alert(
-                  `This question requires: ${questionPlanEligibility.requiredPlanText}. Your current plan is ${questionPlanEligibility.userPlanName}. Ineligible contenders are filtered without elimination.`
-                );
-                return;
-              }
-              const qMsg = messages.find(m => m.competitionRef?.questionId === activeQuestion.id);
-              if (qMsg) {
-                setReplyTarget(qMsg);
-              } else {
-                setReplyTarget({
-                  id: 'msg_sdq_' + activeQuestion.id,
-                  userId: activeQuestion.createdByUid || 'admin',
-                  userName: activeQuestion.createdByName || 'School Dome Arbiter',
-                  messageText: activeQuestion.questionText,
-                  timestamp: activeQuestion.createdAt,
-                  type: 'question',
-                  competitionRef: {
-                    competitionId: 'school_dome',
-                    questionId: activeQuestion.id,
-                    questionNumber: activeQuestion.questionNumber,
-                    totalQuestions: 20,
-                    questionText: activeQuestion.questionText,
-                    status: 'active',
-                    gpRewardPerWinner: 500,
-                    winnerCountLimit: 1,
-                    allowFreeParticipation: true,
-                    timeLimitSeconds: activeQuestion.timeLimitSeconds,
-                    startAt: activeQuestion.startAt,
-                    endAt: activeQuestion.endAt,
-                    repliedUserIds: [],
-                  },
-                } as any);
-              }
-            }}
-          />
-        </div>
-      )}
-
       {/* CONTENT: EITHER CHAMPIONS RESULTS BOARD OR LIVE ARENA */}
       {activeTab === 'results' ? (
         <SchoolDomeResultsTab currentSeason={currentSeason} />
@@ -721,6 +676,8 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
               onDelete={handleDeleteMessage}
               onMuteUser={handleMuteUser}
               onReact={handleReactMessage}
+              onCloseQuestion={isStaffOrAdmin ? (qId) => closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', qId) : undefined}
+              onExtendTime={isStaffOrAdmin ? (qId, extra) => extendSchoolDomeQuestionTime(qId, extra) : undefined}
             />
           ))
         )}

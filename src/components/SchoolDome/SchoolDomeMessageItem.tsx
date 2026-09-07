@@ -28,6 +28,8 @@ interface SchoolDomeMessageItemProps {
   onDelete?: (messageId: string) => void;
   onMuteUser?: (userId: string, userName: string) => void;
   onReact?: (messageId: string, emoji: string) => void;
+  onCloseQuestion?: (questionId: string) => void;
+  onExtendTime?: (questionId: string, extraSeconds: number) => void;
 }
 
 const COMMON_EMOJIS = ['🔥', '❤️', '👏', '👍', '⚡', '💯'];
@@ -125,6 +127,8 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
   onDelete,
   onMuteUser,
   onReact,
+  onCloseQuestion,
+  onExtendTime,
 }) => {
   const { currentUser } = useApp();
 
@@ -328,6 +332,36 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
                       ? 'Premium Contenders'
                       : 'All Contenders (Free)'}
                   </span>
+                  {(isStaffOrAdmin || isManagerOrAdmin) && (
+                    <div className="flex items-center gap-1">
+                      {onExtendTime && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const qId = message.competitionRef?.questionId || message.id.replace(/^msg_sdq_/, '').replace(/^dome_msg_q_/, '');
+                            onExtendTime(qId, 60);
+                          }}
+                          className="px-2 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold border border-white/20 transition cursor-pointer"
+                          title="Extend timer by 60 seconds"
+                        >
+                          +60s
+                        </button>
+                      )}
+                      {onCloseQuestion && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const qId = message.competitionRef?.questionId || message.id.replace(/^msg_sdq_/, '').replace(/^dome_msg_q_/, '');
+                            onCloseQuestion(qId);
+                          }}
+                          className="px-2 py-0.5 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[10px] font-bold border border-rose-500/30 transition cursor-pointer"
+                          title="Close question challenge"
+                        >
+                          End Time
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

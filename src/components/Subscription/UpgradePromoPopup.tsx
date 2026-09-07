@@ -17,10 +17,17 @@ export const UpgradePromoPopup: React.FC = () => {
     dismissUpgradePromo,
     isUserSubscribed,
     openWalletModal,
+    activeTab,
   } = useApp();
 
-  // ONLY non-subscribed users see the pop-up, controlled by the centralized global active-use timer
-  if (isUserSubscribed || !isUpgradePromoVisible) {
+  // ONLY non-subscribed users see the pop-up, controlled by the centralized global active-use timer.
+  // Suppressed during live School Dome arena to prevent interrupting or disfiguring competition.
+  if (
+    isUserSubscribed ||
+    !isUpgradePromoVisible ||
+    activeTab === 'school_dome' ||
+    activeTab === 'school_dome_results'
+  ) {
     return null;
   }
 
