@@ -276,12 +276,26 @@ export async function verifyPaystackTransaction(reference: string): Promise<Pays
   }
 
   try {
-    const res = await fetch(`/api/paystack/verify/${encodeURIComponent(trimmed)}`, {
+    // Try query param endpoint first (works natively on Vercel Serverless /api/paystack/verify?reference=...)
+    const res = await fetch(`/api/paystack/verify?reference=${encodeURIComponent(trimmed)}`, {
       headers: {
         Accept: 'application/json',
       },
     });
-    return await safeParseResponse(res, 'Verification connection failed.');
+    const parsed = await safeParseResponse(res, 'Verification connection failed.');
+    if (parsed && (parsed.success || parsed.verified || parsed.isPending || parsed.status === 'success' || parsed.status === 'abandoned' || parsed.status === 'failed')) {
+      return parsed;
+    }
+
+    // Fallback path-based endpoint for Express router
+    if (!res.ok || res.status === 404) {
+      const fallbackRes = await fetch(`/api/paystack/verify/${encodeURIComponent(trimmed)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      return await safeParseResponse(fallbackRes, 'Verification connection failed.');
+    }
+
+    return parsed;
   } catch (err: any) {
     return {
       success: false,

@@ -5,6 +5,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/paystack/verify/(.*)",
+      "destination": "/api/paystack/verify?reference=$1"
+    },
+    {
       "source": "/api/paystack/:match*",
       "destination": "/api/paystack/:match*"
     },

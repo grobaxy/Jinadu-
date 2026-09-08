@@ -11,7 +11,13 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const rawRef = (req.query?.reference || req.query?.slug || req.query?.ref || '') as string;
+    let rawRef = (req.query?.reference || req.query?.slug || req.query?.ref || '') as string;
+    if (!rawRef && req.url) {
+      const match = req.url.match(/\/verify\/([^?]+)/);
+      if (match && match[1]) {
+        rawRef = decodeURIComponent(match[1]);
+      }
+    }
     const result = await verifyPaystackRefCore(rawRef);
     return res.status(result.statusCode).json(result.body);
   } catch (err: any) {

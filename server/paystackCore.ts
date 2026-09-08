@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-import { activateUserSubscriptionInFirestore } from '../src/lib/firebase';
 
 // Helper to get Paystack Secret Key safely (strictly server-side, never exposed to client)
 export function getSecretKey(): string {
@@ -299,6 +298,36 @@ export async function chargeTransferCore(body: any) {
       const accountNumber = d.account_number;
 
       if (accountNumber) {
+        // Also fetch checkout authorization_url in background for seamless card/web checkout fallback
+        let authorization_url = '';
+        try {
+          const initResult = await safePaystackFetch('https://api.paystack.co/transaction/initialize', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${secretKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: cleanEmail,
+              amount: amountInKobo,
+              reference,
+              currency: 'NGN',
+              channels: ['bank_transfer', 'card', 'bank', 'ussd', 'qr'],
+              metadata: {
+                userId: userId || 'scholar',
+                userName: userName || 'Scholar',
+                userEmail: cleanEmail,
+                planId: planId || 'premium_1m',
+                planName: planName || 'Premium',
+                amountNaira: Number(amountNaira),
+              },
+            }),
+          });
+          if (initResult.data?.data?.authorization_url) {
+            authorization_url = initResult.data.data.authorization_url;
+          }
+        } catch {}
+
         return {
           statusCode: 200,
           body: {
@@ -310,6 +339,7 @@ export async function chargeTransferCore(body: any) {
             bankSlug: d.bank?.slug || 'titan-trust',
             amountNaira: Number(amountNaira),
             expiresAt: d.account_expires_at || expiresAt,
+            authorization_url,
             displayText: `Transfer exactly ₦${Number(amountNaira).toLocaleString()} to ${bankName} account ${accountNumber}`,
             status: d.status,
           },
@@ -423,24 +453,6 @@ export async function verifyPaystackRefCore(rawRef: string) {
         const isSuccessful = tx.status === 'success';
         const isPending = tx.status === 'ongoing' || tx.status === 'pending_bank_transfer' || tx.status === 'pending';
 
-        let activationResult: any = null;
-        if (isSuccessful) {
-          try {
-            activationResult = await activateUserSubscriptionInFirestore({
-              reference: tx.reference,
-              userId: tx.metadata?.userId || tx.metadata?.scholar_uid || '',
-              userEmail: tx.customer?.email || '',
-              userName: tx.metadata?.userName || '',
-              planId: tx.metadata?.planId,
-              planName: tx.metadata?.planName,
-              amountNaira: tx.amount ? tx.amount / 100 : 0,
-              channel: tx.channel || 'paystack',
-            });
-          } catch (fireErr) {
-            console.warn('[Paystack Verify] Firestore activation notice:', fireErr);
-          }
-        }
-
         return {
           statusCode: 200,
           body: {
@@ -457,7 +469,7 @@ export async function verifyPaystackRefCore(rawRef: string) {
             planName: tx.metadata?.planName,
             customer: tx.customer,
             gatewayResponse: tx.gateway_response,
-            activation: activationResult,
+            activation: { success: isSuccessful },
           },
         };
       } else {

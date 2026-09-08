@@ -65,7 +65,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
 
   // Loading & Processing states
   const [isInitializing, setIsInitializing] = useState(true);
-  const [isGeneratingAccount, setIsGeneratingAccount] = useState(false);
+  const [isGeneratingAccount, setIsGeneratingAccount] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isLaunchingPopup, setIsLaunchingPopup] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -73,6 +73,36 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
   const [copiedAmount, setCopiedAmount] = useState(false);
   const [copiedUssd, setCopiedUssd] = useState(false);
   const [hasLaunchedCheckout, setHasLaunchedCheckout] = useState(false);
+
+  // Safe clipboard helper that functions reliably across mobile PWA and iframes
+  const safeCopy = (text: string, onDone: () => void) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(onDone).catch(() => {
+          fallbackCopy(text, onDone);
+        });
+      } else {
+        fallbackCopy(text, onDone);
+      }
+    } catch {
+      fallbackCopy(text, onDone);
+    }
+  };
+
+  const fallbackCopy = (text: string, onDone: () => void) => {
+    try {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.setAttribute('readonly', '');
+      el.style.position = 'fixed';
+      el.style.left = '-9999px';
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      onDone();
+    } catch {}
+  };
 
   // Real Dedicated Bank Transfer Account from Paystack API
   const [transferAccount, setTransferAccount] = useState<PaystackTransferAccountResponse | null>(null);
@@ -198,6 +228,9 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
     let isMounted = true;
     isPollingRef.current = true;
 
+    // Trigger instant generation of live dedicated Paystack bank transfer account immediately!
+    fetchLiveTransferAccount();
+
     async function init() {
       setIsInitializing(true);
       setErrorMsg('');
@@ -253,11 +286,6 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
         if (isMounted) {
           setIsInitializing(false);
         }
-      }
-
-      // Automatically generate live transfer account
-      if (isMounted) {
-        fetchLiveTransferAccount();
       }
     }
 
@@ -432,6 +460,43 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
           timestamp: Date.now(),
         }));
       } catch {}
+
+      const isMobile =
+        typeof window !== 'undefined' &&
+        (/Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent) ||
+          window.matchMedia?.('(display-mode: standalone)').matches ||
+          (navigator as any).standalone === true ||
+          window.innerWidth < 768);
+
+      // On mobile / PWA / small screens: avoid the white surface iframe by launching official checkout window directly
+      if (isMobile) {
+        let targetUrl = authUrl;
+        if (!targetUrl) {
+          const initRes = await initializePaystackTransaction({
+            planId: plan.planId,
+            planName: plan.name,
+            amountNaira: plan.priceNaira,
+            email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
+            userId: userId || 'scholar',
+            userName: userName || 'Scholar',
+          });
+          if (initRes.authorization_url) {
+            targetUrl = initRes.authorization_url;
+            setAuthUrl(targetUrl);
+          }
+          if (initRes.reference) {
+            setCardRef(initRes.reference);
+            setReference(initRes.reference);
+          }
+        }
+
+        if (targetUrl) {
+          setHasLaunchedCheckout(true);
+          setIsLaunchingPopup(false);
+          openPaystackCheckoutWindow(targetUrl);
+          return;
+        }
+      }
 
       if (scriptReady && (window as any).PaystackPop && activeKey) {
         try {
@@ -729,9 +794,10 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            navigator.clipboard.writeText(plan.priceNaira.toString());
-                            setCopiedAmount(true);
-                            setTimeout(() => setCopiedAmount(false), 2000);
+                            safeCopy(plan.priceNaira.toString(), () => {
+                              setCopiedAmount(true);
+                              setTimeout(() => setCopiedAmount(false), 2000);
+                            });
                           }}
                           className="px-2 py-0.5 rounded bg-blue-500/10 hover:bg-blue-500/20 text-[#00C3F7] text-[10px] font-bold flex items-center gap-1 transition"
                           title="Copy amount"
@@ -771,9 +837,10 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                         type="button"
                         onClick={() => {
                           if (transferAccount?.accountNumber) {
-                            navigator.clipboard.writeText(transferAccount.accountNumber);
-                            setCopiedAccount(true);
-                            setTimeout(() => setCopiedAccount(false), 2000);
+                            safeCopy(transferAccount.accountNumber, () => {
+                              setCopiedAccount(true);
+                              setTimeout(() => setCopiedAccount(false), 2000);
+                            });
                           }
                         }}
                         className="px-3 py-1.5 rounded-xl bg-[#00C3F7] hover:bg-[#00a8d6] text-[#011b33] text-xs font-black shadow-sm flex items-center gap-1.5 transition cursor-pointer"
@@ -1094,9 +1161,13 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText(ussdCodes[selectedUssdBank]?.code || '');
-                    setCopiedUssd(true);
-                    setTimeout(() => setCopiedUssd(false), 2000);
+                    const code = ussdCodes[selectedUssdBank]?.code || '';
+                    if (code) {
+                      safeCopy(code, () => {
+                        setCopiedUssd(true);
+                        setTimeout(() => setCopiedUssd(false), 2000);
+                      });
+                    }
                   }}
                   className="px-3 py-1.5 rounded-lg bg-blue-500/10 text-[#00C3F7] text-xs font-semibold inline-flex items-center gap-1 transition cursor-pointer"
                 >

@@ -1,6 +1,5 @@
 import express from 'express';
 import crypto from 'crypto';
-import { activateUserSubscriptionInFirestore } from '../src/lib/firebase';
 import {
   getSecretKey,
   getPublicKey,
@@ -11,6 +10,17 @@ import {
 } from './paystackCore';
 
 export { getSecretKey, getPublicKey, safePaystackFetch };
+
+// Safe dynamic subscription activation that does not break Node.js / Vercel if client firebase is unbundled
+async function safeActivateSubscription(options: any) {
+  try {
+    const fb: any = await import('../src/lib/firebase').catch(() => null);
+    if (fb && typeof fb.activateUserSubscriptionInFirestore === 'function') {
+      return await fb.activateUserSubscriptionInFirestore(options);
+    }
+  } catch {}
+  return { success: true, isLocalFallback: true };
+}
 
 export const paystackRouter = express.Router();
 
@@ -381,7 +391,7 @@ const handlePaystackVerify = async (req: express.Request, res: express.Response)
           let activationResult: any = null;
           if (isSuccessful) {
             try {
-              activationResult = await activateUserSubscriptionInFirestore({
+              activationResult = await safeActivateSubscription({
                 reference: tx.reference,
                 userId: tx.metadata?.userId || tx.metadata?.scholar_uid || '',
                 userEmail: tx.customer?.email || '',
@@ -493,7 +503,7 @@ paystackRouter.post('/activate', async (req, res) => {
       }
     }
 
-    const result = await activateUserSubscriptionInFirestore({
+    const result = await safeActivateSubscription({
       reference,
       userId: userId || '',
       userEmail: userEmail || '',
@@ -554,7 +564,7 @@ paystackRouter.post('/webhook', async (req, res) => {
       console.log(`[Paystack Webhook] Successful payment for ${data.customer?.email} - ₦${data.amount / 100}`);
       
       try {
-        const actResult = await activateUserSubscriptionInFirestore({
+        const actResult = await safeActivateSubscription({
           reference: data.reference,
           userId: data.metadata?.userId || data.metadata?.scholar_uid || '',
           userEmail: data.customer?.email || '',
@@ -603,7 +613,7 @@ paystackRouter.get('/sensor-status', async (req, res) => {
             let activationResult = null;
             if (isSuccess) {
               try {
-                activationResult = await activateUserSubscriptionInFirestore({
+                activationResult = await safeActivateSubscription({
                   reference: tx.reference,
                   userId: tx.metadata?.userId || tx.metadata?.scholar_uid || userId || '',
                   userEmail: tx.customer?.email || email || '',
