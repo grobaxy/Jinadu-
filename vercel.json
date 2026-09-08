@@ -9,20 +9,27 @@
       "destination": "/api/paystack/verify?reference=$1"
     },
     {
-      "source": "/api/paystack/:match*",
-      "destination": "/api/paystack/:match*"
-    },
-    {
-      "source": "/api",
-      "destination": "/api?__path=health"
-    },
-    {
-      "source": "/api/(.*)",
+      "source": "/api/((?!paystack(?:/|$)).*)",
       "destination": "/api?__path=$1"
     },
     {
       "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
     }
   ]
 }

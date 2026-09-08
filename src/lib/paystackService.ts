@@ -47,42 +47,50 @@ export const DEFAULT_PAYSTACK_PUBLIC_KEY =
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_PAYSTACK_PUBLIC_KEY) ||
   'pk_live_70e9ddbaca92590a8bfbd673b80abb40f083ac96';
 
-// Safe checkout opener: on mobile/PWA navigates in-place to avoid blank screens caused by COOP/Cloudflare WAF
+// Safe checkout opener: opens Paystack official checkout in a new tab/window so the main app never navigates away or shows a blank webview
 export function openPaystackCheckoutWindow(url: string) {
   if (!url || !url.startsWith('http')) return;
 
-  const isMobile =
-    typeof window !== 'undefined' &&
-    (/Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent) ||
-      window.matchMedia?.('(display-mode: standalone)').matches ||
-      (navigator as any).standalone === true ||
-      window.innerWidth < 768);
-
-  if (isMobile) {
-    window.location.href = url;
-  } else {
-    // Open in new tab without noopener/noreferrer which strips Paystack origin verification
-    const win = window.open(url, '_blank');
-    if (!win || win.closed || typeof win.closed === 'undefined') {
-      window.location.href = url;
+  try {
+    const win = window.open(url, '_blank', 'noopener,noreferrer');
+    if (win && !win.closed) {
+      win.focus?.();
+      return;
     }
-  }
+  } catch {}
+
+  // Fallback: trigger click on a synthetic link with target="_blank"
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
+  } catch {}
+
+  // Absolute last resort
+  try {
+    window.location.href = url;
+  } catch {}
 }
 
-// Load Paystack Inline JS library dynamically
+// Load Paystack Inline JS library dynamically (prefer v2 modern popup)
 export function loadPaystackInlineScript(): Promise<boolean> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') return resolve(false);
     if ((window as any).PaystackPop) return resolve(true);
 
     const script = document.createElement('script');
-    script.src = 'https://js.paystack.co/v1/inline.js';
+    script.src = 'https://js.paystack.co/v2/inline.js';
     script.async = true;
     script.onload = () => resolve(true);
     script.onerror = () => {
-      console.warn('Primary Paystack CDN load error, trying v2 backup...');
+      console.warn('Paystack v2 CDN load error, trying v1 backup...');
       const backupScript = document.createElement('script');
-      backupScript.src = 'https://js.paystack.co/v2/inline.js';
+      backupScript.src = 'https://js.paystack.co/v1/inline.js';
       backupScript.async = true;
       backupScript.onload = () => resolve(true);
       backupScript.onerror = () => resolve(false);

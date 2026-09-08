@@ -431,18 +431,43 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
     }
   };
 
-  // Launch Card Payment via Paystack's official secure inline popup or redirect
+  // Launch Card Payment via Paystack's official secure checkout window or popup
   const handleLaunchCardCheckout = async () => {
     setIsLaunchingPopup(true);
     setErrorMsg('');
 
     try {
-      const scriptReady = await loadPaystackInlineScript();
-      const activeKey = publicKey || DEFAULT_PAYSTACK_PUBLIC_KEY;
-      const currentRef = cardRef || reference || `GRBX_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      let targetUrl = authUrl;
+      let currentRef = cardRef || reference;
 
-      setCardRef(currentRef);
-      setReference(currentRef);
+      // 1. Ensure we have an active transaction session
+      if (!targetUrl || !currentRef) {
+        const initRes = await initializePaystackTransaction({
+          planId: plan.planId,
+          planName: plan.name,
+          amountNaira: plan.priceNaira,
+          email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
+          userId: userId || 'scholar',
+          userName: userName || 'Scholar',
+        });
+
+        if (initRes.authorization_url) {
+          targetUrl = initRes.authorization_url;
+          setAuthUrl(targetUrl);
+        }
+        if (initRes.reference) {
+          currentRef = initRes.reference;
+          setCardRef(currentRef);
+          setReference(currentRef);
+        }
+      }
+
+      if (!currentRef) {
+        currentRef = `GRBX_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        setCardRef(currentRef);
+        setReference(currentRef);
+      }
+
       registerPendingPayment({
         reference: currentRef,
         plan,
@@ -451,52 +476,32 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
         userEmail: email,
         channel: 'card',
       });
+
       try {
-        localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
-          reference: currentRef,
-          plan,
-          userId,
-          userName,
-          timestamp: Date.now(),
-        }));
+        localStorage.setItem(
+          'grobax_pending_paystack_sub',
+          JSON.stringify({
+            reference: currentRef,
+            plan,
+            userId,
+            userName,
+            timestamp: Date.now(),
+          })
+        );
       } catch {}
 
-      const isMobile =
-        typeof window !== 'undefined' &&
-        (/Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent) ||
-          window.matchMedia?.('(display-mode: standalone)').matches ||
-          (navigator as any).standalone === true ||
-          window.innerWidth < 768);
-
-      // On mobile / PWA / small screens: avoid the white surface iframe by launching official checkout window directly
-      if (isMobile) {
-        let targetUrl = authUrl;
-        if (!targetUrl) {
-          const initRes = await initializePaystackTransaction({
-            planId: plan.planId,
-            planName: plan.name,
-            amountNaira: plan.priceNaira,
-            email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
-            userId: userId || 'scholar',
-            userName: userName || 'Scholar',
-          });
-          if (initRes.authorization_url) {
-            targetUrl = initRes.authorization_url;
-            setAuthUrl(targetUrl);
-          }
-          if (initRes.reference) {
-            setCardRef(initRes.reference);
-            setReference(initRes.reference);
-          }
-        }
-
-        if (targetUrl) {
-          setHasLaunchedCheckout(true);
-          setIsLaunchingPopup(false);
-          openPaystackCheckoutWindow(targetUrl);
-          return;
-        }
+      // 2. Primary Checkout Method: Paystack Official Checkout in clean tab/window
+      // This is 100% immune to iframe blank surfaces, cross-origin blocks, and COOP restrictions
+      if (targetUrl) {
+        setHasLaunchedCheckout(true);
+        setIsLaunchingPopup(false);
+        openPaystackCheckoutWindow(targetUrl);
+        return;
       }
+
+      // 3. Fallback: Paystack inline popup if targetUrl was unavailable
+      const scriptReady = await loadPaystackInlineScript();
+      const activeKey = publicKey || DEFAULT_PAYSTACK_PUBLIC_KEY;
 
       if (scriptReady && (window as any).PaystackPop && activeKey) {
         try {
@@ -527,7 +532,6 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
               } catch (actErr) {
                 console.warn('Subscription activation notice:', actErr);
               }
-              // Perform background verification check asynchronously
               verifyPaystackTransaction(finalRef).catch(() => {});
             },
             onClose: () => {
@@ -540,60 +544,13 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
           setIsLaunchingPopup(false);
           return;
         } catch (setupErr) {
-          console.warn('Paystack inline setup error, proceeding to direct checkout URL:', setupErr);
+          console.warn('Paystack inline setup notice:', setupErr);
         }
       }
 
-      // Initialize a fresh checkout session to ensure valid reference & URL
-      const initRes = await initializePaystackTransaction({
-        planId: plan.planId,
-        planName: plan.name,
-        amountNaira: plan.priceNaira,
-        email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
-        userId: userId || 'scholar',
-        userName: userName || 'Scholar',
-      });
-
-      if (initRes.reference) {
-        setCardRef(initRes.reference);
-        setReference(initRes.reference);
-        registerPendingPayment({
-          reference: initRes.reference,
-          plan,
-          userId,
-          userName,
-          userEmail: email,
-          channel: 'card',
-        });
-        try {
-          localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
-            reference: initRes.reference,
-            plan,
-            userId,
-            userName,
-            timestamp: Date.now(),
-          }));
-        } catch {}
-      }
-
-      if (initRes.authorization_url) {
-        setAuthUrl(initRes.authorization_url);
-        setHasLaunchedCheckout(true);
-        openPaystackCheckoutWindow(initRes.authorization_url);
-      } else if (authUrl) {
-        setHasLaunchedCheckout(true);
-        openPaystackCheckoutWindow(authUrl);
-      } else {
-        setErrorMsg('Could not open Paystack checkout window. Please try Bank Transfer or refresh.');
-      }
+      setErrorMsg('Could not initialize secure checkout session. Please tap retry or pay via Bank Transfer.');
     } catch (err: any) {
-      console.warn('Card popup launcher error, opening hosted window:', err);
-      if (authUrl) {
-        setHasLaunchedCheckout(true);
-        openPaystackCheckoutWindow(authUrl);
-      } else {
-        setErrorMsg('Could not open Paystack popup. Please use Bank Transfer or click the Web Checkout button.');
-      }
+      setErrorMsg(err?.message || 'Error opening Paystack checkout.');
     } finally {
       setIsLaunchingPopup(false);
     }
