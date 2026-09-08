@@ -16,11 +16,7 @@ dotenv.config();
 
 export const apiApp = express();
 
-// Body parsers
-apiApp.use(express.json({ limit: '10mb' }));
-apiApp.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Global CORS Middleware - allow cross-origin API calls and handle preflight
+// Global CORS Middleware - allow cross-origin API calls and handle preflight FIRST
 apiApp.use((req: Request, res: Response, next: NextFunction) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -56,6 +52,18 @@ apiApp.use((req: Request, _res: Response, next: NextFunction) => {
   }
 
   next();
+});
+
+// Safe Body Parser for both standard Node.js and Vercel Serverless Runtimes
+// Prevents stream consumption hangs on Vercel where req.body is pre-parsed by the runtime
+apiApp.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+    return next();
+  }
+  express.json({ limit: '10mb' })(req, res, (err) => {
+    if (err) return next(err);
+    express.urlencoded({ extended: true, limit: '10mb' })(req, res, next);
+  });
 });
 
 // Gemini AI Client helper

@@ -43,6 +43,32 @@ export interface PaystackVerifyResponse {
   error?: string;
 }
 
+export const DEFAULT_PAYSTACK_PUBLIC_KEY =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_PAYSTACK_PUBLIC_KEY) ||
+  'pk_live_70e9ddbaca92590a8bfbd673b80abb40f083ac96';
+
+// Safe checkout opener: on mobile/PWA navigates in-place to avoid blank screens caused by COOP/Cloudflare WAF
+export function openPaystackCheckoutWindow(url: string) {
+  if (!url || !url.startsWith('http')) return;
+
+  const isMobile =
+    typeof window !== 'undefined' &&
+    (/Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent) ||
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (navigator as any).standalone === true ||
+      window.innerWidth < 768);
+
+  if (isMobile) {
+    window.location.href = url;
+  } else {
+    // Open in new tab without noopener/noreferrer which strips Paystack origin verification
+    const win = window.open(url, '_blank');
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+      window.location.href = url;
+    }
+  }
+}
+
 // Load Paystack Inline JS library dynamically
 export function loadPaystackInlineScript(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -54,8 +80,13 @@ export function loadPaystackInlineScript(): Promise<boolean> {
     script.async = true;
     script.onload = () => resolve(true);
     script.onerror = () => {
-      console.warn('Failed to load Paystack Inline JS.');
-      resolve(false);
+      console.warn('Primary Paystack CDN load error, trying v2 backup...');
+      const backupScript = document.createElement('script');
+      backupScript.src = 'https://js.paystack.co/v2/inline.js';
+      backupScript.async = true;
+      backupScript.onload = () => resolve(true);
+      backupScript.onerror = () => resolve(false);
+      document.body.appendChild(backupScript);
     };
     document.body.appendChild(script);
   });
@@ -327,11 +358,12 @@ export async function processPaystackPayment(params: {
 
   // 3. Load Paystack inline script
   const scriptLoaded = await loadPaystackInlineScript();
+  const effectivePublicKey = initResult.publicKey || DEFAULT_PAYSTACK_PUBLIC_KEY;
 
-  if (scriptLoaded && (window as any).PaystackPop && initResult.publicKey) {
+  if (scriptLoaded && (window as any).PaystackPop && effectivePublicKey) {
     try {
       const handler = (window as any).PaystackPop.setup({
-        key: initResult.publicKey,
+        key: effectivePublicKey,
         email: params.email && params.email.includes('@') ? params.email : 'scholar@grobaax.org',
         amount: Math.round(params.amountNaira * 100),
         currency: 'NGN',
@@ -355,7 +387,7 @@ export async function processPaystackPayment(params: {
     } catch (popupErr: any) {
       console.warn('Paystack popup setup error, falling back to authorization URL or verification:', popupErr);
       if (initResult.authorization_url) {
-        window.location.href = initResult.authorization_url;
+        openPaystackCheckoutWindow(initResult.authorization_url);
       } else {
         const verifyResult = await verifyPaystackTransaction(reference);
         if (verifyResult.verified) {
@@ -366,7 +398,7 @@ export async function processPaystackPayment(params: {
       }
     }
   } else if (initResult.authorization_url) {
-    window.location.href = initResult.authorization_url;
+    openPaystackCheckoutWindow(initResult.authorization_url);
   } else {
     // Fallback verification
     const verifyResult = await verifyPaystackTransaction(reference);

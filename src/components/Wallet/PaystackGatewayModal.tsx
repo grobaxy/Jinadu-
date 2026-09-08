@@ -26,6 +26,8 @@ import {
   createPaystackTransferAccount,
   loadPaystackInlineScript,
   PaystackTransferAccountResponse,
+  DEFAULT_PAYSTACK_PUBLIC_KEY,
+  openPaystackCheckoutWindow,
 } from '../../lib/paystackService';
 
 interface PaystackGatewayModalProps {
@@ -52,7 +54,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
   const [reference, setReference] = useState('');
   const [cardRef, setCardRef] = useState('');
   const [authUrl, setAuthUrl] = useState('');
-  const [publicKey, setPublicKey] = useState('');
+  const [publicKey, setPublicKey] = useState(DEFAULT_PAYSTACK_PUBLIC_KEY);
 
   // Keep email in sync with user's registered account email
   useEffect(() => {
@@ -408,47 +410,73 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
 
     try {
       const scriptReady = await loadPaystackInlineScript();
+      const activeKey = publicKey || DEFAULT_PAYSTACK_PUBLIC_KEY;
+      const currentRef = cardRef || reference || `GRBX_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-      if (scriptReady && (window as any).PaystackPop && publicKey) {
-        const currentRef = cardRef || reference;
-        const handler = (window as any).PaystackPop.setup({
-          key: publicKey,
-          email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
-          amount: Math.round(plan.priceNaira * 100),
-          currency: 'NGN',
-          ref: currentRef || undefined,
-          channels: ['card', 'bank', 'bank_transfer', 'ussd', 'qr'],
-          metadata: {
-            planId: plan.planId,
-            planName: plan.name,
-            amountNaira: plan.priceNaira,
-            userId,
-            userName,
-          },
-          callback: async (response: any) => {
-            const finalRef = response?.reference || response?.trxref || currentRef;
-            stopPolling();
-            setPaymentStep('success');
-            setIsVerifying(false);
-            try {
-              localStorage.removeItem('grobax_pending_paystack_sub');
-            } catch {}
-            try {
-              await onSuccess(finalRef);
-            } catch (actErr) {
-              console.warn('Subscription activation notice:', actErr);
-            }
-            // Perform background verification check asynchronously
-            verifyPaystackTransaction(finalRef).catch(() => {});
-          },
-          onClose: () => {
-            setIsLaunchingPopup(false);
-          },
-        });
+      setCardRef(currentRef);
+      setReference(currentRef);
+      registerPendingPayment({
+        reference: currentRef,
+        plan,
+        userId,
+        userName,
+        userEmail: email,
+        channel: 'card',
+      });
+      try {
+        localStorage.setItem('grobax_pending_paystack_sub', JSON.stringify({
+          reference: currentRef,
+          plan,
+          userId,
+          userName,
+          timestamp: Date.now(),
+        }));
+      } catch {}
 
-        handler.openIframe();
-        setIsLaunchingPopup(false);
-        return;
+      if (scriptReady && (window as any).PaystackPop && activeKey) {
+        try {
+          const handler = (window as any).PaystackPop.setup({
+            key: activeKey,
+            email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
+            amount: Math.round(plan.priceNaira * 100),
+            currency: 'NGN',
+            ref: currentRef,
+            channels: ['card', 'bank', 'bank_transfer', 'ussd', 'qr'],
+            metadata: {
+              planId: plan.planId,
+              planName: plan.name,
+              amountNaira: plan.priceNaira,
+              userId,
+              userName,
+            },
+            callback: async (response: any) => {
+              const finalRef = response?.reference || response?.trxref || currentRef;
+              stopPolling();
+              setPaymentStep('success');
+              setIsVerifying(false);
+              try {
+                localStorage.removeItem('grobax_pending_paystack_sub');
+              } catch {}
+              try {
+                await onSuccess(finalRef);
+              } catch (actErr) {
+                console.warn('Subscription activation notice:', actErr);
+              }
+              // Perform background verification check asynchronously
+              verifyPaystackTransaction(finalRef).catch(() => {});
+            },
+            onClose: () => {
+              setIsLaunchingPopup(false);
+            },
+          });
+
+          handler.openIframe();
+          setHasLaunchedCheckout(true);
+          setIsLaunchingPopup(false);
+          return;
+        } catch (setupErr) {
+          console.warn('Paystack inline setup error, proceeding to direct checkout URL:', setupErr);
+        }
       }
 
       // Initialize a fresh checkout session to ensure valid reference & URL
@@ -486,10 +514,10 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
       if (initRes.authorization_url) {
         setAuthUrl(initRes.authorization_url);
         setHasLaunchedCheckout(true);
-        window.open(initRes.authorization_url, '_blank', 'noopener,noreferrer');
+        openPaystackCheckoutWindow(initRes.authorization_url);
       } else if (authUrl) {
         setHasLaunchedCheckout(true);
-        window.open(authUrl, '_blank', 'noopener,noreferrer');
+        openPaystackCheckoutWindow(authUrl);
       } else {
         setErrorMsg('Could not open Paystack checkout window. Please try Bank Transfer or refresh.');
       }
@@ -497,7 +525,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
       console.warn('Card popup launcher error, opening hosted window:', err);
       if (authUrl) {
         setHasLaunchedCheckout(true);
-        window.open(authUrl, '_blank', 'noopener,noreferrer');
+        openPaystackCheckoutWindow(authUrl);
       } else {
         setErrorMsg('Could not open Paystack popup. Please use Bank Transfer or click the Web Checkout button.');
       }
@@ -823,7 +851,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                     {authUrl && (
                       <button
                         type="button"
-                        onClick={() => window.open(authUrl, '_blank', 'noopener,noreferrer')}
+                        onClick={() => openPaystackCheckoutWindow(authUrl)}
                         className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-1.5 transition cursor-pointer"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -851,7 +879,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                       type="button"
                       onClick={async () => {
                         if (authUrl && authUrl.startsWith('http')) {
-                          window.open(authUrl, '_blank', 'noopener,noreferrer');
+                          openPaystackCheckoutWindow(authUrl);
                           return;
                         }
                         setIsLaunchingPopup(true);
@@ -866,7 +894,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                           });
                           if (res.success && res.authorization_url) {
                             setAuthUrl(res.authorization_url);
-                            window.open(res.authorization_url, '_blank', 'noopener,noreferrer');
+                            openPaystackCheckoutWindow(res.authorization_url);
                           } else {
                             handleLaunchCardCheckout();
                           }
@@ -1020,7 +1048,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                     type="button"
                     onClick={() => {
                       setHasLaunchedCheckout(true);
-                      window.open(authUrl, '_blank', 'noopener,noreferrer');
+                      openPaystackCheckoutWindow(authUrl);
                     }}
                     className="text-xs text-slate-500 dark:text-slate-400 hover:text-[#00C3F7] inline-flex items-center gap-1 transition cursor-pointer"
                   >
@@ -1095,7 +1123,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                 {authUrl && (
                   <button
                     type="button"
-                    onClick={() => window.open(authUrl, '_blank', 'noopener,noreferrer')}
+                    onClick={() => openPaystackCheckoutWindow(authUrl)}
                     className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-1.5 transition cursor-pointer"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
