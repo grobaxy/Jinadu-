@@ -143,19 +143,19 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
     currentUser?.name?.toLowerCase().includes('admin') ||
     currentUser?.name?.toLowerCase().includes('staff');
 
-  // Auto-close active question when countdown timer expires for admins/staff in background
+  // Auto-close active question when countdown timer expires so non-responders are automatically eliminated
   useEffect(() => {
-    if (!activeQuestion || activeQuestion.status !== 'active' || !isStaffOrAdmin) return;
+    if (!activeQuestion || activeQuestion.status !== 'active') return;
     const diff = activeQuestion.endAt - Date.now();
     if (diff <= 0) {
-      closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', activeQuestion.id);
+      closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', activeQuestion.id).catch(() => {});
       return;
     }
     const timer = setTimeout(() => {
-      closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', activeQuestion.id);
+      closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', activeQuestion.id).catch(() => {});
     }, Math.max(100, diff));
     return () => clearTimeout(timer);
-  }, [activeQuestion?.id, activeQuestion?.status, activeQuestion?.endAt, isStaffOrAdmin, currentSeason?.id]);
+  }, [activeQuestion?.id, activeQuestion?.status, activeQuestion?.endAt, currentSeason?.id]);
 
   const isActivelySubscribed = isUserSubscribed || checkIsUserSubscribed(currentUser);
 

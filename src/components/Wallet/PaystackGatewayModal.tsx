@@ -849,11 +849,31 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                   <div className="space-y-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        if (authUrl) {
+                      onClick={async () => {
+                        if (authUrl && authUrl.startsWith('http')) {
                           window.open(authUrl, '_blank', 'noopener,noreferrer');
-                        } else {
+                          return;
+                        }
+                        setIsLaunchingPopup(true);
+                        try {
+                          const res = await initializePaystackTransaction({
+                            planId: plan.planId,
+                            planName: plan.name,
+                            amountNaira: plan.priceNaira,
+                            email: email && email.includes('@') ? email.trim() : 'scholar@grobaax.org',
+                            userId: userIdRef.current || 'scholar',
+                            userName: userNameRef.current || 'Scholar',
+                          });
+                          if (res.success && res.authorization_url) {
+                            setAuthUrl(res.authorization_url);
+                            window.open(res.authorization_url, '_blank', 'noopener,noreferrer');
+                          } else {
+                            handleLaunchCardCheckout();
+                          }
+                        } catch {
                           handleLaunchCardCheckout();
+                        } finally {
+                          setIsLaunchingPopup(false);
                         }
                       }}
                       className="w-full py-3.5 rounded-xl bg-[#00C3F7] hover:bg-[#00a8d6] text-[#011b33] text-xs font-black shadow-lg flex items-center justify-center gap-2 transition cursor-pointer"

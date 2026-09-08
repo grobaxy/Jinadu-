@@ -260,6 +260,9 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
       });
     }
 
+    // Generate valid ISO expiration timestamp (1 hour from now) required by Paystack Charge API
+    const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+
     // 1. Attempt Paystack Charge with bank_transfer channel
     try {
       const chargeResult = await safePaystackFetch('https://api.paystack.co/charge', {
@@ -274,7 +277,7 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
           reference,
           currency: 'NGN',
           bank_transfer: {
-            account_expires_at: null,
+            account_expires_at: expiresAt,
           },
           metadata: {
             userId: userId || 'scholar',
@@ -298,6 +301,34 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
         const accountNumber = d.account_number;
 
         if (accountNumber) {
+          // Also generate an authorization URL in the background so "Open Paystack Checkout" never opens a blank screen
+          let checkoutUrl: string | undefined = undefined;
+          try {
+            const initRes = await safePaystackFetch('https://api.paystack.co/transaction/initialize', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${secretKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                email: cleanEmail,
+                amount: amountInKobo,
+                reference: `${reference}_CHK`,
+                currency: 'NGN',
+                channels: ['card', 'bank', 'bank_transfer', 'ussd', 'qr'],
+                metadata: {
+                  userId: userId || 'scholar',
+                  planId: planId || 'premium_1m',
+                  planName: planName || 'Premium',
+                  amountNaira: Number(amountNaira),
+                },
+              }),
+            });
+            if (initRes.data?.data?.authorization_url) {
+              checkoutUrl = initRes.data.data.authorization_url;
+            }
+          } catch {}
+
           return res.json({
             success: true,
             reference: d.reference || reference,
@@ -306,9 +337,10 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
             bankName,
             bankSlug: d.bank?.slug || 'titan-paystack',
             amountNaira: d.amount ? d.amount / 100 : Number(amountNaira),
-            expiresAt: d.account_expires_at,
+            expiresAt: d.account_expires_at || expiresAt,
             displayText: d.display_text || 'Please make a transfer to the account specified',
             status: d.status,
+            authorization_url: checkoutUrl,
           });
         }
       }

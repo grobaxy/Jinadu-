@@ -1075,6 +1075,7 @@ export async function createSchoolDomeQuestion(
 
     // Post official question message to feed
     const targetLabel = targetPlanName || (targetTier === 'vip' ? 'VIP Only' : targetTier === 'premium' ? 'Premium & VIP' : 'Open to All');
+    const allowFree = targetTier === 'free' || targetTier === 'all';
     const qMessage: SchoolDomeMessage = {
       id: 'msg_sdq_' + qId,
       seasonId,
@@ -1087,6 +1088,9 @@ export async function createSchoolDomeQuestion(
       isPremium: true,
       isVip: true,
       subscriptionPlan: targetLabel,
+      targetTier,
+      targetPlanName,
+      allowedPlanIds,
       messageText: newQuestion.questionText,
       timestamp: now,
       type: 'question',
@@ -1099,7 +1103,10 @@ export async function createSchoolDomeQuestion(
         status: 'active',
         gpRewardPerWinner: gpReward,
         winnerCountLimit: winnerLimit,
-        allowFreeParticipation: true,
+        allowFreeParticipation: allowFree,
+        targetTier,
+        targetPlanName,
+        allowedPlanIds,
         timeLimitSeconds: timeLimit,
         startAt: now,
         endAt,
@@ -1181,9 +1188,17 @@ export async function closeSchoolDomeQuestion(
       updatedAt: serverTimestamp(),
     });
 
+    // Also close question message card so countdown immediately shows expired for all users
+    try {
+      const msgRef = doc(db, 'school_dome_messages', 'msg_sdq_' + questionId);
+      await updateDoc(msgRef, {
+        'competitionRef.status': 'closed',
+        updatedAt: serverTimestamp(),
+      });
+    } catch (_) {}
+
     // Update season active standing:
-    // If question was open to everyone, all non-survivors are eliminated.
-    // If question was restricted to a specific subscription plan/tier, scholars who were not eligible to answer are protected!
+    // Any registered contender who did NOT submit a correct answer before time expired is eliminated!
     const seasonRef = doc(db, 'school_dome_seasons', seasonId);
     const seasonSnap = await getDoc(seasonRef);
 
@@ -1191,25 +1206,9 @@ export async function closeSchoolDomeQuestion(
       const sData = seasonSnap.data() as SchoolDomeSeason;
       const currentActive = sData.activeUserIds || [];
 
-      const isRestrictedQuestion =
-        (qData.targetTier && qData.targetTier !== 'free' && qData.targetTier !== 'all') ||
-        Boolean(qData.allowedPlanIds && qData.allowedPlanIds.length > 0) ||
-        Boolean(qData.targetPlanName);
-
-      let newlyEliminated: string[] = [];
-      let updatedActive: string[] = [];
-
-      if (isRestrictedQuestion) {
-        // In a restricted round, only users who specifically answered incorrectly are eliminated
-        const explicitlyEliminated = qData.eliminatedUserIds || [];
-        newlyEliminated = currentActive.filter(id => explicitlyEliminated.includes(id));
-        updatedActive = currentActive.filter(id => !explicitlyEliminated.includes(id));
-      } else {
-        // In an open round, non-survivors are eliminated
-        newlyEliminated = currentActive.filter(id => !survivors.includes(id));
-        updatedActive = survivors;
-      }
-
+      // Non-survivors are those who were active but did not answer correctly in time
+      const newlyEliminated = currentActive.filter(id => !survivors.includes(id));
+      const updatedActive = currentActive.filter(id => survivors.includes(id));
       const updatedEliminated = Array.from(new Set([...(sData.eliminatedUserIds || []), ...newlyEliminated]));
 
       await updateDoc(seasonRef, {
@@ -1217,6 +1216,19 @@ export async function closeSchoolDomeQuestion(
         eliminatedUserIds: updatedEliminated,
         updatedAt: serverTimestamp(),
       });
+
+      // Update participant registration documents
+      for (const elimUserId of newlyEliminated) {
+        try {
+          const regDoc = doc(db, 'school_dome_registrations', `${seasonId}_${elimUserId}`);
+          await updateDoc(regDoc, {
+            status: 'eliminated',
+            eliminatedAtQuestionNumber: qData.questionNumber,
+            eliminatedAt: Date.now(),
+            eliminationReason: qData.eliminatedUserIds?.includes(elimUserId) ? 'incorrect_answer' : 'unanswered_time_expired',
+          });
+        } catch (_) {}
+      }
 
       // Post question conclusion message
       const sumRef = doc(db, 'school_dome_messages', `round_end_${Date.now()}`);
@@ -1227,7 +1239,7 @@ export async function closeSchoolDomeQuestion(
         userName: 'School Dome Arbiter 🛡️',
         userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         institution: 'Grobaax Arena HQ',
-        messageText: `🏁 QUESTION #${qData.questionNumber} CONCLUDED!\nOfficial Answer: « ${qData.correctAnswer} »\n\n⚡ ${survivors.length} scholars answered correctly and survived!\n👥 ${updatedActive.length} contenders remain standing for the grand prize pool.`,
+        messageText: `🏁 QUESTION #${qData.questionNumber} CONCLUDED!\nOfficial Answer: « ${qData.correctAnswer} »\n\n⚡ ${survivors.length} scholars answered correctly and survived!\n❌ ${newlyEliminated.length} contenders eliminated (time expired / unverified answer).\n👥 ${updatedActive.length} contenders remain standing for the grand prize pool.`,
         timestamp: Date.now(),
         type: 'announcement',
         reactions: { '👏': 3, '🔥': 2 },

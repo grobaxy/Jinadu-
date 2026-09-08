@@ -289,17 +289,32 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
     }
   }, [institutionId, institutionName, departmentName, level, courseCode, academicSession, semester, existingQuestions]);
 
-  // File handling
+  // File handling - strictly images only (PDF not allowed for secure in-app viewing)
   const handleFileSelect = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setError(null);
 
+    const validFiles: File[] = [];
+    let hasPdf = false;
+
     Array.from(files).forEach((file) => {
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      if (isPdf) {
+        hasPdf = true;
+        return;
+      }
       if (file.size > 10 * 1024 * 1024) {
         setError(`File ${file.name} exceeds the 10MB limit.`);
         return;
       }
+      validFiles.push(file);
+    });
 
+    if (hasPdf) {
+      setError('PDF files are not permitted. Please upload clear examination question page photos (PNG, JPG, or JPEG) so questions can be viewed securely in-app without downloading.');
+    }
+
+    validFiles.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const result = e.target?.result as string;
@@ -309,7 +324,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
             {
               url: result,
               name: file.name,
-              type: file.type.includes('pdf') ? 'pdf' : 'image',
+              type: 'image',
             },
           ]);
         }
@@ -724,7 +739,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
             {/* 6. File Upload Dropzone */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-                2. Upload Examination Question Pages (Images or PDF) <span className="text-rose-500">*</span>
+                2. Upload Examination Question Pages (Images Only) <span className="text-rose-500">*</span>
               </label>
 
               <div
@@ -746,19 +761,19 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
               >
                 <UploadCloud className="w-8 h-8 mx-auto text-slate-400 mb-2" />
                 <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  Drag & drop examination question photos or PDF here
+                  Drag & drop examination question photos here
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Supports PNG, JPG, JPEG, WEBP, or PDF (Max 10MB total). Multi-page papers supported!
+                  Supports PNG, JPG, JPEG, WEBP (Images only. PDF files are not allowed for secure in-app viewing). Multi-page papers supported!
                 </p>
 
                 <label className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-colors">
                   <Plus className="w-3.5 h-3.5" />
-                  Browse Files
+                  Browse Photos
                   <input
                     type="file"
                     multiple
-                    accept="image/*,.pdf"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
                     onChange={(e) => handleFileSelect(e.target.files)}
                     className="hidden"
                   />

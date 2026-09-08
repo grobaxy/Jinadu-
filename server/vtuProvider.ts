@@ -40,7 +40,7 @@ function extractPairgateErrorMessage(raw: any, fallback: string): string {
 export class VtuProviderService {
 
   private defaultEnvironment: 'sandbox' | 'live';
-  private cachedBalanceNGN: number = 17.00;
+  private cachedBalanceNGN: number = 114.00;
 
   constructor() {
     this.defaultEnvironment =

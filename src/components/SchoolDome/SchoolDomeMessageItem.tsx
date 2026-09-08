@@ -325,13 +325,44 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
                   <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow-xs uppercase tracking-wider">
                     <span>⚔️ Survival Round</span>
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 font-bold text-[10px] border border-blue-400/30 uppercase">
-                    {(message as any).targetTier === 'vip'
-                      ? 'VIP Contenders'
-                      : (message as any).targetTier === 'premium'
-                      ? 'Premium Contenders'
-                      : 'All Contenders (Free)'}
-                  </span>
+                  {(() => {
+                    const resolvedTier =
+                      (message as any).targetTier ||
+                      message.competitionRef?.targetTier ||
+                      ((message as any).subscriptionPlan?.toLowerCase().includes('vip') ? 'vip' :
+                       (message as any).subscriptionPlan?.toLowerCase().includes('premium') ? 'premium' : undefined);
+                    const planName =
+                      (message as any).targetPlanName ||
+                      message.competitionRef?.targetPlanName ||
+                      ((message as any).subscriptionPlan && !(message as any).subscriptionPlan.includes('Open') ? (message as any).subscriptionPlan : undefined);
+
+                    if (resolvedTier === 'vip' || planName?.toLowerCase().includes('vip') || planName?.toLowerCase().includes('titan')) {
+                      return (
+                        <span className="px-2.5 py-0.5 rounded-full bg-purple-500/25 text-purple-200 font-black text-[10px] border border-purple-400/40 uppercase tracking-wide flex items-center gap-1 shadow-xs">
+                          <span>👑 VIP Only</span>
+                        </span>
+                      );
+                    }
+                    if (resolvedTier === 'premium' || planName?.toLowerCase().includes('premium')) {
+                      return (
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/25 text-amber-200 font-black text-[10px] border border-amber-400/40 uppercase tracking-wide flex items-center gap-1 shadow-xs">
+                          <span>⭐ Premium & VIP</span>
+                        </span>
+                      );
+                    }
+                    if (planName && planName !== 'Open to All' && planName !== 'All Contenders') {
+                      return (
+                        <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/25 text-cyan-200 font-black text-[10px] border border-cyan-400/40 uppercase tracking-wide flex items-center gap-1 shadow-xs">
+                          <span>🎯 {planName}</span>
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 font-bold text-[10px] border border-emerald-400/30 uppercase tracking-wide flex items-center gap-1">
+                        <span>🟢 All Contenders (Free)</span>
+                      </span>
+                    );
+                  })()}
                   {(isStaffOrAdmin || isManagerOrAdmin) && (
                     <div className="flex items-center gap-1">
                       {onExtendTime && (

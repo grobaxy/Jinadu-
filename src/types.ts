@@ -2230,6 +2230,9 @@ export interface ChatroomLiveMessage {
     gpRewardPerWinner: number;
     winnerCountLimit: number;
     allowFreeParticipation: boolean;
+    targetTier?: 'free' | 'premium' | 'vip' | 'all';
+    targetPlanName?: string;
+    allowedPlanIds?: string[];
     timeLimitSeconds?: number;
     startAt?: number;
     endAt?: number;
@@ -2789,6 +2792,9 @@ export interface SchoolDomeMessage extends ChatroomLiveMessage {
   subscriptionTier?: string;
   subscriptionPlan?: string;
   planId?: string;
+  targetTier?: 'free' | 'premium' | 'vip' | 'all';
+  targetPlanName?: string;
+  allowedPlanIds?: string[];
 }
 
 
