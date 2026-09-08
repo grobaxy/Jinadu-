@@ -6162,11 +6162,15 @@ export const savePlatformEventToFirestore = async (
   const finalImg = eventData.imageUrl || eventData.image || defaultImg;
   const finalPrize = eventData.prizeReward ? eventData.prizeReward.trim() : '';
 
+  const resolvedTargetTab = eventData.targetTab || (eventData.category === 'school_dome' ? 'school_dome' : catObj?.tabKey || 'daily_qa');
+  const resolvedTargetSubTab = eventData.targetSubTab || catObj?.subTab || '';
+  const resolvedChannelName = eventData.channelName || catObj?.channelName || '';
+
   const payload: any = {
     id: eventId,
     eventId,
     title: (eventData.title || '').trim(),
-    category: eventData.category || 'institutional_league',
+    category: eventData.category || (resolvedTargetTab === 'school_dome' ? 'school_dome' : 'gus'),
     categoryLabel,
     host: OFFICIAL_EVENT_HOST,
     startDate: eventData.startDate || new Date().toISOString().split('T')[0],
@@ -6178,6 +6182,11 @@ export const savePlatformEventToFirestore = async (
     imageUrl: finalImg,
     imageStoragePath: eventData.imageStoragePath || '',
     status: eventData.status || 'Published',
+    targetTab: resolvedTargetTab,
+    targetSubTab: resolvedTargetSubTab,
+    channelName: resolvedChannelName,
+    channelUrl: eventData.channelUrl || '',
+    targetChannel: eventData.targetChannel || resolvedTargetTab,
     createdBy: eventData.createdBy || adminUid,
     createdByName: eventData.createdByName || adminName,
     updatedAt: serverTimestamp(),

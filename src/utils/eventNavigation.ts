@@ -28,16 +28,18 @@ export function resolveEventChannel(event: PlatformEventItem): EventTargetChanne
     };
   }
 
-  // 2. Explicit targetTab specified on the event
+  // 2. School Dome Category or explicit targetTab
+  if (event.targetTab === 'school_dome' || event.category === 'school_dome') {
+    return {
+      tab: 'school_dome',
+      label: 'School Dome Arena',
+      actionText: 'Enter School Dome Arena',
+      badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    };
+  }
+
+  // 3. Explicit targetTab specified on the event
   if (event.targetTab) {
-    if (event.targetTab === 'school_dome') {
-      return {
-        tab: 'school_dome',
-        label: 'School Dome Arena',
-        actionText: 'Enter School Dome Arena',
-        badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-      };
-    }
     if ((event.targetTab as string) === 'profile') {
       return {
         tab: 'home',

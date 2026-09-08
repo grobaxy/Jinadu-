@@ -809,6 +809,7 @@ export interface LiveActivityItem {
 }
 
 export type PlatformEventCategory =
+  | 'school_dome'
   | 'gus'
   | 'academic_olympiad'
   | 'chatroom_live'
@@ -869,6 +870,7 @@ export const PLATFORM_EVENT_CATEGORIES: {
   channelName: string;
   subTab?: 'minimart' | 'announcements' | 'campus';
 }[] = [
+  { id: 'school_dome', label: 'School Dome Arena', shortLabel: 'School Dome', tabKey: 'school_dome', channelName: 'School Dome Arena' },
   { id: 'gus', label: 'GUS Championship Event', shortLabel: 'GUS Tournament', tabKey: 'daily_qa', channelName: 'Daily Ultimate Search' },
   { id: 'academic_olympiad', label: 'Academic Olympiad Event', shortLabel: 'Academic Olympiad', tabKey: 'daily_qa', channelName: 'Daily Ultimate Search' },
   { id: 'chatroom_live', label: 'Chatroom Live Event', shortLabel: 'Chatroom Live', tabKey: 'daily_qa', channelName: 'Daily Ultimate Search Live' },

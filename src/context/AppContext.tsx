@@ -675,7 +675,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCommunitySubTab(subTab);
     setActiveTab('community');
   }, []);
-  const [currentUser, setCurrentUser] = useState<UserProfile>(MOCK_USERS.student);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
+    try {
+      const cached = typeof window !== 'undefined' ? localStorage.getItem('grobax_cached_user_profile') : null;
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.id) return parsed;
+      }
+    } catch {}
+    return MOCK_USERS.student;
+  });
   const [viewMode, setViewMode] = useState<'app' | 'admin'>('app');
   const [adminActiveTab, setAdminActiveTab] = useState<AdminTabType>('dashboard');
   const [pendingPastQuestions, setPendingPastQuestions] = useState<any[]>([]);
@@ -1924,11 +1933,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!snapshot.empty) {
             const liveEvents: EventItem[] = snapshot.docs.map((docSnap) => {
               const data = docSnap.data();
+              const resolvedTargetTab: TabType =
+                data.targetTab ||
+                (data.category === 'school_dome'
+                  ? 'school_dome'
+                  : data.category === 'gus' || data.category === 'academic_olympiad' || data.category === 'chatroom_live'
+                  ? 'daily_qa'
+                  : 'community');
+
               return {
                 id: docSnap.id,
                 eventId: docSnap.id,
                 title: data.title || '',
-                category: data.category || 'institutional_league',
+                category: data.category || (resolvedTargetTab === 'school_dome' ? 'school_dome' : 'gus'),
                 categoryLabel: data.categoryLabel,
                 host: data.host || OFFICIAL_EVENT_HOST,
                 startDate: data.startDate || '',
@@ -1940,6 +1957,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 imageUrl: data.imageUrl || data.image || '',
                 imageStoragePath: data.imageStoragePath || '',
                 status: data.status || 'Published',
+                targetTab: resolvedTargetTab,
+                targetSubTab: data.targetSubTab || undefined,
+                channelName: data.channelName || undefined,
+                channelUrl: data.channelUrl || undefined,
+                targetChannel: data.targetChannel || resolvedTargetTab,
                 createdBy: data.createdBy,
                 createdByName: data.createdByName,
                 createdAt: data.createdAt,

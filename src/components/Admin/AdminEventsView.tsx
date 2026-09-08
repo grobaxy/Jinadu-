@@ -48,13 +48,18 @@ import { useApp } from '../../context/AppContext';
 
 const EVENT_IMAGE_PRESETS = [
   {
+    name: 'School Dome Arena',
+    category: 'school_dome',
+    url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
+  },
+  {
     name: 'Institutional League',
-    category: 'institutional_league',
+    category: 'school_dome',
     url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
   },
   {
     name: 'Champions League',
-    category: 'champions_institutional_league',
+    category: 'school_dome',
     url: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=800&auto=format&fit=crop&q=80',
   },
   {
@@ -106,7 +111,7 @@ export function AdminEventsView() {
 
   // Form Fields
   const [title, setTitle] = useState<string>('');
-  const [category, setCategory] = useState<PlatformEventCategory>('institutional_league');
+  const [category, setCategory] = useState<PlatformEventCategory>('school_dome');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [eventTime, setEventTime] = useState<string>('18:00 UTC');
@@ -117,7 +122,7 @@ export function AdminEventsView() {
   );
   const [imageStoragePath, setImageStoragePath] = useState<string>('');
   const [status, setStatus] = useState<PlatformEventStatus>('Published');
-  const [targetTab, setTargetTab] = useState<TabType | ''>('');
+  const [targetTab, setTargetTab] = useState<TabType>('school_dome');
   const [targetSubTab, setTargetSubTab] = useState<'minimart' | 'announcements' | 'campus' | ''>('');
 
   // File Upload State
@@ -132,7 +137,7 @@ export function AdminEventsView() {
   const resetForm = () => {
     setEditingEvent(null);
     setTitle('');
-    setCategory('institutional_league');
+    setCategory('school_dome');
     const today = new Date().toISOString().split('T')[0];
     const twoWeeksLater = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     setStartDate(today);
@@ -143,7 +148,7 @@ export function AdminEventsView() {
     setImageUrl('https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80');
     setImageStoragePath('');
     setStatus('Published');
-    setTargetTab('');
+    setTargetTab('school_dome');
     setTargetSubTab('');
     setFormError(null);
     setUploadProgressMsg('');
@@ -157,7 +162,8 @@ export function AdminEventsView() {
   const handleOpenEditModal = (ev: PlatformEventItem) => {
     setEditingEvent(ev);
     setTitle(ev.title || '');
-    setCategory(ev.category || 'institutional_league');
+    const resolvedCat = ev.category || (ev.targetTab === 'school_dome' ? 'school_dome' : 'school_dome');
+    setCategory(resolvedCat);
     setStartDate(ev.startDate || new Date().toISOString().split('T')[0]);
     setEndDate(ev.endDate || new Date().toISOString().split('T')[0]);
     setEventTime(ev.eventTime || ev.time || '18:00 UTC');
@@ -166,7 +172,7 @@ export function AdminEventsView() {
     setImageUrl(ev.imageUrl || ev.image || 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80');
     setImageStoragePath(ev.imageStoragePath || '');
     setStatus(ev.status || 'Published');
-    setTargetTab(ev.targetTab || '');
+    setTargetTab(ev.targetTab || (resolvedCat === 'school_dome' ? 'school_dome' : 'daily_qa'));
     setTargetSubTab(ev.targetSubTab || '');
     setFormError(null);
     setUploadProgressMsg('');
@@ -245,6 +251,8 @@ export function AdminEventsView() {
 
     const finalStatus: PlatformEventStatus = targetStatus || status;
 
+    const resolvedTargetTab: TabType = (targetTab as TabType) || (category === 'school_dome' ? 'school_dome' : 'daily_qa');
+
     const payload: Partial<PlatformEventItem> = {
       id: editingEvent?.id,
       title: finalTitle,
@@ -259,8 +267,8 @@ export function AdminEventsView() {
       imageUrl: imageUrl || 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
       imageStoragePath,
       status: finalStatus,
-      targetTab: targetTab ? (targetTab as TabType) : undefined,
-      targetSubTab: targetSubTab ? (targetSubTab as any) : undefined,
+      targetTab: resolvedTargetTab,
+      targetSubTab: resolvedTargetTab === 'community' ? (targetSubTab as any || 'campus') : undefined,
     };
 
     try {
@@ -335,6 +343,8 @@ export function AdminEventsView() {
 
   const getCategoryBadgeClass = (cat: PlatformEventCategory) => {
     switch (cat) {
+      case 'school_dome':
+        return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
       case 'gus':
         return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
       case 'chatroom_live':
@@ -681,7 +691,20 @@ export function AdminEventsView() {
                   <select
                     id="event-form-category"
                     value={category}
-                    onChange={(e) => setCategory(e.target.value as PlatformEventCategory)}
+                    onChange={(e) => {
+                      const newCat = e.target.value as PlatformEventCategory;
+                      setCategory(newCat);
+                      if (newCat === 'school_dome') {
+                        setTargetTab('school_dome');
+                        setTargetSubTab('');
+                      } else if (newCat === 'gus' || newCat === 'academic_olympiad' || newCat === 'chatroom_live') {
+                        setTargetTab('daily_qa');
+                        setTargetSubTab('');
+                      } else if (newCat === 'campus_hackathon' || newCat === 'others') {
+                        setTargetTab('community');
+                        setTargetSubTab('campus');
+                      }
+                    }}
                     className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white focus:border-blue-500 focus:outline-hidden"
                   >
                     {PLATFORM_EVENT_CATEGORIES.map((c) => (
@@ -713,7 +736,7 @@ export function AdminEventsView() {
                     </label>
                   </div>
                   <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
-                    Auto-Direct Routing
+                    Direct Channel Routing
                   </span>
                 </div>
 
@@ -726,21 +749,22 @@ export function AdminEventsView() {
                       id="event-form-target-tab"
                       value={targetTab}
                       onChange={(e) => {
-                        const val = e.target.value as TabType | '';
+                        const val = e.target.value as TabType;
                         setTargetTab(val);
-                        if (val !== 'community') {
+                        if (val === 'community') {
+                          setTargetSubTab('campus');
+                        } else {
                           setTargetSubTab('');
                         }
                       }}
                       className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs focus:border-blue-500 focus:outline-hidden"
                     >
-                      <option value="">Default (Auto-mapped by Category)</option>
                       <option value="school_dome">School Dome Arena</option>
                       <option value="daily_qa">Daily Ultimate Search (GUS)</option>
                       <option value="community">Community / Campus / Mini Mart</option>
+                      <option value="library">AI Academic Library & Assistant</option>
                       <option value="home">Home Hub</option>
                       <option value="profile">Student Profile Hub</option>
-                      <option value="ai">AI Library & Academic Assistant</option>
                     </select>
                   </div>
 
@@ -751,11 +775,10 @@ export function AdminEventsView() {
                       </label>
                       <select
                         id="event-form-target-subtab"
-                        value={targetSubTab}
+                        value={targetSubTab || 'campus'}
                         onChange={(e) => setTargetSubTab(e.target.value as any)}
                         className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs focus:border-blue-500 focus:outline-hidden"
                       >
-                        <option value="">Default (Auto by Category)</option>
                         <option value="campus">Campus Network</option>
                         <option value="minimart">Mini Mart & Skills Listing</option>
                         <option value="announcements">Official Announcements</option>

@@ -7,20 +7,21 @@ interface PWASplashScreenProps {
 
 export const PWASplashScreen: React.FC<PWASplashScreenProps> = ({
   onFinish,
-  minDurationMs = 1200,
+  minDurationMs = 0,
 }) => {
-  const [isVisible, setIsVisible] = useState<boolean>(true);
+  const [isVisible, setIsVisible] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const hasShownSplash = sessionStorage.getItem('grbx_splash_shown') === 'true';
+      if (hasShownSplash) return false;
+    }
+    return true;
+  });
   const [isFadingOut, setIsFadingOut] = useState<boolean>(false);
 
   useEffect(() => {
     // Check if splash has already been shown in current session
     const hasShownSplash = sessionStorage.getItem('grbx_splash_shown') === 'true';
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-
-    // Always show splash on standalone launch, or once per web session
-    if (hasShownSplash && !isStandalone) {
+    if (hasShownSplash) {
       setIsVisible(false);
       if (onFinish) onFinish();
       return;
@@ -32,7 +33,7 @@ export const PWASplashScreen: React.FC<PWASplashScreenProps> = ({
       const hideTimer = setTimeout(() => {
         setIsVisible(false);
         if (onFinish) onFinish();
-      }, 400);
+      }, 200);
       return () => clearTimeout(hideTimer);
     }, minDurationMs);
 
