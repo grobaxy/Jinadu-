@@ -5563,6 +5563,20 @@ export const closeChatroomLiveQuestionInFirestore = async (
 
     await setDoc(qRef, { status: 'closed', updatedAt: serverTimestamp() }, { merge: true });
 
+    try {
+      const qMsgRef = doc(db, 'chatroom_live_messages', `msg_q_${questionId}`);
+      await setDoc(
+        qMsgRef,
+        {
+          'competitionRef.status': 'closed',
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('Notice updating question message on close:', e);
+    }
+
     // Announce official completion in chat
     const completionMsg: ChatroomLiveMessage = {
       id: 'msg_q_closed_' + Date.now(),
@@ -5725,12 +5739,20 @@ export const evaluateAndProcessLiveAnswer = async (
     // Rule 1: Time Limit Check (Admin programmed time)
     if (question.endAt && now > question.endAt) {
       await setDoc(qRef, { status: 'closed', updatedAt: serverTimestamp() }, { merge: true });
+      try {
+        const qMsgRef = doc(db, 'chatroom_live_messages', `msg_q_${question.id}`);
+        await setDoc(qMsgRef, { 'competitionRef.status': 'closed', updatedAt: serverTimestamp() }, { merge: true });
+      } catch {}
       return { isCorrect: false, isWinner: false, message: 'Time expired for this question.' };
     }
 
     // Rule 2: Winner Limit Check (Admin programmed amount of winners)
     if (currentWinners.length >= maxWinners) {
       await setDoc(qRef, { status: 'closed', updatedAt: serverTimestamp() }, { merge: true });
+      try {
+        const qMsgRef = doc(db, 'chatroom_live_messages', `msg_q_${question.id}`);
+        await setDoc(qMsgRef, { 'competitionRef.status': 'closed', updatedAt: serverTimestamp() }, { merge: true });
+      } catch {}
       return { isCorrect: false, isWinner: false, message: 'All winner slots have been claimed.' };
     }
 
@@ -5835,6 +5857,24 @@ export const evaluateAndProcessLiveAnswer = async (
       },
       { merge: true }
     );
+
+    // Sync question message in live feed
+    try {
+      const qMsgRef = doc(db, 'chatroom_live_messages', `msg_q_${question.id}`);
+      await setDoc(
+        qMsgRef,
+        {
+          'competitionRef.selectedWinners': updatedWinners,
+          'competitionRef.repliedUserIds': arrayUnion(user.id),
+          'competitionRef.repliedUsernames': arrayUnion(normalizedUserName),
+          'competitionRef.status': isNowFull ? 'closed' : 'active',
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('Notice syncing question message in live feed:', e);
+    }
 
     // 2. Award exact GP to user's balance in Firestore
     try {

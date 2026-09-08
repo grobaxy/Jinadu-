@@ -2203,8 +2203,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       );
 
-      // Chatroom Live Messages (Limit 100 for continuous real-time stream)
-      const chatQuery = query(collection(db, 'chatroom_live_messages'), limit(100));
+      // Chatroom Live Messages (Order by timestamp desc, limit 250 for robust real-time feed without dropped posts)
+      const chatQuery = query(
+        collection(db, 'chatroom_live_messages'),
+        orderBy('timestamp', 'desc'),
+        limit(250)
+      );
       const unsubChat = onSnapshot(
         chatQuery,
         (snapshot) => {
@@ -2233,10 +2237,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               .filter((m) => !m.isDeleted)
               .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
-            setChatroomMessages(liveMsgs);
-            try {
-              localStorage.setItem('grobax_chatroom_messages', JSON.stringify(liveMsgs));
-            } catch {}
+            setChatroomMessages(prev => {
+              // Merge snapshot with recent optimistic in-flight messages so newly sent messages never disappear
+              const map = new Map<string, ChatroomLiveMessage>();
+              liveMsgs.forEach(m => map.set(m.id, m));
+              prev.forEach(p => {
+                if (!map.has(p.id) && (Date.now() - (p.timestamp || 0)) < 45000 && !p.isDeleted) {
+                  map.set(p.id, p);
+                }
+              });
+              const combined = Array.from(map.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+              try {
+                localStorage.setItem('grobax_chatroom_messages', JSON.stringify(combined));
+              } catch {}
+              return combined;
+            });
           } else {
             try {
               const cached = localStorage.getItem('grobax_chatroom_messages');

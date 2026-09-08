@@ -12,6 +12,7 @@ import {
   Sparkles,
   HelpCircle,
   Clock,
+  Timer,
   CheckCircle2,
 } from 'lucide-react';
 import { UserBadgeItem } from '../../ui/UserBadgeItem';
@@ -97,6 +98,41 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
       isMounted = false;
     };
   }, [message.userId, (message as any).equippedBadge, isSelf, currentUser?.equippedBadge]);
+
+  // Live countdown timer for question challenges
+  const [timeLeft, setTimeLeft] = React.useState<number>(() => {
+    if (message.type !== 'question') return 0;
+    const endAt =
+      message.competitionRef?.endAt ||
+      (message.competitionRef?.timeLimitSeconds
+        ? message.timestamp + message.competitionRef.timeLimitSeconds * 1000
+        : message.timestamp + 300000);
+    return Math.max(0, Math.floor((endAt - Date.now()) / 1000));
+  });
+
+  React.useEffect(() => {
+    if (message.type !== 'question') return;
+    const endAt =
+      message.competitionRef?.endAt ||
+      (message.competitionRef?.timeLimitSeconds
+        ? message.timestamp + message.competitionRef.timeLimitSeconds * 1000
+        : message.timestamp + 300000);
+
+    const updateTimer = () => {
+      const remaining = Math.max(0, Math.floor((endAt - Date.now()) / 1000));
+      setTimeLeft(remaining);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [message.type, message.competitionRef?.endAt, message.competitionRef?.timeLimitSeconds, message.timestamp]);
+
+  const formatCountdown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const effectiveEquippedBadge =
     (message as any).equippedBadge ||
@@ -227,14 +263,40 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
 
           {/* Message Content: Question Challenge Card vs Announcement vs Normal */}
           {message.type === 'question' ? (
-            <div className="mt-2 p-3.5 bg-gradient-to-br from-blue-950/80 via-indigo-950/80 to-slate-900 border-2 border-amber-400/60 rounded-2xl text-white shadow-lg space-y-2.5">
+            <div className="mt-2 p-3.5 sm:p-4 bg-gradient-to-br from-blue-950/90 via-indigo-950/90 to-slate-900 border-2 border-amber-400/60 rounded-2xl text-white shadow-lg space-y-3">
+              {/* Header: Challenge Title, Countdown Timer, and Rewards */}
               <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-white/10">
-                <div className="flex items-center gap-1.5 font-black text-xs text-amber-300">
+                <div className="flex items-center gap-1.5 font-black text-xs sm:text-sm text-amber-300">
                   <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
                   <span>LIVE Q&A CHALLENGE #{message.competitionRef?.questionNumber || 1}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow-xs">
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Real-Time Countdown Timer Configured by Admin */}
+                  {message.competitionRef?.status === 'closed' || (message.competitionRef?.selectedWinners && message.competitionRef.selectedWinners.length >= (message.competitionRef?.winnerCountLimit || 5)) ? (
+                    <span className="px-2.5 py-1 rounded-full bg-slate-800/90 border border-slate-700 text-slate-300 font-bold text-[11px] flex items-center gap-1.5 shadow-xs">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Round Concluded</span>
+                    </span>
+                  ) : timeLeft <= 0 ? (
+                    <span className="px-2.5 py-1 rounded-full bg-rose-500/25 border border-rose-500/50 text-rose-300 font-bold text-[11px] flex items-center gap-1.5 shadow-xs">
+                      <Clock className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Time Expired (00:00)</span>
+                    </span>
+                  ) : (
+                    <span className={`px-2.5 py-1 rounded-full font-black text-[11px] sm:text-xs flex items-center gap-1.5 shadow-md border transition-all ${
+                      timeLeft <= 30
+                        ? 'bg-rose-500/30 border-rose-400 text-rose-200 animate-pulse'
+                        : timeLeft <= 60
+                        ? 'bg-amber-500/30 border-amber-400 text-amber-200'
+                        : 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
+                    }`}>
+                      <Timer className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                      <span>⏱️ Countdown: <span className="font-mono font-black tracking-wider text-white text-xs sm:text-sm">{formatCountdown(timeLeft)}</span></span>
+                    </span>
+                  )}
+
+                  <span className="px-2.5 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow-xs">
                     <Trophy className="w-3 h-3" />
                     +{message.competitionRef?.gpRewardPerWinner || 50} GP each
                   </span>
@@ -244,14 +306,41 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
                 </div>
               </div>
 
+              {/* Question Text */}
               <div className="text-sm sm:text-base font-bold text-white leading-snug">
                 {message.competitionRef?.questionText || message.messageText}
               </div>
 
+              {/* Confirmed Winners List if any */}
+              {message.competitionRef?.selectedWinners && message.competitionRef.selectedWinners.length > 0 && (
+                <div className="p-2 bg-white/5 rounded-xl border border-white/10 space-y-1">
+                  <div className="text-[11px] font-extrabold text-amber-300 flex items-center gap-1">
+                    <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Confirmed Winners ({message.competitionRef.selectedWinners.length}/{message.competitionRef.winnerCountLimit || 5}):</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {message.competitionRef.selectedWinners.map((w, wIdx) => (
+                      <span key={w.userId || wIdx} className="px-2 py-0.5 rounded-md bg-amber-400/20 border border-amber-400/30 text-[11px] font-bold text-white flex items-center gap-1">
+                        🏆 @{w.userName} <span className="text-amber-300">(+{w.gpAwarded || message.competitionRef?.gpRewardPerWinner || 50} GP)</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Footer: Time status & Action Button */}
               <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
-                <span className="text-[11px] text-blue-200/80 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-blue-300" />
-                  Type your answer in the chat
+                <span className="text-[11px] text-blue-200/90 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-300" />
+                  {message.competitionRef?.status === 'closed' || (message.competitionRef?.selectedWinners && message.competitionRef.selectedWinners.length >= (message.competitionRef?.winnerCountLimit || 5)) ? (
+                    <span>Round concluded • Submissions locked</span>
+                  ) : timeLeft <= 0 ? (
+                    <span className="text-rose-300 font-semibold">Time limit elapsed • Submissions locked</span>
+                  ) : (
+                    <span>
+                      Time Limit: <strong>{message.competitionRef?.timeLimitSeconds ? (message.competitionRef.timeLimitSeconds >= 60 ? `${Math.round(message.competitionRef.timeLimitSeconds / 60)} min` : `${message.competitionRef.timeLimitSeconds}s`) : '5 min'}</strong> • <strong>{formatCountdown(timeLeft)}</strong> remaining
+                    </span>
+                  )}
                 </span>
 
                 {hasRepliedToQuestion ? (
@@ -259,10 +348,19 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Answer Submitted (1 Attempt Allowed)</span>
                   </div>
+                ) : message.competitionRef?.status === 'closed' || (message.competitionRef?.selectedWinners && message.competitionRef.selectedWinners.length >= (message.competitionRef?.winnerCountLimit || 5)) ? (
+                  <div className="px-3 py-1 bg-slate-800 border border-slate-700 text-slate-400 text-xs font-semibold rounded-xl flex items-center gap-1">
+                    <span>Round Ended</span>
+                  </div>
+                ) : timeLeft <= 0 ? (
+                  <div className="px-3 py-1 bg-rose-950/50 border border-rose-800 text-rose-300 text-xs font-semibold rounded-xl flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-rose-400" />
+                    <span>Time Expired</span>
+                  </div>
                 ) : onReply ? (
                   <button
                     onClick={() => onReply(message)}
-                    className="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl transition cursor-pointer flex items-center gap-1 shadow-md active:scale-95"
+                    className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95"
                   >
                     <Reply className="w-3.5 h-3.5 -scale-x-100" />
                     <span>Reply to Answer</span>
