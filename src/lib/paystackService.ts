@@ -77,26 +77,29 @@ export function openPaystackCheckoutWindow(url: string) {
   } catch {}
 }
 
-// Load Paystack Inline JS library dynamically (prefer v2 modern popup)
+// Load Paystack Inline JS library dynamically (prefer v1 popup checkout)
 export function loadPaystackInlineScript(): Promise<boolean> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') return resolve(false);
-    if ((window as any).PaystackPop) return resolve(true);
+    if ((window as any).PaystackPop && typeof (window as any).PaystackPop.setup === 'function') return resolve(true);
 
-    const script = document.createElement('script');
-    script.src = 'https://js.paystack.co/v2/inline.js';
-    script.async = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => {
-      console.warn('Paystack v2 CDN load error, trying v1 backup...');
-      const backupScript = document.createElement('script');
-      backupScript.src = 'https://js.paystack.co/v1/inline.js';
-      backupScript.async = true;
-      backupScript.onload = () => resolve(true);
-      backupScript.onerror = () => resolve(false);
-      document.body.appendChild(backupScript);
-    };
-    document.body.appendChild(script);
+    try {
+      const script = document.createElement('script');
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => {
+        console.warn('Paystack inline script failed to load from CDN');
+        resolve(false);
+      };
+      // 4-second safety timeout so it never hangs or freezes the UI
+      setTimeout(() => {
+        resolve(Boolean((window as any).PaystackPop && typeof (window as any).PaystackPop.setup === 'function'));
+      }, 4000);
+      document.head.appendChild(script);
+    } catch {
+      resolve(false);
+    }
   });
 }
 
@@ -120,20 +123,19 @@ async function safeParseResponse(res: Response, fallbackErrorMessage: string): P
   }
 
   const trimmed = text.trim();
-  // Check if response was HTML (e.g. <!DOCTYPE html> or <html... from proxy or SPA fallback)
-  if (trimmed.startsWith('<') || res.headers.get('content-type')?.includes('text/html')) {
-    if (trimmed.includes('A server error') || trimmed.includes('FUNCTION_INVOCATION_FAILED')) {
-      return {
-        success: false,
-        error: 'Payment server is currently initializing. You can complete your transaction securely via the Card or Web Checkout button.',
-        isVercelFunctionError: true,
-      };
-    }
+  // Check if response was HTML or plain text server error (e.g. Vercel FUNCTION_INVOCATION_FAILED)
+  if (
+    trimmed.startsWith('<') ||
+    res.headers.get('content-type')?.includes('text/html') ||
+    trimmed.includes('A server error') ||
+    trimmed.includes('FUNCTION_INVOCATION_FAILED')
+  ) {
     return {
       success: false,
       verified: false,
       status: 'failed',
-      error: `Service returned HTML (HTTP ${res.status}). Reference may be unverified or server is refreshing.`,
+      error: 'Payment gateway service is refreshing. You can complete your transaction securely via Web Checkout.',
+      isVercelFunctionError: true,
     };
   }
 
@@ -144,7 +146,7 @@ async function safeParseResponse(res: Response, fallbackErrorMessage: string): P
       success: false,
       verified: false,
       status: 'failed',
-      error: `Server error (${res.status}): ${text.slice(0, 120).trim()}`,
+      error: `Server note (${res.status}): ${text.slice(0, 100).trim()}`,
     };
   }
 }
@@ -382,7 +384,7 @@ export async function processPaystackPayment(params: {
   const scriptLoaded = await loadPaystackInlineScript();
   const effectivePublicKey = initResult.publicKey || DEFAULT_PAYSTACK_PUBLIC_KEY;
 
-  if (scriptLoaded && (window as any).PaystackPop && effectivePublicKey) {
+  if (scriptLoaded && (window as any).PaystackPop && typeof (window as any).PaystackPop.setup === 'function' && effectivePublicKey) {
     try {
       const handler = (window as any).PaystackPop.setup({
         key: effectivePublicKey,

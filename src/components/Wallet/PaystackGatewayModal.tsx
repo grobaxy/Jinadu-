@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { Component, useState, useEffect, useRef, useCallback } from 'react';
 import {
   CreditCard,
   Building2,
@@ -39,7 +39,7 @@ interface PaystackGatewayModalProps {
   onClose: () => void;
 }
 
-export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
+const PaystackGatewayModalInner: React.FC<PaystackGatewayModalProps> = ({
   plan,
   userEmail,
   userId,
@@ -48,6 +48,9 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
   onClose,
 }) => {
   const { registerPendingPayment, triggerSubscriptionSensorCheck } = useApp();
+  const planPrice = Number(plan?.priceNaira || 0);
+  const planName = plan?.name || 'Academic Plan';
+
   // Channels: 'transfer' (default & recommended for Nigeria), 'card', 'ussd'
   const [activeChannel, setActiveChannel] = useState<'transfer' | 'card' | 'ussd'>('transfer');
   const [email, setEmail] = useState(userEmail || 'scholar@grobaax.org');
@@ -561,12 +564,12 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
   const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
   const ussdCodes: Record<string, { name: string; code: string }> = {
-    gtb: { name: 'GTBank', code: `*737*50*${plan.priceNaira}#` },
-    zenith: { name: 'Zenith Bank', code: `*966*${plan.priceNaira}#` },
-    access: { name: 'Access Bank', code: `*901*${plan.priceNaira}#` },
-    uba: { name: 'UBA', code: `*919*${plan.priceNaira}#` },
-    firstbank: { name: 'First Bank', code: `*894*${plan.priceNaira}#` },
-    stanbic: { name: 'Stanbic IBTC', code: `*909*${plan.priceNaira}#` },
+    gtb: { name: 'GTBank', code: `*737*50*${planPrice}#` },
+    zenith: { name: 'Zenith Bank', code: `*966*${planPrice}#` },
+    access: { name: 'Access Bank', code: `*901*${planPrice}#` },
+    uba: { name: 'UBA', code: `*919*${planPrice}#` },
+    firstbank: { name: 'First Bank', code: `*894*${planPrice}#` },
+    stanbic: { name: 'Stanbic IBTC', code: `*909*${planPrice}#` },
   };
 
   return (
@@ -609,7 +612,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
             <div>
               <div className="text-[11px] text-slate-400 font-medium">Subscription Upgrade:</div>
               <div className="text-sm font-bold text-white flex items-center gap-1.5">
-                <span>{plan.name}</span>
+                <span>{planName}</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-medium">
                   {plan.durationValue} {plan.durationUnit}
                 </span>
@@ -619,7 +622,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
             <div className="text-right">
               <div className="text-[11px] text-slate-400 font-medium">Total Payable:</div>
               <div className="text-xl font-black text-[#00C3F7]">
-                ₦{plan.priceNaira.toLocaleString()}.00
+                ₦{planPrice.toLocaleString()}.00
               </div>
             </div>
           </div>
@@ -746,12 +749,12 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                       </span>
                       <div className="flex items-center gap-2">
                         <strong className="text-base font-black text-slate-900 dark:text-white">
-                          ₦{plan.priceNaira.toLocaleString()}.00
+                          ₦{planPrice.toLocaleString()}.00
                         </strong>
                         <button
                           type="button"
                           onClick={() => {
-                            safeCopy(plan.priceNaira.toString(), () => {
+                            safeCopy(planPrice.toString(), () => {
                               setCopiedAmount(true);
                               setTimeout(() => setCopiedAmount(false), 2000);
                             });
@@ -867,7 +870,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                       ) : (
                         <>
                           <CheckCircle2 className="w-4 h-4" />
-                          <span>I Have Sent ₦{plan.priceNaira.toLocaleString()} (Verify Now)</span>
+                          <span>I Have Sent ₦{planPrice.toLocaleString()} (Verify Now)</span>
                         </>
                       )}
                     </button>
@@ -967,7 +970,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
                   <span className="text-slate-400">Total charge:</span>
                   <span className="font-black text-base text-[#00C3F7]">
-                    ₦{plan.priceNaira.toLocaleString()}.00
+                    ₦{planPrice.toLocaleString()}.00
                   </span>
                 </div>
               </div>
@@ -1009,7 +1012,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                    Complete your payment on the Paystack checkout window. Once paid, this screen will automatically detect it and instantly activate your <strong>{plan.name}</strong> subscription!
+                    Complete your payment on the Paystack checkout window. Once paid, this screen will automatically detect it and instantly activate your <strong>{planName}</strong> subscription!
                   </p>
 
                   {/* Primary Verify Button */}
@@ -1059,7 +1062,7 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
                   ) : (
                     <>
                       <Lock className="w-4 h-4" />
-                      <span>Pay ₦{plan.priceNaira.toLocaleString()}.00 with Card</span>
+                      <span>Pay ₦{planPrice.toLocaleString()}.00 with Card</span>
                     </>
                   )}
                 </button>
@@ -1176,5 +1179,86 @@ export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = ({
         </div>
       </div>
     </div>
+  );
+};
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  plan: SubscriptionPlan;
+  onClose: () => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class PaystackModalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.warn('PaystackModalErrorBoundary caught error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      const price = Number(this.props.plan?.priceNaira || 300);
+      const name = this.props.plan?.name || 'Academic Plan';
+
+      return (
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white dark:bg-[#021024] rounded-3xl max-w-md w-full border border-blue-500/30 p-6 space-y-4 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-950 text-[#00C3F7] mx-auto flex items-center justify-center">
+              <Building2 className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Paystack Checkout</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Payment modal refreshed. Please retry or open official Paystack checkout.
+              </p>
+            </div>
+            <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+              <div className="font-semibold text-slate-800 dark:text-slate-200">{name}</div>
+              <div className="font-mono text-[#00C3F7] font-bold">₦{price.toLocaleString()}.00</div>
+            </div>
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="w-full py-3 rounded-xl bg-[#00C3F7] hover:bg-[#00a8d6] text-[#011b33] text-xs font-black shadow flex items-center justify-center gap-2 transition cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Retry Payment</span>
+              </button>
+              <button
+                type="button"
+                onClick={this.props.onClose}
+                className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+export const PaystackGatewayModal: React.FC<PaystackGatewayModalProps> = (props) => {
+  if (!props.plan) return null;
+  return (
+    <PaystackModalErrorBoundary plan={props.plan} onClose={props.onClose}>
+      <PaystackGatewayModalInner {...props} />
+    </PaystackModalErrorBoundary>
   );
 };
