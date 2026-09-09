@@ -635,200 +635,102 @@ export const ChatroomLiveView: React.FC = () => {
         style={{ scrollBehavior: 'auto' }}
         className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 bg-slate-50/50 dark:bg-slate-950/40"
       >
-        {filteredMessages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-4 sm:p-6 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
-              <MessageSquare className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-base mb-1">
-                Daily Ultimate Search Connected
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                Be the first to post a daily question or response! Questions, answers, and discussions appear instantly for all users across the platform.
-              </p>
-            </div>
+        {filteredMessages.map((msg, idx) => {
+          const adsAfterThisMsg = adsAfterMessageMap[idx] || [];
 
-            {/* Render all active feed ads in empty state */}
-            {activeFeedAds.length > 0 && (
-              <div className="w-full max-w-lg text-left pt-2 space-y-4">
-                {activeFeedAds.map((ad, i) => (
-                  <div
-                    key={`empty_feed_ad_${ad.id}_${i}`}
-                    className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-950/20 via-white dark:via-slate-900 to-indigo-950/20 border-2 border-blue-500/30 dark:border-blue-500/30 shadow-md space-y-3"
-                  >
-                    {/* Header */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-lg shrink-0 overflow-hidden">
-                          {ad.logo && (ad.logo.startsWith('http') || ad.logo.startsWith('data:')) ? (
-                            <img src={ad.logo} alt={ad.sponsorName} className="w-full h-full object-cover" />
-                          ) : (
-                            <span>{ad.logo || '📢'}</span>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-sm font-extrabold text-slate-900 dark:text-white truncate">
-                              {ad.sponsorName}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 uppercase tracking-wider flex items-center gap-1 shrink-0">
-                              <Sparkles className="w-2.5 h-2.5 text-amber-500" />
-                              {ad.badgeLabel || 'Sponsored'}
-                            </span>
-                          </div>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 block truncate">
-                            Official Partner Initiative • Promoted
+          return (
+            <React.Fragment key={msg.id}>
+              <ChatroomMessageItem
+                message={msg}
+                currentUserId={currentUser.id}
+                isManagerOrAdmin={isManagerOrAdmin}
+                hasRepliedToQuestion={hasUserRepliedToQuestionMessage(msg)}
+                onReply={m => setReplyTarget(m)}
+                onDelete={handleDeleteMessage}
+                onMuteUser={handleMuteUser}
+                onReact={handleReactMessage}
+              />
+
+              {/* Embedded Live Feed Ad Cards */}
+              {adsAfterThisMsg.map((ad, adIdx) => (
+                <div
+                  key={`feed_ad_${ad.id}_${idx}_${adIdx}`}
+                  className="my-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-950/20 via-white dark:via-slate-900 to-indigo-950/20 border-2 border-blue-500/30 dark:border-blue-500/30 shadow-md space-y-3 transition-all hover:border-blue-400/50"
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-lg shrink-0 overflow-hidden">
+                        {ad.logo && (ad.logo.startsWith('http') || ad.logo.startsWith('data:')) ? (
+                          <img src={ad.logo} alt={ad.sponsorName} className="w-full h-full object-cover" />
+                        ) : (
+                          <span>{ad.logo || '📢'}</span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-sm font-extrabold text-slate-900 dark:text-white truncate">
+                            {ad.sponsorName}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 uppercase tracking-wider flex items-center gap-1 shrink-0">
+                            <Sparkles className="w-2.5 h-2.5 text-amber-500" />
+                            {ad.badgeLabel || 'Sponsored'}
                           </span>
                         </div>
-                      </div>
-
-                      {ad.tag && (
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">
-                          #{ad.tag}
+                        <span className="text-xs text-slate-500 dark:text-slate-400 block truncate">
+                          Official Partner Initiative • Promoted
                         </span>
-                      )}
-                    </div>
-
-                    {/* Title & Body */}
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
-                        {ad.title}
-                      </h4>
-                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                        {ad.text}
-                      </p>
-                    </div>
-
-                    {/* Banner */}
-                    {ad.banner && (
-                      <div className="rounded-xl overflow-hidden max-h-56 border border-slate-200 dark:border-slate-800 shadow-xs">
-                        <img src={ad.banner} alt={ad.title} className="w-full h-full object-cover" />
                       </div>
-                    )}
+                    </div>
 
-                    {/* Footer */}
-                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                        <Shield className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        <span className="truncate">Verified Grobaax Institutional Ad</span>
+                    {ad.tag && (
+                      <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">
+                        #{ad.tag}
                       </span>
-
-                      {ad.destinationUrl && (
-                        <a
-                          href={ad.destinationUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer shrink-0"
-                        >
-                          <span>{ad.ctaText || 'Learn More'}</span>
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          filteredMessages.map((msg, idx) => {
-            const adsAfterThisMsg = adsAfterMessageMap[idx] || [];
-
-            return (
-              <React.Fragment key={msg.id}>
-                <ChatroomMessageItem
-                  message={msg}
-                  currentUserId={currentUser.id}
-                  isManagerOrAdmin={isManagerOrAdmin}
-                  hasRepliedToQuestion={hasUserRepliedToQuestionMessage(msg)}
-                  onReply={m => setReplyTarget(m)}
-                  onDelete={handleDeleteMessage}
-                  onMuteUser={handleMuteUser}
-                  onReact={handleReactMessage}
-                />
-
-                {/* Embedded Live Feed Ad Cards */}
-                {adsAfterThisMsg.map((ad, adIdx) => (
-                  <div
-                    key={`feed_ad_${ad.id}_${idx}_${adIdx}`}
-                    className="my-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-950/20 via-white dark:via-slate-900 to-indigo-950/20 border-2 border-blue-500/30 dark:border-blue-500/30 shadow-md space-y-3 transition-all hover:border-blue-400/50"
-                  >
-                    {/* Header */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-lg shrink-0 overflow-hidden">
-                          {ad.logo && (ad.logo.startsWith('http') || ad.logo.startsWith('data:')) ? (
-                            <img src={ad.logo} alt={ad.sponsorName} className="w-full h-full object-cover" />
-                          ) : (
-                            <span>{ad.logo || '📢'}</span>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-sm font-extrabold text-slate-900 dark:text-white truncate">
-                              {ad.sponsorName}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 uppercase tracking-wider flex items-center gap-1 shrink-0">
-                              <Sparkles className="w-2.5 h-2.5 text-amber-500" />
-                              {ad.badgeLabel || 'Sponsored'}
-                            </span>
-                          </div>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 block truncate">
-                            Official Partner Initiative • Promoted
-                          </span>
-                        </div>
-                      </div>
-
-                      {ad.tag && (
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">
-                          #{ad.tag}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Title & Body */}
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
-                        {ad.title}
-                      </h4>
-                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                        {ad.text}
-                      </p>
-                    </div>
-
-                    {/* Banner */}
-                    {ad.banner && (
-                      <div className="rounded-xl overflow-hidden max-h-56 border border-slate-200 dark:border-slate-800 shadow-xs">
-                        <img src={ad.banner} alt={ad.title} className="w-full h-full object-cover" />
-                      </div>
                     )}
-
-                    {/* Footer */}
-                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                        <Shield className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        <span className="truncate">Verified Grobaax Institutional Ad</span>
-                      </span>
-
-                      {ad.destinationUrl && (
-                        <a
-                          href={ad.destinationUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer shrink-0"
-                        >
-                          <span>{ad.ctaText || 'Learn More'}</span>
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                    </div>
                   </div>
-                ))}
-              </React.Fragment>
-            );
-          })
-        )}
+
+                  {/* Title & Body */}
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
+                      {ad.title}
+                    </h4>
+                    <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                      {ad.text}
+                    </p>
+                  </div>
+
+                  {/* Banner */}
+                  {ad.banner && (
+                    <div className="rounded-xl overflow-hidden max-h-56 border border-slate-200 dark:border-slate-800 shadow-xs">
+                      <img src={ad.banner} alt={ad.title} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+
+                  {/* Footer */}
+                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <Shield className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      <span className="truncate">Verified Grobaax Institutional Ad</span>
+                    </span>
+
+                    {ad.destinationUrl && (
+                      <a
+                        href={ad.destinationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer shrink-0"
+                      >
+                        <span>{ad.ctaText || 'Learn More'}</span>
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </React.Fragment>
+          );
+        })}
 
         <div ref={messagesEndRef} />
       </div>

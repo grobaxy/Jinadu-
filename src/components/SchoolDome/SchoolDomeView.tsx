@@ -22,6 +22,7 @@ import {
   checkScholarSchoolDomePlanEligibility,
   closeSchoolDomeQuestion,
   extendSchoolDomeQuestionTime,
+  DEFAULT_INITIAL_MESSAGES,
 } from '../../lib/schoolDomeService';
 import {
   getTodayLocalDateString,
@@ -89,7 +90,16 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
 
   const [currentSeason, setCurrentSeason] = useState<SchoolDomeSeason | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<SchoolDomeQuestion | null>(null);
-  const [messages, setMessages] = useState<SchoolDomeMessage[]>([]);
+  const [messages, setMessages] = useState<SchoolDomeMessage[]>(() => {
+    try {
+      const cached = localStorage.getItem('grobax_school_dome_cached_messages');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_INITIAL_MESSAGES;
+  });
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'arena' | 'results'>(initialTab);
 
@@ -107,18 +117,24 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
     return () => unsubSeason();
   }, []);
 
+  // Subscribe to live messages immediately so chats are visible right away
+  useEffect(() => {
+    const seasonId = currentSeason?.id || 'season_dome_1';
+    const unsubMsg = subscribeSchoolDomeMessages(seasonId, (msgs) => {
+      setMessages(msgs);
+      try {
+        localStorage.setItem('grobax_school_dome_cached_messages', JSON.stringify(msgs));
+      } catch {}
+    });
+    return () => unsubMsg();
+  }, [currentSeason?.id]);
+
   useEffect(() => {
     if (!currentSeason?.id) return;
     const unsubQ = subscribeSchoolDomeActiveQuestion(currentSeason.id, (q) => {
       setActiveQuestion(q);
     });
-    const unsubMsg = subscribeSchoolDomeMessages(currentSeason.id, (msgs) => {
-      setMessages(msgs);
-    });
-    return () => {
-      unsubQ();
-      unsubMsg();
-    };
+    return () => unsubQ();
   }, [currentSeason?.id]);
 
   // Grobaax central subscription source of truth
@@ -723,41 +739,25 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
             style={{ scrollBehavior: 'auto' }}
             className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 bg-slate-50/50 dark:bg-slate-950/40"
           >
-        {filteredMessages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-4 sm:p-6 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
-              <MessageSquare className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-base mb-1">
-                School Dome Connected
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                Be the first to post a question or response! Questions, answers, and discussions appear instantly for all users across the platform.
-              </p>
-            </div>
-          </div>
-        ) : (
-          filteredMessages.map((msg) => (
-            <SchoolDomeMessageItem
-              key={msg.id}
-              message={msg}
-              currentUserId={currentUser.id}
-              isManagerOrAdmin={isStaffOrAdmin}
-              hasRepliedToQuestion={hasUserRepliedToQuestionMessage(msg)}
-              isSpectator={isSpectator}
-              onReply={(m) => setReplyTarget(m)}
-              onDelete={handleDeleteMessage}
-              onMuteUser={handleMuteUser}
-              onReact={handleReactMessage}
-              onCloseQuestion={isStaffOrAdmin ? (qId) => closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', qId) : undefined}
-              onExtendTime={isStaffOrAdmin ? (qId, extra) => extendSchoolDomeQuestionTime(qId, extra) : undefined}
-            />
-          ))
-        )}
+            {filteredMessages.map((msg) => (
+              <SchoolDomeMessageItem
+                key={msg.id}
+                message={msg}
+                currentUserId={currentUser.id}
+                isManagerOrAdmin={isStaffOrAdmin}
+                hasRepliedToQuestion={hasUserRepliedToQuestionMessage(msg)}
+                isSpectator={isSpectator}
+                onReply={(m) => setReplyTarget(m)}
+                onDelete={handleDeleteMessage}
+                onMuteUser={handleMuteUser}
+                onReact={handleReactMessage}
+                onCloseQuestion={isStaffOrAdmin ? (qId) => closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', qId) : undefined}
+                onExtendTime={isStaffOrAdmin ? (qId, extra) => extendSchoolDomeQuestionTime(qId, extra) : undefined}
+              />
+            ))}
 
-        <div ref={messagesEndRef} />
-      </div>
+            <div ref={messagesEndRef} />
+          </div>
 
       {/* Floating Scroll To Bottom Button */}
       {showScrollBottom && (
