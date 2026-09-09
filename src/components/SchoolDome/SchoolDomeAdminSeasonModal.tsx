@@ -40,8 +40,13 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'manage' | 'new_season'>(initialTab);
 
+  // Determine smart default for next season number
+  const isFreshUnplayed = (!season.firstQuestionLaunched && (season.currentQuestionNumber || 0) === 0 && (!season.winners || season.winners.length === 0));
+  const initialCalculatedNum = isFreshUnplayed ? (season.seasonNumber || 1) : ((season.seasonNumber || 0) + 1);
+
   // New Season Form State
-  const [newTitle, setNewTitle] = useState(`School Dome — Season ${(season.seasonNumber || 1) + 1}`);
+  const [newSeasonNumber, setNewSeasonNumber] = useState<number>(initialCalculatedNum);
+  const [newTitle, setNewTitle] = useState(`Season #${initialCalculatedNum} — School Dome`);
   const [newPrizePool, setNewPrizePool] = useState(50000);
   const [newCurrency, setNewCurrency] = useState<'NGN' | 'GP'>('GP');
   const [newDescription, setNewDescription] = useState('');
@@ -95,7 +100,7 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
 
       await startNewSchoolDomeSeason(
         {
-          seasonNumber: (season.seasonNumber || 1) + 1,
+          seasonNumber: Number(newSeasonNumber) || 1,
           title: newTitle.trim(),
           prizePool: Number(newPrizePool),
           prizeCurrency: newCurrency,
@@ -300,18 +305,38 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
         {/* Start New Season Form */}
         {activeSubTab === 'new_season' && (
           <form onSubmit={handleStartNewSeason} className="p-5 space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Season Title *
-              </label>
-              <input
-                type="text"
-                required
-                value={newTitle}
-                onChange={e => setNewTitle(e.target.value)}
-                placeholder="e.g. School Dome — Season 2: Clash of Champions"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="space-y-1.5 sm:col-span-1">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Season # *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  value={newSeasonNumber}
+                  onChange={e => {
+                    const num = Math.max(1, Number(e.target.value) || 1);
+                    setNewSeasonNumber(num);
+                    setNewTitle(`Season #${num} — School Dome`);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 font-bold"
+                />
+              </div>
+
+              <div className="space-y-1.5 sm:col-span-3">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Season Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newTitle}
+                  onChange={e => setNewTitle(e.target.value)}
+                  placeholder="e.g. Season #1 — School Dome"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

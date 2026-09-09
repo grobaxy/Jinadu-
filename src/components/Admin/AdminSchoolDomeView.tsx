@@ -14,6 +14,7 @@ import {
   closeSchoolDomeQuestion,
   extendSchoolDomeQuestionTime,
   endSchoolDomeSeasonAndDistributePrize,
+  deleteAllSchoolDomeSeasons,
 } from '../../lib/schoolDomeService';
 import { CreateSchoolDomeQuestionModal } from '../SchoolDome/CreateSchoolDomeQuestionModal';
 import { SchoolDomeAdminSeasonModal } from '../SchoolDome/SchoolDomeAdminSeasonModal';
@@ -30,6 +31,8 @@ import {
   Award,
   Sparkles,
   ShieldCheck,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const AdminSchoolDomeView: React.FC = () => {
@@ -53,6 +56,32 @@ export const AdminSchoolDomeView: React.FC = () => {
     totalPrize: number;
     currency: string;
   } | null>(null);
+
+  // Delete All Seasons state
+  const [isConfirmDeleteAllModalOpen, setIsConfirmDeleteAllModalOpen] = useState(false);
+  const [isDeletingAllSeasons, setIsDeletingAllSeasons] = useState(false);
+  const [deleteAllSuccessMsg, setDeleteAllSuccessMsg] = useState<string | null>(null);
+  const [deleteAllError, setDeleteAllError] = useState<string | null>(null);
+
+  const handleExecuteDeleteAllSeasons = async () => {
+    try {
+      setIsDeletingAllSeasons(true);
+      setDeleteAllError(null);
+      setDeleteAllSuccessMsg(null);
+
+      const freshSeason = await deleteAllSchoolDomeSeasons(currentUser?.id, currentUser?.name);
+      setCurrentSeason(freshSeason);
+      setDeleteAllSuccessMsg('All seasons and past champions have been permanently deleted! School Dome has restarted fresh from Season 1.');
+      setTimeout(() => {
+        setIsConfirmDeleteAllModalOpen(false);
+        setDeleteAllSuccessMsg(null);
+      }, 2000);
+    } catch (err: any) {
+      setDeleteAllError(err?.message || 'Failed to delete all seasons.');
+    } finally {
+      setIsDeletingAllSeasons(false);
+    }
+  };
 
   useEffect(() => {
     const unsub = subscribeSchoolDomeActiveSeason((s) => {
@@ -196,6 +225,21 @@ export const AdminSchoolDomeView: React.FC = () => {
             >
               <Settings className="w-4 h-4 text-amber-500" />
               <span>Settings</span>
+            </button>
+
+            {/* DELETE ALL SEASONS Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setDeleteAllError(null);
+                setDeleteAllSuccessMsg(null);
+                setIsConfirmDeleteAllModalOpen(true);
+              }}
+              className="px-3.5 py-2 bg-rose-600/10 hover:bg-rose-600/20 text-rose-700 dark:text-rose-400 border border-rose-500/30 text-xs font-black rounded-xl transition hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1.5"
+              title="Delete all previous seasons and wipe the Champions page to start fresh from Season 1"
+            >
+              <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+              <span>Delete All Seasons</span>
             </button>
           </div>
         )}
@@ -440,6 +484,93 @@ export const AdminSchoolDomeView: React.FC = () => {
                         )}
                       </button>
                     </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Confirm Delete All Seasons Modal */}
+          {isConfirmDeleteAllModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+              <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-rose-500/40 rounded-3xl shadow-2xl p-5 sm:p-6 space-y-4">
+                <button
+                  type="button"
+                  disabled={isDeletingAllSeasons}
+                  onClick={() => setIsConfirmDeleteAllModalOpen(false)}
+                  className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                      Danger Zone • Irreversible
+                    </span>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                      Delete All Seasons
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-xs text-rose-800 dark:text-rose-300 space-y-2 leading-relaxed">
+                  <p className="font-bold">
+                    What this action will do:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-[11px] font-medium">
+                    <li>Permanently delete all previous seasons (Season 1, Season 2, Season 3, Season 4, Season 5, etc.) from the database.</li>
+                    <li>Wipe all previous question challenges and participant records.</li>
+                    <li>Clear the Champions page completely to start with a fresh slate.</li>
+                    <li>Reset the School Dome Arena so you can <strong>start fresh from Season 1</strong>.</li>
+                  </ul>
+                </div>
+
+                {deleteAllSuccessMsg && (
+                  <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>{deleteAllSuccessMsg}</span>
+                  </div>
+                )}
+
+                {deleteAllError && (
+                  <div className="p-3 rounded-xl bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-500/30 text-xs font-bold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{deleteAllError}</span>
+                  </div>
+                )}
+
+                {!deleteAllSuccessMsg && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={isDeletingAllSeasons}
+                      onClick={() => setIsConfirmDeleteAllModalOpen(false)}
+                      className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDeletingAllSeasons}
+                      onClick={handleExecuteDeleteAllSeasons}
+                      className="flex-1 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 disabled:opacity-50 text-white font-black text-xs rounded-xl transition cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+                    >
+                      {isDeletingAllSeasons ? (
+                        <>
+                          <span className="animate-spin text-xs">↻</span>
+                          <span>Deleting Seasons...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4" />
+                          <span>Yes, Delete All Seasons</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 )}
               </div>

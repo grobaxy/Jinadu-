@@ -80,7 +80,7 @@ export const PWASplashScreen: React.FC<PWASplashScreenProps> = ({
             <span>Grobaax</span>
           </h1>
           <p className="text-xs sm:text-sm font-medium text-blue-200/90 tracking-wide leading-relaxed">
-            An Academic Network that connect students together.
+            Represent your school title, conquer academic arenas, and connect with scholars nationwide.
           </p>
         </div>
 

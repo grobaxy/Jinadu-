@@ -67,7 +67,7 @@ export const AuthLandingScreen: React.FC = () => {
               </span>
             </h1>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden md:block">
-              An Academic Network that connect students together.
+              Represent your school title, conquer academic arenas, and connect with scholars nationwide.
             </p>
           </div>
         </div>
@@ -107,7 +107,7 @@ export const AuthLandingScreen: React.FC = () => {
           </h2>
 
           <p className="text-blue-600 dark:text-blue-400 text-base sm:text-xl font-bold tracking-tight">
-            An Academic Network that connect students together.
+            Represent your school title, conquer academic arenas, and connect with scholars nationwide.
           </p>
 
           <p className="text-slate-600 dark:text-slate-300 text-sm sm:text-base max-w-2xl mx-auto font-medium leading-relaxed">

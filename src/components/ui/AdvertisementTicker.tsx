@@ -27,7 +27,7 @@ export const AdvertisementTicker: React.FC = () => {
       title: 'Grobaax Academic Network',
       sponsorName: 'Grobaax',
       logo: '🎓',
-      text: 'Grobaax - An Academic Network that connect students together.',
+      text: 'Grobaax - Represent your school title, conquer academic arenas, and connect with scholars nationwide.',
       status: 'Active',
       priority: 'Top',
       destinationUrl: '#home',

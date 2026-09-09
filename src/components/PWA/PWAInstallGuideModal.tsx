@@ -63,7 +63,7 @@ export const PWAInstallGuideModal: React.FC<PWAInstallGuideModalProps> = ({
               <Sparkles className="w-4 h-4 text-blue-500" />
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              An Academic Network that connect students together.
+              Represent your school title, conquer academic arenas, and connect with scholars nationwide.
             </p>
           </div>
         </div>

@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   increment,
   writeBatch,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import {
@@ -269,24 +270,25 @@ export const COMPLETED_SEASON_1: SchoolDomeSeason = {
   ],
 };
 
-// Default initial live season for School Dome (Season 2)
+// Default initial live season for School Dome (Season 1)
 export const DEFAULT_INITIAL_SEASON: SchoolDomeSeason = {
-  id: 'season_dome_2',
-  seasonNumber: 2,
-  title: 'Season 2',
+  id: 'season_dome_1',
+  seasonNumber: 1,
+  title: 'Season #1 — School Dome',
   description: 'The Ultimate Inter-Campus Elimination Arena. Answer correctly to survive each question. The prize pool is divided equally among the last scholars standing!',
   prizePool: 50000,
   prizeCurrency: 'GP',
   status: 'active',
-  registeredUserIds: ['user_futo_1', 'user_unilag_2', 'user_oau_3', 'user_ui_4', 'user_abu_5'],
-  activeUserIds: ['user_futo_1', 'user_unilag_2', 'user_oau_3', 'user_ui_4', 'user_abu_5'],
+  registeredUserIds: [],
+  activeUserIds: [],
   eliminatedUserIds: [],
-  isRegistrationLocked: true,
-  firstQuestionLaunched: true,
-  currentQuestionNumber: 1,
-  totalQuestionsLaunched: 1,
-  createdAt: Date.now() - 1000 * 60 * 30,
-  startedAt: Date.now() - 1000 * 60 * 25,
+  isRegistrationLocked: false,
+  firstQuestionLaunched: false,
+  currentQuestionNumber: 0,
+  totalQuestionsLaunched: 0,
+  createdAt: Date.now(),
+  startedAt: Date.now(),
+  winners: [],
   rules: [
     'Registration is completely free and open to all verified scholars before Question #1 begins.',
     'Once Question #1 is launched by the Arbiter, registration is permanently locked for the season.',
@@ -557,26 +559,19 @@ export function subscribeSchoolDomeSeasons(
           }));
         }
 
-        // Ensure permanent Season 1 completed result is always preserved
-        const hasSeason1 = list.some(s => s.seasonNumber === 1 && s.status === 'ended');
-        if (!hasSeason1) {
-          list.push(COMPLETED_SEASON_1);
-          setDoc(doc(db, 'school_dome_seasons', COMPLETED_SEASON_1.id), COMPLETED_SEASON_1).catch(() => {});
-        }
-
-        // Order descending: latest seasons first, Season 1 permanently included
+        // Order descending: latest seasons first
         list.sort((a, b) => (b.seasonNumber || 0) - (a.seasonNumber || 0));
         callback(list);
       },
       (err) => {
         console.warn('School Dome seasons snapshot notice:', err);
-        callback([DEFAULT_INITIAL_SEASON, COMPLETED_SEASON_1]);
+        callback([]);
       }
     );
 
     return unsubscribe;
   } catch {
-    callback([DEFAULT_INITIAL_SEASON, COMPLETED_SEASON_1]);
+    callback([]);
     return () => {};
   }
 }
@@ -1564,4 +1559,92 @@ export async function updateSchoolDomeSeasonRules(
     throw err;
   }
 }
+
+/**
+ * Admin: Delete All Seasons & wipe Champions page completely,
+ * resetting the School Dome Arena back to a fresh Season 1.
+ */
+export async function deleteAllSchoolDomeSeasons(
+  adminUid?: string,
+  adminName?: string
+): Promise<SchoolDomeSeason> {
+  try {
+    // 1. Fetch and delete all existing season documents from Firestore
+    const seasonsCol = collection(db, 'school_dome_seasons');
+    const seasonsSnap = await getDocs(seasonsCol);
+    const deleteSeasonPromises: Promise<void>[] = [];
+    seasonsSnap.forEach((d) => {
+      deleteSeasonPromises.push(deleteDoc(doc(db, 'school_dome_seasons', d.id)));
+    });
+    await Promise.all(deleteSeasonPromises);
+
+    // 2. Delete all questions from Firestore
+    const questionsCol = collection(db, 'school_dome_questions');
+    const questionsSnap = await getDocs(questionsCol);
+    const deleteQPromises: Promise<void>[] = [];
+    questionsSnap.forEach((d) => {
+      deleteQPromises.push(deleteDoc(doc(db, 'school_dome_questions', d.id)));
+    });
+    await Promise.all(deleteQPromises);
+
+    // 3. Create fresh Season 1 document
+    const freshSeason1: SchoolDomeSeason = {
+      id: 'season_dome_1',
+      seasonNumber: 1,
+      title: 'Season #1 — School Dome',
+      description: 'The Ultimate Inter-Campus Elimination Arena. Answer correctly to survive each question. The prize pool is divided equally among the last scholars standing!',
+      prizePool: 50000,
+      prizeCurrency: 'GP',
+      status: 'active',
+      registeredUserIds: [],
+      activeUserIds: [],
+      eliminatedUserIds: [],
+      isRegistrationLocked: false,
+      firstQuestionLaunched: false,
+      currentQuestionNumber: 0,
+      totalQuestionsLaunched: 0,
+      createdAt: Date.now(),
+      startedAt: Date.now(),
+      winners: [],
+      rules: [
+        'Registration is completely free and open to all verified scholars before Question #1 begins.',
+        'Once Question #1 is launched by the Arbiter, registration is permanently locked for the season.',
+        'Each scholar receives exactly ONE attempt per live question challenge.',
+        'Submitting the correct answer within the time limit secures advancement to the next question.',
+        'Failing to answer or submitting an incorrect answer results in immediate elimination.',
+        'The entire GP prize pool is divided equally among the Last Scholars Standing when the season concludes.',
+      ],
+    };
+
+    await setDoc(doc(db, 'school_dome_seasons', freshSeason1.id), freshSeason1);
+
+    // Clear local storage fallback cache if present
+    try {
+      localStorage.setItem('grobax_school_dome_active_season', JSON.stringify(freshSeason1));
+    } catch {}
+
+    // 4. Send official announcement in Arena messages
+    const annRef = doc(db, 'school_dome_messages', `ann_reset_${Date.now()}`);
+    await setDoc(annRef, {
+      id: annRef.id,
+      seasonId: freshSeason1.id,
+      userId: adminUid || 'grobax_arbiter',
+      userName: adminName ? `${adminName} 🛡️` : 'School Dome Arbiter 🛡️',
+      userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      institution: 'Grobaax Arena HQ',
+      isPremium: true,
+      isVip: true,
+      messageText: `⚡ ARENA RESET: All previous seasons and champion records have been deleted by the Arbiter. School Dome has officially restarted from Season #1! Registration is now open to all scholars!`,
+      timestamp: Date.now(),
+      type: 'announcement',
+      reactions: { '🔥': 5, '⚔️': 4 },
+    });
+
+    return freshSeason1;
+  } catch (err) {
+    console.error('Error deleting all School Dome seasons:', err);
+    throw err;
+  }
+}
+
 
