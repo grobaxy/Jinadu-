@@ -94,6 +94,7 @@ class GrobaaxNotificationService {
     library: 0,
     events: 0,
     badges: 0,
+    contact: 0,
   };
 
   constructor() {
@@ -518,6 +519,7 @@ class GrobaaxNotificationService {
       library: adminLibCount,
       events: this.eventCounts['admin_events'] || 0,
       badges: this.eventCounts['admin_badges'] || 0,
+      contact: this.eventCounts['admin_contact'] || 0,
     };
 
     // Broadcast to all active subscribers

@@ -135,7 +135,8 @@ export type AdminTabType =
   | 'notifications'
   | 'subscriptions'
   | 'library'
-  | 'settings';
+  | 'settings'
+  | 'contact';
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 

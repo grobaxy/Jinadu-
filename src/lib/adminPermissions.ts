@@ -93,6 +93,7 @@ export function getTabsForRole(role?: ManagerRole | null, uid?: string | null): 
       'subscriptions',
       'library',
       'settings',
+      'contact',
     ];
   }
 
@@ -122,6 +123,7 @@ export function getTabsForRole(role?: ManagerRole | null, uid?: string | null): 
       'subscriptions',
       'library',
       'settings',
+      'contact',
     ];
   }
 

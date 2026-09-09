@@ -6,6 +6,7 @@ import { BadgePurchaseModal } from './BadgePurchaseModal';
 import { ProfilePictureUploader } from './ProfilePictureUploader';
 import { AirtimeDataPurchaseModal } from './AirtimeDataPurchaseModal';
 import { PaystackGatewayModal } from './PaystackGatewayModal';
+import { ContactSupportTab } from './ContactSupportTab';
 import {
   ACADEMIC_STRUCTURE_BY_CATEGORY,
   getFacultiesByCategory,
@@ -73,6 +74,7 @@ import {
   CheckCircle,
   ArrowUpRight,
   ArrowDownRight,
+  Headphones,
   Search,
   Filter,
   Receipt,
@@ -151,7 +153,7 @@ export const WalletModal: React.FC = () => {
   );
 
   const [activeTab, setActiveTab] = useState<
-    'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade'
+    'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade' | 'contact'
   >(walletModalTab === 'admin' ? 'profile' : walletModalTab || 'profile');
 
   // Plan Upgrade / Checkout Modal State
@@ -560,6 +562,7 @@ export const WalletModal: React.FC = () => {
           { id: 'withdraw', label: 'Cash Out GP', icon: Banknote },
           { id: 'history', label: 'Transaction Logs', icon: History },
           { id: 'upgrade', label: 'Membership Tiers', icon: Crown },
+          { id: 'contact', label: 'Contact Us', icon: Headphones, badge: 'Support' },
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -2715,6 +2718,14 @@ export const WalletModal: React.FC = () => {
               </div>
             );
           })()}
+
+          {/* TAB 7: CONTACT US & SUPPORT */}
+          {activeTab === 'contact' && (
+            <ContactSupportTab
+              userName={currentUser.name || currentUser.fullName || 'Scholar'}
+              userEmail={currentUser.email || (currentUser as any).registeredEmail}
+            />
+          )}
         </div>
       </div>
 

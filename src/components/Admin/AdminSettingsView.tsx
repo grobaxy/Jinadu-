@@ -16,14 +16,16 @@ import {
   Server,
   RefreshCw,
   Lock,
+  Headphones,
 } from 'lucide-react';
+import { AdminContactSupportView } from './AdminContactSupportView';
 
 export function AdminSettingsView() {
   const { systemSettings, updateSystemSettings } = useApp();
   const [formData, setFormData] = useState<SystemSettings>(systemSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'general' | 'academic' | 'competition' | 'wallet' | 'infrastructure'>('general');
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'general' | 'academic' | 'competition' | 'wallet' | 'infrastructure' | 'contact'>('general');
 
   // Keep local form in sync if context changes
   React.useEffect(() => {
@@ -71,6 +73,7 @@ export function AdminSettingsView() {
           { id: 'competition', label: 'Speed Clock & Rules', icon: Clock },
           { id: 'wallet', label: 'Economy & GP Limits', icon: Coins },
           { id: 'infrastructure', label: 'Firebase & Security', icon: Server },
+          { id: 'contact', label: 'Contact Channels & Support', icon: Headphones },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -445,6 +448,13 @@ export function AdminSettingsView() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB 6: CONTACT CHANNELS */}
+        {activeSettingsTab === 'contact' && (
+          <div className="space-y-6">
+            <AdminContactSupportView />
           </div>
         )}
 

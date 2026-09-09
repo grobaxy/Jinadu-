@@ -26,6 +26,7 @@ import { AdminLibraryView } from './AdminLibraryView';
 import { AdminAirtimeDataView } from './AdminAirtimeDataView';
 import { AdminTransactionsView } from './AdminTransactionsView';
 import { AdminSchoolDomeView } from './AdminSchoolDomeView';
+import { AdminContactSupportView } from './AdminContactSupportView';
 
 import {
   LayoutDashboard,
@@ -54,6 +55,7 @@ import {
   CheckCheck,
   Inbox,
   Swords,
+  Headphones,
 } from 'lucide-react';
 
 interface AdminPanelLayoutProps {
@@ -153,6 +155,7 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
       items: [
         { id: 'library' as AdminTabType, label: 'Past Questions Library', icon: BookOpen, badge: 'Vault' },
         { id: 'notifications' as AdminTabType, label: 'Notifications Dispatcher', icon: Bell },
+        { id: 'contact' as AdminTabType, label: 'Contact Channels & Support', icon: Headphones, badge: 'Channels' },
         { id: 'settings' as AdminTabType, label: 'System Settings', icon: Settings },
       ],
     },
@@ -215,6 +218,8 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
         return <AdminNotificationsView />;
       case 'settings':
         return <AdminSettingsView />;
+      case 'contact':
+        return <AdminContactSupportView />;
       case 'library':
         return <AdminLibraryView />;
       default:

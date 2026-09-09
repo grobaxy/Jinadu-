@@ -170,9 +170,9 @@ interface AppContextType {
   toggleTheme: () => void;
   isWalletModalOpen: boolean;
   setIsWalletModalOpen: (open: boolean) => void;
-  walletModalTab: 'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade';
-  setWalletModalTab: (tab: 'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade') => void;
-  openWalletModal: (initialTab?: 'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade') => void;
+  walletModalTab: 'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade' | 'contact';
+  setWalletModalTab: (tab: 'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade' | 'contact') => void;
+  openWalletModal: (initialTab?: 'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade' | 'contact') => void;
   subscriptionPlans: SubscriptionPlan[];
   activeSubscriptionPlans: SubscriptionPlan[];
   subscribeToPlan: (
@@ -696,7 +696,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [walletModalTab, setWalletModalTab] = useState<
-    'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade'
+    'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade' | 'contact'
   >('profile');
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(() => {
     try {
@@ -812,7 +812,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const openWalletModal = (
-    initialTab: 'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade' = 'profile'
+    initialTab: 'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade' | 'contact' = 'profile'
   ) => {
     setWalletModalTab(initialTab);
     setIsWalletModalOpen(true);
