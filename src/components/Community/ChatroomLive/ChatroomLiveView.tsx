@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { useApp, checkIsUserSubscribed } from '../../../context/AppContext';
 import {
   ChatroomLiveMessage,
@@ -215,21 +215,78 @@ export const ChatroomLiveView: React.FC = () => {
   const [activePinnedAdIndex, setActivePinnedAdIndex] = useState(0);
   const [isCreateQuestionModalOpen, setIsCreateQuestionModalOpen] = useState(false);
 
+  // Filter messages by search query
+  const filteredMessages = useMemo(() => {
+    return chatroomMessages.filter(m => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        m.messageText.toLowerCase().includes(q) ||
+        m.userName.toLowerCase().includes(q) ||
+        m.institution?.toLowerCase().includes(q)
+      );
+    });
+  }, [chatroomMessages, searchQuery]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const hasInitialScrolledRef = useRef(false);
 
   const isManagerOrAdmin = isStaffOrAdmin;
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setShowScrollBottom(false);
-  };
-
-  useEffect(() => {
-    if (!showScrollBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = useCallback((smooth = false) => {
+    if (scrollContainerRef.current) {
+      if (smooth) {
+        scrollContainerRef.current.scrollTo({
+          top: scrollContainerRef.current.scrollHeight,
+          behavior: 'smooth',
+        });
+      } else {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      }
+    } else if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
     }
-  }, [chatroomMessages.length]);
+    setShowScrollBottom(false);
+  }, []);
+
+  // Instant positioning callback ref: directly snaps to the bottom as soon as container mounts
+  const setScrollContainerRef = useCallback((node: HTMLDivElement | null) => {
+    scrollContainerRef.current = node;
+    if (node) {
+      node.scrollTop = node.scrollHeight;
+    }
+  }, []);
+
+  // Direct instant display of last chat on load - no smooth scrolling from top to bottom
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || filteredMessages.length === 0) return;
+
+    if (!hasInitialScrolledRef.current) {
+      container.scrollTop = container.scrollHeight;
+      hasInitialScrolledRef.current = true;
+
+      const frameId = requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        }
+      });
+      const timerId = setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        }
+      }, 50);
+
+      return () => {
+        cancelAnimationFrame(frameId);
+        clearTimeout(timerId);
+      };
+    } else if (!showScrollBottom) {
+      // Keep pinned to latest chat without scrolling from the top
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [filteredMessages.length, showScrollBottom]);
 
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
@@ -237,17 +294,6 @@ export const ChatroomLiveView: React.FC = () => {
     const isNearBottom = scrollHeight - scrollTop - clientHeight < 120;
     setShowScrollBottom(!isNearBottom);
   };
-
-  // Filter messages by search query
-  const filteredMessages = chatroomMessages.filter(m => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      m.messageText.toLowerCase().includes(q) ||
-      m.userName.toLowerCase().includes(q) ||
-      m.institution?.toLowerCase().includes(q)
-    );
-  });
 
   // Pre-calculate which ads to render after each message index
   const adsAfterMessageMap = useMemo(() => {
@@ -584,8 +630,9 @@ export const ChatroomLiveView: React.FC = () => {
 
       {/* 2. MAIN MESSAGE STREAM */}
       <div
-        ref={scrollContainerRef}
+        ref={setScrollContainerRef}
         onScroll={handleScroll}
+        style={{ scrollBehavior: 'auto' }}
         className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 bg-slate-50/50 dark:bg-slate-950/40"
       >
         {filteredMessages.length === 0 ? (
