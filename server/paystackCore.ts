@@ -1,19 +1,28 @@
 import crypto from 'crypto';
 
+// Helper to get Paystack Base URL
+export function getPaystackBaseUrl(): string {
+  const envUrl = process.env.PAYSTACK_BASE_URL;
+  if (envUrl && envUrl.startsWith('http')) {
+    return envUrl.replace(/\/+$/, '').trim();
+  }
+  return 'https://api.paystack.co';
+}
+
 // Helper to get Paystack Secret Key safely (strictly server-side, never exposed to client)
 export function getSecretKey(): string {
   const envKey = process.env.PAYSTACK_SECRET_KEY;
   if (envKey && envKey !== 'sk_live_5cbc6fe7efd4cbbda704ad5450f38b31a81ae80d' && envKey.startsWith('sk_')) {
-    return envKey;
+    return envKey.trim();
   }
   return 'sk_live_f36e65abf11267b133af3a3d20901e0931c49c02';
 }
 
 // Helper to get Paystack Public Key
 export function getPublicKey(): string {
-  const envPub = process.env.PAYSTACK_PUBLIC_KEY;
+  const envPub = process.env.PAYSTACK_PUBLIC_KEY || process.env.VITE_PAYSTACK_PUBLIC_KEY;
   if (envPub && envPub !== 'pk_live_deaacb75c134e2c4a921c2674e65d4319d4b1fa4' && envPub.startsWith('pk_')) {
-    return envPub;
+    return envPub.trim();
   }
   return 'pk_live_70e9ddbaca92590a8bfbd673b80abb40f083ac96';
 }
@@ -121,8 +130,9 @@ export async function initPaystackTransactionCore(
 
   if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
     try {
+      const baseUrl = getPaystackBaseUrl();
       const { status, data, rawText, isJson } = await safePaystackFetch(
-        'https://api.paystack.co/transaction/initialize',
+        `${baseUrl}/transaction/initialize`,
         {
           method: 'POST',
           headers: {
@@ -260,9 +270,10 @@ export async function chargeTransferCore(body: any) {
   }
 
   const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+  const baseUrl = getPaystackBaseUrl();
 
   try {
-    const chargeResult = await safePaystackFetch('https://api.paystack.co/charge', {
+    const chargeResult = await safePaystackFetch(`${baseUrl}/charge`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${secretKey}`,
@@ -301,7 +312,7 @@ export async function chargeTransferCore(body: any) {
         // Also fetch checkout authorization_url in background for seamless card/web checkout fallback
         let authorization_url = '';
         try {
-          const initResult = await safePaystackFetch('https://api.paystack.co/transaction/initialize', {
+          const initResult = await safePaystackFetch(`${baseUrl}/transaction/initialize`, {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${secretKey}`,
@@ -348,7 +359,7 @@ export async function chargeTransferCore(body: any) {
     }
 
     // Fallback to initialize
-    const initResult = await safePaystackFetch('https://api.paystack.co/transaction/initialize', {
+    const initResult = await safePaystackFetch(`${baseUrl}/transaction/initialize`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${secretKey}`,
@@ -425,8 +436,9 @@ export async function verifyPaystackRefCore(rawRef: string) {
 
   if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
     try {
+      const baseUrl = getPaystackBaseUrl();
       const { status, data, rawText, isJson } = await safePaystackFetch(
-        `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+        `${baseUrl}/transaction/verify/${encodeURIComponent(reference)}`,
         {
           method: 'GET',
           headers: {

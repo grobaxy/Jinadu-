@@ -3,13 +3,14 @@ import crypto from 'crypto';
 import {
   getSecretKey,
   getPublicKey,
+  getPaystackBaseUrl,
   safePaystackFetch,
   initPaystackTransactionCore,
   chargeTransferCore,
   verifyPaystackRefCore,
 } from './paystackCore';
 
-export { getSecretKey, getPublicKey, safePaystackFetch };
+export { getSecretKey, getPublicKey, getPaystackBaseUrl, safePaystackFetch };
 
 // Safe dynamic subscription activation that does not break Node.js / Vercel if client firebase is unbundled
 async function safeActivateSubscription(options: any) {
@@ -75,7 +76,7 @@ paystackRouter.post('/initialize', async (req, res) => {
     if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
       try {
         const { ok, status, data, rawText, isJson } = await safePaystackFetch(
-          'https://api.paystack.co/transaction/initialize',
+          `${getPaystackBaseUrl()}/transaction/initialize`,
           {
             method: 'POST',
             headers: {
@@ -208,7 +209,8 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
 
     // 1. Attempt Paystack Charge with bank_transfer channel
     try {
-      const chargeResult = await safePaystackFetch('https://api.paystack.co/charge', {
+      const baseUrl = getPaystackBaseUrl();
+      const chargeResult = await safePaystackFetch(`${baseUrl}/charge`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${secretKey}`,
@@ -247,7 +249,7 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
           // Also generate an authorization URL in the background so "Open Paystack Checkout" never opens a blank screen
           let checkoutUrl: string | undefined = undefined;
           try {
-            const initRes = await safePaystackFetch('https://api.paystack.co/transaction/initialize', {
+            const initRes = await safePaystackFetch(`${baseUrl}/transaction/initialize`, {
               method: 'POST',
               headers: {
                 Authorization: `Bearer ${secretKey}`,
@@ -294,7 +296,8 @@ paystackRouter.post('/charge-transfer', async (req, res) => {
     }
 
     // Fallback: Initialize transaction with bank_transfer channel
-    const initResult = await safePaystackFetch('https://api.paystack.co/transaction/initialize', {
+    const baseUrl = getPaystackBaseUrl();
+    const initResult = await safePaystackFetch(`${baseUrl}/transaction/initialize`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${secretKey}`,
@@ -363,8 +366,9 @@ const handlePaystackVerify = async (req: express.Request, res: express.Response)
 
     if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
       try {
+        const baseUrl = getPaystackBaseUrl();
         const { ok, status, data, rawText, isJson } = await safePaystackFetch(
-          `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+          `${baseUrl}/transaction/verify/${encodeURIComponent(reference)}`,
           {
             method: 'GET',
             headers: {
@@ -480,8 +484,9 @@ paystackRouter.post('/activate', async (req, res) => {
     // If secret key available, verify transaction with Paystack first
     if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
       try {
+        const baseUrl = getPaystackBaseUrl();
         const verifyResult = await safePaystackFetch(
-          `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+          `${baseUrl}/transaction/verify/${encodeURIComponent(reference)}`,
           {
             method: 'GET',
             headers: { Authorization: `Bearer ${secretKey}` },
@@ -598,8 +603,9 @@ paystackRouter.get('/sensor-status', async (req, res) => {
       const secretKey = getSecretKey();
       if (secretKey && (secretKey.startsWith('sk_live_') || secretKey.startsWith('sk_test_'))) {
         try {
+          const baseUrl = getPaystackBaseUrl();
           const resp = await safePaystackFetch(
-            `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+            `${baseUrl}/transaction/verify/${encodeURIComponent(reference)}`,
             {
               headers: {
                 Authorization: `Bearer ${secretKey}`,
