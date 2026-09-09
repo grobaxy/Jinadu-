@@ -189,12 +189,17 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
   const effectiveEquippedBadge =
     (message as any).equippedBadge ||
     (isSelf ? currentUser?.equippedBadge : resolvedBadge);
+  const isArbiter =
+    message.userId === 'grobax_arbiter' ||
+    message.userName.toLowerCase().includes('arbiter');
+
   const isCommunityManager =
     message.userName.toLowerCase().includes('manager') ||
     message.institution?.toLowerCase().includes('management') ||
     message.userName.toLowerCase().includes('community manager');
 
   const isStaffOrAdmin =
+    isArbiter ||
     isCommunityManager ||
     message.userName.toLowerCase().includes('support') ||
     message.userName.toLowerCase().includes('staff') ||
@@ -206,6 +211,7 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
     (message as any).membershipTier ||
     (message as any).tierName ||
     (message as any).subscriptionTier ||
+    (message as any).subscriptionPlan ||
     ''
   ).toLowerCase();
 
@@ -221,7 +227,8 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
     Boolean(
       (message as any).membershipTier &&
         !(message as any).membershipTier.toLowerCase().includes('free')
-    );
+    ) ||
+    (tierString.length > 0 && !tierString.includes('free'));
 
   const formattedTime = (() => {
     try {
@@ -286,8 +293,10 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
               isPremium={hasPremium}
               isVip={isVip}
               membershipTier={
-                (message as any).membershipTier ||
-                (isVip ? 'VIP SCHOLAR' : isStaffOrAdmin ? 'VIP SCHOLAR' : hasPremium ? 'PREMIUM' : undefined)
+                isArbiter
+                  ? 'OFFICIAL ARBITER'
+                  : (message as any).membershipTier ||
+                    (isVip ? 'VIP SCHOLAR' : isStaffOrAdmin ? 'VIP SCHOLAR' : hasPremium ? 'PREMIUM SCHOLAR' : 'FREE SCHOLAR')
               }
               equippedBadge={effectiveEquippedBadge}
               role={(message as any).role}

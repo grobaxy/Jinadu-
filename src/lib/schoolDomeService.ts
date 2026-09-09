@@ -45,17 +45,6 @@ export function checkScholarSchoolDomePlanEligibility(
   user: any,
   question: SchoolDomeQuestion | null | undefined
 ): ScholarPlanEligibilityResult {
-  // If no question is active or provided, all are eligible
-  if (!question) {
-    return {
-      isEligible: true,
-      userTierName: 'free',
-      userPlanName: 'Free Scholar',
-      userPlanId: '',
-      requiredPlanText: 'All Scholars',
-    };
-  }
-
   // 1. Resolve Admin & Arbiter Privileges (Moderators and staff can always test/answer questions)
   const role = (user?.role || '').toLowerCase();
   const email = (user?.email || '').toLowerCase();
@@ -71,22 +60,14 @@ export function checkScholarSchoolDomePlanEligibility(
     email === 'grobaxycompany@gmail.com' ||
     userId === 'aGZBTsB4BBNvlY1A69hwfAb5DCJ3' ||
     userId === 'iH02BTcB4B0BV2YLA60WwFAi50CJ3' ||
+    userId === 'grobax_arbiter' ||
     userName.includes('admin') ||
     userName.includes('moderator') ||
-    userName.includes('staff');
-
-  if (isStaffOrAdmin) {
-    return {
-      isEligible: true,
-      userTierName: 'admin',
-      userPlanName: 'Staff / Arbiter Pass',
-      userPlanId: 'admin_pass',
-      requiredPlanText: 'Admin Access',
-    };
-  }
+    userName.includes('staff') ||
+    userName.includes('arbiter');
 
   // 2. Resolve User's Effective Subscription Tier & Plan
-  const membership = ((user?.membershipTier || '') + '').toLowerCase();
+  const membership = ((user?.membershipTier || user?.tierName || '') + '').toLowerCase();
   const subTier = ((user?.subscriptionTier || '') + '').toLowerCase();
   const rawPlanId = ((user?.activePlanId || user?.planId || user?.tier || '') + '').toLowerCase();
   const subPlanName = ((user?.subscriptionPlan || '') + '').toLowerCase();
@@ -95,28 +76,32 @@ export function checkScholarSchoolDomePlanEligibility(
     ? new Date(user.subscriptionExpiry).getTime() <= Date.now()
     : false;
 
-  const isVip = !isExpired && Boolean(
+  const isVip = isStaffOrAdmin || (!isExpired && Boolean(
     user?.isVip ||
     user?.gusTier === 'Titan' ||
     rawPlanId.includes('titan') ||
     rawPlanId.includes('vip') ||
+    rawPlanId.includes('annual') ||
     membership.includes('vip') ||
     membership.includes('titan') ||
+    membership.includes('annual') ||
     subTier.includes('vip') ||
     subTier.includes('titan') ||
+    subTier.includes('annual') ||
     subPlanName.includes('vip') ||
     subPlanName.includes('titan') ||
     subPlanName.includes('annual')
-  );
+  ));
 
-  const isPremium = !isExpired && (isVip || Boolean(
+  const isPremium = isStaffOrAdmin || (!isExpired && (isVip || Boolean(
     user?.isPremium ||
     user?.isSubscribed ||
-    (rawPlanId && !rawPlanId.includes('free')) ||
+    (rawPlanId && !rawPlanId.includes('free') && rawPlanId !== 'starter scholar') ||
     (membership && !membership.includes('free') && membership !== 'starter scholar' && !membership.includes('scholar (starter)') && membership.trim().length > 0) ||
     (subTier && !subTier.includes('free') && subTier !== 'starter scholar' && !subTier.includes('scholar (starter)') && subTier.trim().length > 0) ||
-    (subPlanName && !subPlanName.includes('free') && subPlanName !== 'starter scholar' && subPlanName.trim().length > 0)
-  ));
+    (subPlanName && !subPlanName.includes('free') && subPlanName !== 'starter scholar' && subPlanName.trim().length > 0) ||
+    (user?.subscription && user.subscription.status === 'active')
+  )));
 
   const userTierName: 'free' | 'premium' | 'vip' = isVip ? 'vip' : isPremium ? 'premium' : 'free';
 
@@ -127,8 +112,31 @@ export function checkScholarSchoolDomePlanEligibility(
     (rawPlanId === 'plan_titan_naira' ? 'Grobaax Titan Annual VIP' :
      rawPlanId === 'plan_pro_naira' ? 'Champions Pro Scholar' :
      rawPlanId === 'plan_basic_naira' ? 'Scholar Starter Plan' :
+     isStaffOrAdmin ? 'VIP Scholar' :
      isVip ? 'VIP Scholar' :
      isPremium ? 'Premium Scholar' : 'Free Scholar');
+
+  // If no question is active or provided, return user's accurate resolved plan info
+  if (!question) {
+    return {
+      isEligible: true,
+      userTierName,
+      userPlanName,
+      userPlanId: rawPlanId,
+      requiredPlanText: 'All Scholars',
+    };
+  }
+
+  // Staff and Admins always have access to test or arbitrate questions
+  if (isStaffOrAdmin) {
+    return {
+      isEligible: true,
+      userTierName: 'admin',
+      userPlanName: 'Staff / Arbiter Pass',
+      userPlanId: 'admin_pass',
+      requiredPlanText: 'Admin Access',
+    };
+  }
 
   // 3. Resolve Question Requirements
   const targetTier = (question.targetTier || 'free').toLowerCase();
@@ -480,22 +488,54 @@ export const PAST_COMPLETED_SEASONS_MOCK: SchoolDomeSeason[] = [
   },
 ];
 
-// Helper to normalize and check answers
+// Helper to normalize and check answers with fast, multi-variant tolerance
 export function isAnswerCorrect(
   userAnswer: string,
   officialAnswer: string,
   alternatives?: string[]
 ): boolean {
-  const cleanUser = userAnswer.trim().toLowerCase().replace(/^[#@!.]+|[#@!.]+$/g, '');
-  const cleanOfficial = officialAnswer.trim().toLowerCase();
+  if (!userAnswer || !officialAnswer) return false;
+
+  const normalize = (str: string): string => {
+    return str
+      .trim()
+      .toLowerCase()
+      .replace(/^(answer|ans|option|choice)\s*[:.\-)]*\s*/i, '') // strip "Option A", "Ans: B"
+      .replace(/^[\s#@!.*'"()[\]{}]+|[\s#@!.*'"()[\]{}]+$/g, '') // strip surrounding punctuation/quotes
+      .replace(/\s+/g, ' '); // normalize multiple spaces
+  };
+
+  const cleanUser = normalize(userAnswer);
+  const cleanOfficial = normalize(officialAnswer);
+
   if (cleanUser === cleanOfficial) return true;
+
+  // Single letter multiple choice check (e.g. user answered "A" or "Option A" or "A. Lagos")
+  if (cleanOfficial.length === 1 && /^[a-d]$/i.test(cleanOfficial)) {
+    const firstChar = cleanUser.charAt(0);
+    if (firstChar === cleanOfficial && (cleanUser.length === 1 || /^([a-d])([.\s\-)].*)?$/i.test(cleanUser))) {
+      return true;
+    }
+  }
+
+  // Also check if official is "A. Paris" and user answered "Paris" or "A"
+  if (/^[a-d]\s*[.):-]\s*/i.test(cleanOfficial)) {
+    const letter = cleanOfficial.charAt(0);
+    const textWithoutLetter = cleanOfficial.replace(/^[a-d]\s*[.):-]\s*/i, '').trim();
+    if (cleanUser === letter || cleanUser === textWithoutLetter) return true;
+  }
 
   if (alternatives && alternatives.length > 0) {
     for (const alt of alternatives) {
-      const cleanAlt = alt.trim().toLowerCase();
+      if (!alt) continue;
+      const cleanAlt = normalize(alt);
       if (cleanUser === cleanAlt) return true;
+      if (cleanAlt.length === 1 && /^[a-d]$/i.test(cleanAlt) && cleanUser.charAt(0) === cleanAlt) {
+        return true;
+      }
     }
   }
+
   return false;
 }
 
@@ -737,28 +777,20 @@ export async function registerUserForSchoolDome(
       institution: user.institution,
       department: user.department,
       level: user.level,
-      isPremium: Boolean(user.isPremium || user.isVip || planEligibility.userTierName !== 'free'),
-      isVip: Boolean(user.isVip || planEligibility.userTierName === 'vip'),
-      subscriptionTier: user.subscriptionTier,
+      isPremium: planEligibility.userTierName === 'vip' || planEligibility.userTierName === 'premium' || Boolean(user.isPremium || user.isVip),
+      isVip: planEligibility.userTierName === 'vip' || Boolean(user.isVip),
+      subscriptionTier: user.subscriptionTier || (planEligibility.userTierName === 'vip' ? 'VIP SCHOLAR' : planEligibility.userTierName === 'premium' ? 'PREMIUM SCHOLAR' : 'Free Scholar'),
       subscriptionPlan: user.subscriptionPlan || planEligibility.userPlanName,
       planId: user.activePlanId || user.planId || planEligibility.userPlanId,
-      membershipTier: user.membershipTier,
+      membershipTier: user.membershipTier || (planEligibility.userTierName === 'vip' ? 'VIP SCHOLAR' : planEligibility.userTierName === 'premium' ? 'PREMIUM SCHOLAR' : 'Free Scholar'),
       status: 'active',
       registeredAt: Date.now(),
       correctAnswersCount: 0,
     };
 
-    await setDoc(partRef, participant);
-
-    // Update season registered & active lists
+    // Update season registered & active lists in parallel with participant record
     const updatedRegistered = [...regList, user.id];
     const updatedActive = [...(seasonData.activeUserIds || []), user.id];
-
-    await updateDoc(seasonRef, {
-      registeredUserIds: updatedRegistered,
-      activeUserIds: updatedActive,
-      updatedAt: serverTimestamp(),
-    });
 
     // Post celebratory registration announcement
     const msgRef = doc(db, 'school_dome_messages', `reg_${Date.now()}_${user.id.slice(-4)}`);
@@ -768,15 +800,26 @@ export async function registerUserForSchoolDome(
       userId: 'grobax_arbiter',
       userName: 'School Dome Arbiter 🛡️',
       userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      institution: user.institution || 'Grobaax Arena',
+      institution: 'School Dome Arena Official',
       isPremium: true,
-      subscriptionPlan: planEligibility.userPlanName,
+      isVip: true,
+      membershipTier: 'OFFICIAL ARBITER',
+      subscriptionPlan: 'Official Arbiter',
       messageText: `🎟️ ${user.name} (${user.institution || 'Scholar'}) [${planEligibility.userPlanName}] has entered the Arena for ${seasonData.title}! Total Contenders: ${updatedRegistered.length}.`,
       timestamp: Date.now(),
       type: 'system',
       reactions: { '🔥': 1 },
     };
-    await setDoc(msgRef, regMsg);
+
+    await Promise.all([
+      setDoc(partRef, participant),
+      updateDoc(seasonRef, {
+        registeredUserIds: updatedRegistered,
+        activeUserIds: updatedActive,
+        updatedAt: serverTimestamp(),
+      }),
+      setDoc(msgRef, regMsg),
+    ]);
 
     return { success: true, message: 'Registered successfully! Good luck in the Arena.' };
   } catch (err: any) {
@@ -789,7 +832,8 @@ export async function registerUserForSchoolDome(
 export async function sendSchoolDomeMessage(
   message: SchoolDomeMessage,
   currentSeason: SchoolDomeSeason | null,
-  activeQuestion: SchoolDomeQuestion | null
+  activeQuestion: SchoolDomeQuestion | null,
+  userProfile?: any
 ): Promise<{
   outcome?: 'survived' | 'eliminated' | 'spectating' | 'normal' | 'ineligible_plan';
   reason?: string;
@@ -815,8 +859,9 @@ export async function sendSchoolDomeMessage(
         return { outcome: 'spectating' };
       }
 
-      // Check subscription plan eligibility for this question
-      const planEligibility = checkScholarSchoolDomePlanEligibility(message, activeQuestion);
+      // Check subscription plan eligibility for this question using full profile if available
+      const subjectUser = userProfile || message;
+      const planEligibility = checkScholarSchoolDomePlanEligibility(subjectUser, activeQuestion);
       if (!planEligibility.isEligible) {
         // User's subscription plan is not eligible to answer this question.
         // Filter out without eliminating them from the tournament!
@@ -846,80 +891,78 @@ export async function sendSchoolDomeMessage(
 
       if (isCorrect) {
         // User SURVIVED!
-        await updateDoc(qRef, {
-          survivorUserIds: [...(activeQuestion.survivorUserIds || []), userId],
-          repliedUserIds: [...(activeQuestion.repliedUserIds || []), userId],
-          repliedUsernames: [...(activeQuestion.repliedUsernames || []), message.userName],
-          totalSubmissionsCount: increment(1),
-          updatedAt: serverTimestamp(),
-        });
-
-        // Update participant doc
         const partRef = doc(db, 'school_dome_registrations', `${currentSeason.id}_${userId}`);
-        await updateDoc(partRef, {
-          correctAnswersCount: increment(1),
-          updatedAt: serverTimestamp(),
-        }).catch(() => {});
-
-        // Post celebration chime message
         const celebRef = doc(db, 'school_dome_messages', `celeb_${Date.now()}_${userId.slice(-4)}`);
-        await setDoc(celebRef, {
-          id: celebRef.id,
-          seasonId: currentSeason.id,
-          userId: 'grobax_arbiter',
-          userName: 'School Dome Arbiter 🛡️',
-          userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-          institution: 'Grobaax Arena HQ',
-          messageText: `⚡ CORRECT! ${message.userName} solved Question #${activeQuestion.questionNumber} and advances to the next battle!`,
-          timestamp: Date.now(),
-          type: 'system',
-          reactions: { '🎯': 2, '⚡': 2 },
-        });
+
+        // Fast parallel execution
+        await Promise.all([
+          updateDoc(qRef, {
+            survivorUserIds: [...(activeQuestion.survivorUserIds || []), userId],
+            repliedUserIds: [...(activeQuestion.repliedUserIds || []), userId],
+            repliedUsernames: [...(activeQuestion.repliedUsernames || []), message.userName],
+            totalSubmissionsCount: increment(1),
+            updatedAt: serverTimestamp(),
+          }),
+          updateDoc(partRef, {
+            correctAnswersCount: increment(1),
+            updatedAt: serverTimestamp(),
+          }).catch(() => {}),
+          setDoc(celebRef, {
+            id: celebRef.id,
+            seasonId: currentSeason.id,
+            userId: 'grobax_arbiter',
+            userName: 'School Dome Arbiter 🛡️',
+            userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+            institution: 'School Dome Arena Official',
+            messageText: `⚡ CORRECT! ${message.userName} solved Question #${activeQuestion.questionNumber} and advances to the next battle!`,
+            timestamp: Date.now(),
+            type: 'system',
+            reactions: { '🎯': 2, '⚡': 2 },
+          })
+        ]);
 
         return { outcome: 'survived' };
       } else {
         // User ELIMINATED!
-        await updateDoc(qRef, {
-          eliminatedUserIds: [...(activeQuestion.eliminatedUserIds || []), userId],
-          repliedUserIds: [...(activeQuestion.repliedUserIds || []), userId],
-          repliedUsernames: [...(activeQuestion.repliedUsernames || []), message.userName],
-          totalSubmissionsCount: increment(1),
-          updatedAt: serverTimestamp(),
-        });
-
-        // Update season active/eliminated lists
         const seasonRef = doc(db, 'school_dome_seasons', currentSeason.id);
         const newActive = (currentSeason.activeUserIds || []).filter(id => id !== userId);
         const newEliminated = [...(currentSeason.eliminatedUserIds || []), userId];
-        await updateDoc(seasonRef, {
-          activeUserIds: newActive,
-          eliminatedUserIds: newEliminated,
-          updatedAt: serverTimestamp(),
-        });
-
-        // Update participant doc
         const partRef = doc(db, 'school_dome_registrations', `${currentSeason.id}_${userId}`);
-        await updateDoc(partRef, {
-          status: 'eliminated',
-          eliminatedAtQuestionNumber: activeQuestion.questionNumber,
-          eliminatedAt: Date.now(),
-          updatedAt: serverTimestamp(),
-        }).catch(() => {});
-
-        // Post elimination notice
         const elimRef = doc(db, 'school_dome_messages', `elim_${Date.now()}_${userId.slice(-4)}`);
-        await setDoc(elimRef, {
-          id: elimRef.id,
-          seasonId: currentSeason.id,
-          userId: 'grobax_arbiter',
-          userName: 'School Dome Arbiter 🛡️',
-          userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-          institution: 'Grobaax Arena HQ',
-          messageText: `❌ KNOCKED OUT: ${message.userName} submitted an incorrect answer on Question #${activeQuestion.questionNumber} and has been eliminated. (${newActive.length} contenders still standing!)`,
-          timestamp: Date.now(),
-          type: 'system',
-          reactions: { '💔': 1 },
-        });
+
+        // Fast parallel execution
+        await Promise.all([
+          updateDoc(qRef, {
+            eliminatedUserIds: [...(activeQuestion.eliminatedUserIds || []), userId],
+            repliedUserIds: [...(activeQuestion.repliedUserIds || []), userId],
+            repliedUsernames: [...(activeQuestion.repliedUsernames || []), message.userName],
+            totalSubmissionsCount: increment(1),
+            updatedAt: serverTimestamp(),
+          }),
+          updateDoc(seasonRef, {
+            activeUserIds: newActive,
+            eliminatedUserIds: newEliminated,
+            updatedAt: serverTimestamp(),
+          }),
+          updateDoc(partRef, {
+            status: 'eliminated',
+            eliminatedAtQuestionNumber: activeQuestion.questionNumber,
+            eliminatedAt: Date.now(),
+            updatedAt: serverTimestamp(),
+          }).catch(() => {}),
+          setDoc(elimRef, {
+            id: elimRef.id,
+            seasonId: currentSeason.id,
+            userId: 'grobax_arbiter',
+            userName: 'School Dome Arbiter 🛡️',
+            userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+            institution: 'School Dome Arena Official',
+            messageText: `❌ KNOCKED OUT: ${message.userName} submitted an incorrect answer on Question #${activeQuestion.questionNumber} and has been eliminated. (${newActive.length} contenders still standing!)`,
+            timestamp: Date.now(),
+            type: 'system',
+            reactions: { '💔': 1 },
+          })
+        ]);
 
         return { outcome: 'eliminated' };
       }
@@ -1176,30 +1219,33 @@ export async function closeSchoolDomeQuestion(
 ): Promise<void> {
   try {
     const qRef = doc(db, 'school_dome_questions', questionId);
-    const qSnap = await getDoc(qRef);
-    if (!qSnap.exists()) return;
+    const seasonRef = doc(db, 'school_dome_seasons', seasonId);
 
+    const [qSnap, seasonSnap] = await Promise.all([
+      getDoc(qRef),
+      getDoc(seasonRef),
+    ]);
+
+    if (!qSnap.exists()) return;
     const qData = qSnap.data() as SchoolDomeQuestion;
+
+    // Idempotency: if already closed, skip duplicate calculations immediately
+    if (qData.status === 'closed') return;
+
     const survivors = qData.survivorUserIds || [];
 
-    await updateDoc(qRef, {
-      status: 'closed',
-      updatedAt: serverTimestamp(),
-    });
-
-    // Also close question message card so countdown immediately shows expired for all users
-    try {
-      const msgRef = doc(db, 'school_dome_messages', 'msg_sdq_' + questionId);
-      await updateDoc(msgRef, {
+    // Parallelize closing question and question message
+    const msgRef = doc(db, 'school_dome_messages', 'msg_sdq_' + questionId);
+    const closeOps: Promise<any>[] = [
+      updateDoc(qRef, {
+        status: 'closed',
+        updatedAt: serverTimestamp(),
+      }),
+      updateDoc(msgRef, {
         'competitionRef.status': 'closed',
         updatedAt: serverTimestamp(),
-      });
-    } catch (_) {}
-
-    // Update season active standing:
-    // Any registered contender who did NOT submit a correct answer before time expired is eliminated!
-    const seasonRef = doc(db, 'school_dome_seasons', seasonId);
-    const seasonSnap = await getDoc(seasonRef);
+      }).catch(() => {}),
+    ];
 
     if (seasonSnap.exists()) {
       const sData = seasonSnap.data() as SchoolDomeSeason;
@@ -1210,40 +1256,58 @@ export async function closeSchoolDomeQuestion(
       const updatedActive = currentActive.filter(id => survivors.includes(id));
       const updatedEliminated = Array.from(new Set([...(sData.eliminatedUserIds || []), ...newlyEliminated]));
 
-      await updateDoc(seasonRef, {
-        activeUserIds: updatedActive,
-        eliminatedUserIds: updatedEliminated,
-        updatedAt: serverTimestamp(),
-      });
+      // Update season active standing
+      closeOps.push(
+        updateDoc(seasonRef, {
+          activeUserIds: updatedActive,
+          eliminatedUserIds: updatedEliminated,
+          updatedAt: serverTimestamp(),
+        })
+      );
 
-      // Update participant registration documents
-      for (const elimUserId of newlyEliminated) {
-        try {
-          const regDoc = doc(db, 'school_dome_registrations', `${seasonId}_${elimUserId}`);
-          await updateDoc(regDoc, {
-            status: 'eliminated',
-            eliminatedAtQuestionNumber: qData.questionNumber,
-            eliminatedAt: Date.now(),
-            eliminationReason: qData.eliminatedUserIds?.includes(elimUserId) ? 'incorrect_answer' : 'unanswered_time_expired',
-          });
-        } catch (_) {}
-      }
-
-      // Post question conclusion message
+      // Post question conclusion message from Arbiter
       const sumRef = doc(db, 'school_dome_messages', `round_end_${Date.now()}`);
-      await setDoc(sumRef, {
-        id: sumRef.id,
-        seasonId,
-        userId: 'grobax_arbiter',
-        userName: 'School Dome Arbiter 🛡️',
-        userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-        institution: 'Grobaax Arena HQ',
-        messageText: `🏁 QUESTION #${qData.questionNumber} CONCLUDED!\nOfficial Answer: « ${qData.correctAnswer} »\n\n⚡ ${survivors.length} scholars answered correctly and survived!\n❌ ${newlyEliminated.length} contenders eliminated (time expired / unverified answer).\n👥 ${updatedActive.length} contenders remain standing for the grand prize pool.`,
-        timestamp: Date.now(),
-        type: 'announcement',
-        reactions: { '👏': 3, '🔥': 2 },
-      });
+      closeOps.push(
+        setDoc(sumRef, {
+          id: sumRef.id,
+          seasonId,
+          userId: 'grobax_arbiter',
+          userName: 'School Dome Arbiter 🛡️',
+          userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+          institution: 'School Dome Arena Official',
+          messageText: `🏁 QUESTION #${qData.questionNumber} CONCLUDED!\nOfficial Answer: « ${qData.correctAnswer} »\n\n⚡ ${survivors.length} scholars answered correctly and survived!\n❌ ${newlyEliminated.length} contenders eliminated (time expired / unverified answer).\n👥 ${updatedActive.length} contenders remain standing for the grand prize pool.`,
+          timestamp: Date.now(),
+          type: 'announcement',
+          reactions: { '👏': 3, '🔥': 2 },
+        })
+      );
+
+      // High-performance batch updates for eliminated participant registrations
+      if (newlyEliminated.length > 0) {
+        const batchChunks: string[][] = [];
+        for (let i = 0; i < newlyEliminated.length; i += 400) {
+          batchChunks.push(newlyEliminated.slice(i, i + 400));
+        }
+
+        const batchPromises = batchChunks.map(async (chunk) => {
+          const batch = writeBatch(db);
+          for (const elimUserId of chunk) {
+            const regDoc = doc(db, 'school_dome_registrations', `${seasonId}_${elimUserId}`);
+            batch.update(regDoc, {
+              status: 'eliminated',
+              eliminatedAtQuestionNumber: qData.questionNumber,
+              eliminatedAt: Date.now(),
+              eliminationReason: qData.eliminatedUserIds?.includes(elimUserId) ? 'incorrect_answer' : 'unanswered_time_expired',
+            });
+          }
+          return batch.commit().catch(() => {});
+        });
+
+        closeOps.push(...batchPromises);
+      }
     }
+
+    await Promise.all(closeOps);
   } catch (err) {
     console.error('Error closing School Dome question:', err);
     throw err;
@@ -1348,94 +1412,82 @@ export async function endSchoolDomeSeasonAndDistributePrize(
     const seasonData = seasonSnap.data() as SchoolDomeSeason;
     const lastStandingIds = seasonData.activeUserIds || [];
 
-    // Fetch user details for each last standing scholar
-    const winners: SchoolDomeWinner[] = [];
+    // Fetch user details for each last standing scholar and distribute prizes concurrently
     const totalPrize = seasonData.prizePool || 0;
     const winnerCount = Math.max(1, lastStandingIds.length);
     const prizePerWinner = Math.floor(totalPrize / winnerCount);
 
-    for (const uId of lastStandingIds) {
-      let userName = 'Scholar';
-      let avatar: string | undefined;
-      let institution = 'Nigerian Higher Institution';
-      let department: string | undefined;
+    const winners: SchoolDomeWinner[] = await Promise.all(
+      lastStandingIds.map(async (uId) => {
+        let userName = `Scholar (${uId.slice(-4)})`;
+        let avatar: string | undefined;
+        let institution = 'Nigerian Higher Institution';
+        let department: string | undefined;
 
-      try {
-        const uSnap = await getDoc(doc(db, 'users', uId));
-        if (uSnap.exists()) {
-          const u = uSnap.data() as UserProfile;
-          userName = u.name || `Scholar (${uId.slice(-4)})`;
-          avatar = u.avatar;
-          institution = u.institution || institution;
-          department = u.department;
-        } else {
-          userName = `Scholar (${uId.slice(-4)})`;
-        }
-      } catch {
-        userName = `Scholar (${uId.slice(-4)})`;
-      }
+        try {
+          const uSnap = await getDoc(doc(db, 'users', uId));
+          if (uSnap.exists()) {
+            const u = uSnap.data() as UserProfile;
+            userName = u.name || userName;
+            avatar = u.avatar;
+            institution = u.institution || institution;
+            department = u.department;
+          }
+        } catch {}
 
-      winners.push({
-        userId: uId,
-        userName,
-        avatar,
-        institution,
-        department,
-        prizeWon: prizePerWinner,
-      });
-
-      // 1. Credit winner's wallet directly with GP (immediate authoritative update)
-      try {
-        await setDoc(doc(db, 'users', uId), {
-          gpBalance: increment(prizePerWinner),
-          gp: increment(prizePerWinner),
-          walletBalance: increment(prizePerWinner),
-          totalGpEarned: increment(prizePerWinner),
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-      } catch (creditErr) {
-        console.warn('Wallet direct credit notice:', creditErr);
-      }
-
-      // 2. Create permanent transaction record in authoritative walletTransactions collection
-      try {
-        const txDoc = doc(collection(db, 'walletTransactions'));
-        await setDoc(txDoc, {
-          id: txDoc.id,
+        const winnerRecord: SchoolDomeWinner = {
           userId: uId,
           userName,
-          type: 'Credit',
-          action: 'Credit',
-          category: 'School Dome Prize',
-          amount: prizePerWinner,
-          unit: 'GP',
-          currency: 'GP',
-          description: `School Dome Season #${seasonData.seasonNumber || 1} Champion Prize (Equal Share)`,
-          status: 'Completed',
-          timestamp: Date.now(),
-          createdAt: serverTimestamp(),
-          source: 'School Dome Prize',
-        });
-      } catch (txErr) {
-        console.warn('Could not record wallet transaction:', txErr);
-      }
+          avatar,
+          institution,
+          department,
+          prizeWon: prizePerWinner,
+        };
 
-      // 3. Send individual winner notification
-      try {
+        const txDoc = doc(collection(db, 'walletTransactions'));
         const notifDoc = doc(collection(db, 'notifications'));
-        await setDoc(notifDoc, {
-          id: notifDoc.id,
-          userId: uId,
-          title: '🏆 School Dome Champion Prize Credited!',
-          message: `Congratulations! You survived as a champion in ${seasonData.title}! Your equal share of ${prizePerWinner.toLocaleString()} GP has been deposited directly into your wallet.`,
-          type: 'dome',
-          isRead: false,
-          timestamp: Date.now(),
-          createdAt: serverTimestamp(),
-          actionUrl: 'school_dome_results',
-        });
-      } catch {}
-    }
+
+        // Concurrently credit wallet, create transaction, and send notification
+        await Promise.allSettled([
+          setDoc(doc(db, 'users', uId), {
+            gpBalance: increment(prizePerWinner),
+            gp: increment(prizePerWinner),
+            walletBalance: increment(prizePerWinner),
+            totalGpEarned: increment(prizePerWinner),
+            updatedAt: serverTimestamp(),
+          }, { merge: true }),
+          setDoc(txDoc, {
+            id: txDoc.id,
+            userId: uId,
+            userName,
+            type: 'Credit',
+            action: 'Credit',
+            category: 'School Dome Prize',
+            amount: prizePerWinner,
+            unit: 'GP',
+            currency: 'GP',
+            description: `School Dome Season #${seasonData.seasonNumber || 1} Champion Prize (Equal Share)`,
+            status: 'Completed',
+            timestamp: Date.now(),
+            createdAt: serverTimestamp(),
+            source: 'School Dome Prize',
+          }),
+          setDoc(notifDoc, {
+            id: notifDoc.id,
+            userId: uId,
+            title: '🏆 School Dome Champion Prize Credited!',
+            message: `Congratulations! You survived as a champion in ${seasonData.title}! Your equal share of ${prizePerWinner.toLocaleString()} GP has been deposited directly into your wallet.`,
+            type: 'dome',
+            isRead: false,
+            timestamp: Date.now(),
+            createdAt: serverTimestamp(),
+            actionUrl: 'school_dome_results',
+          })
+        ]);
+
+        return winnerRecord;
+      })
+    );
 
     // Broadcast local storage/window event to ensure real-time UI balance sync
     try {

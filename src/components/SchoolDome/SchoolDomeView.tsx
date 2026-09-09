@@ -144,14 +144,18 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
     currentUser?.name?.toLowerCase().includes('staff');
 
   // Auto-close active question when countdown timer expires so non-responders are automatically eliminated
+  const closingQuestionRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeQuestion || activeQuestion.status !== 'active') return;
+    if (closingQuestionRef.current === activeQuestion.id) return;
     const diff = activeQuestion.endAt - Date.now();
     if (diff <= 0) {
+      closingQuestionRef.current = activeQuestion.id;
       closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', activeQuestion.id).catch(() => {});
       return;
     }
     const timer = setTimeout(() => {
+      closingQuestionRef.current = activeQuestion.id;
       closeSchoolDomeQuestion(currentSeason?.id || 'season_dome_1', activeQuestion.id).catch(() => {});
     }, Math.max(100, diff));
     return () => clearTimeout(timer);
@@ -403,6 +407,8 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
       }
     }
 
+    const resolvedUserPlan = checkScholarSchoolDomePlanEligibility(currentUser, null);
+
     const newMessage: SchoolDomeMessage = {
       id: 'sdm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       seasonId: currentSeason?.id || 'season_dome_1',
@@ -418,7 +424,16 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
       level: currentUser.level,
       isPremium: isVIP || isPremium || isStaffOrAdmin,
       isVip: isVIP,
-      membershipTier: isVIP ? 'VIP SCHOLAR' : isPremium ? 'PREMIUM SCHOLAR' : isStaffOrAdmin ? 'VIP SCHOLAR' : undefined,
+      membershipTier: isVIP
+        ? 'VIP SCHOLAR'
+        : isPremium
+        ? 'PREMIUM SCHOLAR'
+        : isStaffOrAdmin
+        ? 'VIP SCHOLAR'
+        : 'FREE SCHOLAR',
+      subscriptionTier: currentUser.subscriptionTier || (isVIP ? 'vip' : isPremium ? 'premium' : 'free'),
+      subscriptionPlan: currentUser.subscriptionPlan || resolvedUserPlan.userPlanName,
+      planId: currentUser.activePlanId || (currentUser as any).planId || resolvedUserPlan.userPlanId,
       equippedBadge: currentUser.equippedBadge,
       messageText: text,
       timestamp: Date.now(),
@@ -428,7 +443,7 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
     };
 
     try {
-      await sendSchoolDomeMessage(newMessage, currentSeason, activeQuestion);
+      await sendSchoolDomeMessage(newMessage, currentSeason, activeQuestion, currentUser);
     } catch (err) {
       console.warn('School Dome message sync notice:', err);
     }

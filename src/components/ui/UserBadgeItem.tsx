@@ -50,10 +50,23 @@ export const PremiumPackageBadge: React.FC<{
   className?: string;
 }> = ({ tier = 'PREMIUM', isVip: explicitVip, className = '' }) => {
   const upper = (tier || '').toUpperCase();
-  const isVip = explicitVip || upper.includes('VIP') || upper.includes('TITAN') || upper.includes('ANNUAL');
-  const isFree = upper.includes('FREE') || upper === 'BASIC';
+  const isArbiter = upper.includes('ARBITER');
+  const isVip = !isArbiter && (explicitVip || upper.includes('VIP') || upper.includes('TITAN') || upper.includes('ANNUAL'));
+  const isFree = !isArbiter && !isVip && (upper.includes('FREE') || upper === 'BASIC');
   const isStarter = upper.includes('STARTER');
   const isPro = upper.includes('PRO') || upper.includes('CHAMPION');
+
+  if (isArbiter) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-950 text-amber-300 border border-amber-400/80 ring-1 ring-amber-400/40 ${className}`}
+        title="Official School Dome Arbiter 🛡️"
+      >
+        <Shield className="w-2.5 h-2.5 text-amber-400 fill-amber-400 shrink-0" />
+        <span className="truncate">OFFICIAL ARBITER 🛡️</span>
+      </span>
+    );
+  }
 
   if (isVip) {
     return (
@@ -190,7 +203,7 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
     return { title, icon, color };
   }, [equippedBadge]);
 
-  // If user has not upgraded their plan and is not staff/CM, show name and equipped badge if any
+  // If user has not upgraded their plan and is not staff/CM, show name, Free Scholar badge, and equipped badge
   if (!hasPremium) {
     return (
       <div className={`inline-flex flex-col ${className}`}>
@@ -198,6 +211,9 @@ export const UserBadgeItem: React.FC<UserBadgeItemProps> = ({
           <span className={`font-bold text-slate-900 dark:text-slate-100 ${textSizeClass}`}>
             {name}
           </span>
+
+          {/* Explicit Free Scholar Badge recognition */}
+          <PremiumPackageBadge tier="FREE SCHOLAR" isVip={false} />
 
           {parsedBadge && (
             <span
