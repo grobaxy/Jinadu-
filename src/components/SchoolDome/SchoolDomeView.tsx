@@ -591,7 +591,12 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
       {currentSeason && (
         <div className="px-3 sm:px-4 py-2 bg-transparent text-slate-800 dark:text-slate-100 border-b border-slate-200/70 dark:border-slate-800/80 shrink-0 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 text-xs min-w-0">
-            {isRegistrationOpen ? (
+            {currentSeason.status === 'ended' ? (
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold">
+                <Trophy className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>Season #{currentSeason.seasonNumber} Concluded! Prizes have been awarded. Awaiting the Arbiter to start the next season.</span>
+              </div>
+            ) : isRegistrationOpen ? (
               isUserRegistered ? (
                 <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />

@@ -18,6 +18,7 @@ import {
 import { db } from './firebase';
 import {
   SchoolDomeSeason,
+  SchoolDomeSeasonStatus,
   SchoolDomeQuestion,
   SchoolDomeMessage,
   SchoolDomeParticipant,
@@ -996,6 +997,9 @@ export async function createSchoolDomeQuestion(
 
     if (seasonSnap.exists()) {
       const sData = seasonSnap.data() as SchoolDomeSeason;
+      if (sData.status === 'ended') {
+        throw new Error('This season has concluded. Please click "START SEASON" to start the next competition season before launching questions.');
+      }
       seasonNumber = sData.seasonNumber || 1;
       nextQNumber = questionData.questionNumber || (sData.totalQuestionsLaunched || 0) + 1;
 
@@ -1556,6 +1560,78 @@ export async function updateSchoolDomeSeasonRules(
     });
   } catch (err) {
     console.error('Error updating season rules:', err);
+    throw err;
+  }
+}
+
+/**
+ * Admin: Update/Edit an existing School Dome season
+ * Allows editing Title, Season Number, Prize Pool, Currency, Status, Registration Lock, Description, and Rules
+ */
+export async function updateSchoolDomeSeason(
+  seasonId: string,
+  updates: {
+    title?: string;
+    seasonNumber?: number;
+    prizePool?: number;
+    prizeCurrency?: 'NGN' | 'GP';
+    status?: SchoolDomeSeasonStatus;
+    isRegistrationLocked?: boolean;
+    description?: string;
+    rules?: string[];
+  }
+): Promise<void> {
+  try {
+    const seasonRef = doc(db, 'school_dome_seasons', seasonId);
+    const sanitizedUpdates: any = {
+      updatedAt: serverTimestamp(),
+    };
+
+    if (updates.title !== undefined) {
+      sanitizedUpdates.title = updates.title.trim();
+    }
+    if (updates.seasonNumber !== undefined) {
+      sanitizedUpdates.seasonNumber = Math.max(1, Number(updates.seasonNumber) || 1);
+    }
+    if (updates.prizePool !== undefined) {
+      sanitizedUpdates.prizePool = Math.max(0, Number(updates.prizePool) || 0);
+    }
+    if (updates.prizeCurrency !== undefined) {
+      sanitizedUpdates.prizeCurrency = updates.prizeCurrency;
+    }
+    if (updates.status !== undefined) {
+      sanitizedUpdates.status = updates.status;
+      if (updates.status === 'ended') {
+        sanitizedUpdates.endedAt = Date.now();
+      }
+    }
+    if (updates.isRegistrationLocked !== undefined) {
+      sanitizedUpdates.isRegistrationLocked = Boolean(updates.isRegistrationLocked);
+    }
+    if (updates.description !== undefined) {
+      sanitizedUpdates.description = updates.description.trim();
+    }
+    if (updates.rules !== undefined) {
+      sanitizedUpdates.rules = updates.rules;
+    }
+
+    await updateDoc(seasonRef, sanitizedUpdates);
+
+    // Sync localStorage fallback active season if IDs match
+    try {
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('grobax_school_dome_active_season');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.id === seasonId) {
+            Object.assign(parsed, sanitizedUpdates);
+            localStorage.setItem('grobax_school_dome_active_season', JSON.stringify(parsed));
+          }
+        }
+      }
+    } catch {}
+  } catch (err) {
+    console.error('Error updating School Dome season:', err);
     throw err;
   }
 }
