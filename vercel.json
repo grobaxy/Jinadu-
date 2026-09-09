@@ -5,12 +5,12 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/api/paystack/verify/(.*)",
-      "destination": "/api/paystack/verify?reference=$1"
+      "source": "/api/(.*)",
+      "destination": "/api?__path=$1"
     },
     {
-      "source": "/api/((?!paystack(?:/|$)|vtu(?:/|$)|health(?:/|$)).*)",
-      "destination": "/api?__path=$1"
+      "source": "/api",
+      "destination": "/api"
     },
     {
       "source": "/((?!api(?:/|$)).*)",
