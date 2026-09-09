@@ -22,10 +22,11 @@ export default defineConfig(() => {
         ],
         manifest: {
           id: '/',
-          name: 'Grobaax - An Academic Network that connect students together.',
+          name:
+            'Grobaax - Represent your school title, conquer academic arenas, and connect with scholars nationwide.',
           short_name: 'Grobaax',
           description:
-            'Grobaax - An Academic Network that connect students together.',
+            'Represent your school title, conquer academic arenas, and connect with scholars nationwide.',
           theme_color: '#02081c',
           background_color: '#02081c',
           display: 'standalone',
