@@ -326,37 +326,57 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
                     <span>⚔️ Survival Round</span>
                   </span>
                   {(() => {
-                    const resolvedTier =
+                    const rawTargetTier =
                       (message as any).targetTier ||
-                      message.competitionRef?.targetTier ||
-                      ((message as any).subscriptionPlan?.toLowerCase().includes('vip') ? 'vip' :
-                       (message as any).subscriptionPlan?.toLowerCase().includes('premium') ? 'premium' : undefined);
-                    const planName =
+                      message.competitionRef?.targetTier;
+                    const rawPlanName =
                       (message as any).targetPlanName ||
-                      message.competitionRef?.targetPlanName ||
-                      ((message as any).subscriptionPlan && !(message as any).subscriptionPlan.includes('Open') ? (message as any).subscriptionPlan : undefined);
+                      message.competitionRef?.targetPlanName;
+                    const rawSubPlan = (message as any).subscriptionPlan;
 
-                    if (resolvedTier === 'vip' || planName?.toLowerCase().includes('vip') || planName?.toLowerCase().includes('titan')) {
+                    const effectivePlan = (rawPlanName || rawSubPlan || '').trim();
+                    const planLower = effectivePlan.toLowerCase();
+
+                    // Check if question allows Premium (which includes Premium & VIP)
+                    const isPremiumLevel =
+                      rawTargetTier === 'premium' ||
+                      planLower.includes('premium') ||
+                      planLower.includes('any paid') ||
+                      planLower.includes('premium & vip') ||
+                      planLower.includes('premium / vip');
+
+                    // Check if question is strictly VIP / Titan only
+                    const isStrictVip =
+                      !isPremiumLevel &&
+                      (rawTargetTier === 'vip' ||
+                       planLower === 'vip only' ||
+                       planLower === 'vip / titan only' ||
+                       (planLower.includes('titan') && !planLower.includes('all') && !planLower.includes('free')));
+
+                    if (isStrictVip) {
                       return (
                         <span className="px-2.5 py-0.5 rounded-full bg-purple-500/25 text-purple-200 font-black text-[10px] border border-purple-400/40 uppercase tracking-wide flex items-center gap-1 shadow-xs">
                           <span>👑 VIP Only</span>
                         </span>
                       );
                     }
-                    if (resolvedTier === 'premium' || planName?.toLowerCase().includes('premium')) {
+
+                    if (isPremiumLevel) {
                       return (
                         <span className="px-2.5 py-0.5 rounded-full bg-amber-500/25 text-amber-200 font-black text-[10px] border border-amber-400/40 uppercase tracking-wide flex items-center gap-1 shadow-xs">
                           <span>⭐ Premium & VIP</span>
                         </span>
                       );
                     }
-                    if (planName && planName !== 'Open to All' && planName !== 'All Contenders') {
+
+                    if (effectivePlan && effectivePlan !== 'Open to All' && effectivePlan !== 'All Contenders' && effectivePlan !== 'all') {
                       return (
                         <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/25 text-cyan-200 font-black text-[10px] border border-cyan-400/40 uppercase tracking-wide flex items-center gap-1 shadow-xs">
-                          <span>🎯 {planName}</span>
+                          <span>🎯 {effectivePlan}</span>
                         </span>
                       );
                     }
+
                     return (
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 font-bold text-[10px] border border-emerald-400/30 uppercase tracking-wide flex items-center gap-1">
                         <span>🟢 All Contenders (Free)</span>

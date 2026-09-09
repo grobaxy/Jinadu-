@@ -97,7 +97,7 @@ export const CreateSchoolDomeQuestionModal: React.FC<CreateSchoolDomeQuestionMod
         allowedPlanIds = ['plan_titan_naira'];
         targetPlanName = 'Grobaax Titan Annual VIP';
       } else if (selectedPlanFilter === 'tier_premium') {
-        targetPlanName = 'Premium & VIP Subscribers';
+        targetPlanName = 'Premium & VIP';
       } else if (selectedPlanFilter === 'tier_vip') {
         targetPlanName = 'VIP / Titan Only';
       }
@@ -292,8 +292,8 @@ export const CreateSchoolDomeQuestionModal: React.FC<CreateSchoolDomeQuestionMod
                 <option value="plan_basic_naira">🥉 Scholar Starter Plan (₦1,000 / mo) & Above</option>
                 <option value="plan_pro_naira">🥈 Champions Pro Scholar (₦2,500 / mo) & Above</option>
                 <option value="plan_titan_naira">👑 Grobaax Titan Annual VIP (₦25,000 / yr) Exclusively</option>
-                <option value="tier_premium">⭐ Any Paid Plan (Premium / VIP)</option>
-                <option value="tier_vip">👑 VIP / Titan Subscribers Only</option>
+                <option value="tier_premium">⭐ Premium & VIP (Any Paid Plan)</option>
+                <option value="tier_vip">👑 VIP Only (Titan Subscribers)</option>
               </select>
             </div>
 
