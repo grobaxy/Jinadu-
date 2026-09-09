@@ -28,12 +28,16 @@ apiApp.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // Vercel Serverless Path Normalizer Middleware
-// Accurately maps paths rewritten by Vercel (?__path=...) back to standard Express paths while preserving query strings
+// Accurately maps paths rewritten by Vercel (?__path=... or [...all]) back to standard Express paths while preserving query strings
 apiApp.use((req: Request, _res: Response, next: NextFunction) => {
-  if (req.query && req.query.__path) {
-    const raw = Array.isArray(req.query.__path) ? req.query.__path.join('/') : req.query.__path;
+  const rawPath = req.query && (req.query.__path || req.query.all);
+  if (rawPath) {
+    const raw = Array.isArray(rawPath) ? rawPath.join('/') : rawPath;
     const cleanPath = String(raw).replace(/^\/+/, '');
-    delete req.query.__path;
+    if (req.query) {
+      delete req.query.__path;
+      delete req.query.all;
+    }
 
     const queryIdx = cleanPath.indexOf('?');
     const pathPart = queryIdx >= 0 ? cleanPath.substring(0, queryIdx) : cleanPath;

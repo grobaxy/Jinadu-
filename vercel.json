@@ -9,7 +9,7 @@
       "destination": "/api/paystack/verify?reference=$1"
     },
     {
-      "source": "/api/((?!paystack(?:/|$)).*)",
+      "source": "/api/((?!paystack(?:/|$)|health(?:/|$)).*)",
       "destination": "/api?__path=$1"
     },
     {
