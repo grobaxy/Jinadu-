@@ -1,6 +1,6 @@
-import { apiApp } from '../server/apiApp';
+import { apiApp } from './apiApp';
 
-// Vercel Serverless Function Entry Point
+// Vercel Serverless Function Entry Point (Pre-bundled into /api/index.js)
 export default async function handler(req: any, res: any) {
   try {
     return apiApp(req, res);
@@ -16,4 +16,3 @@ export default async function handler(req: any, res: any) {
 }
 
 export { apiApp as app };
-
