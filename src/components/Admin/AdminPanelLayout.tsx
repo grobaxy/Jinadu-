@@ -27,6 +27,7 @@ import { AdminAirtimeDataView } from './AdminAirtimeDataView';
 import { AdminTransactionsView } from './AdminTransactionsView';
 import { AdminSchoolDomeView } from './AdminSchoolDomeView';
 import { AdminContactSupportView } from './AdminContactSupportView';
+import { AdminHintsView } from './AdminHintsView';
 
 import {
   LayoutDashboard,
@@ -56,6 +57,7 @@ import {
   Inbox,
   Swords,
   Headphones,
+  Lightbulb,
 } from 'lucide-react';
 
 interface AdminPanelLayoutProps {
@@ -143,6 +145,12 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
       ],
     },
     {
+      title: 'HINT MANAGEMENT',
+      items: [
+        { id: 'hints' as AdminTabType, label: 'Hints Management', icon: Lightbulb, badge: 'New' },
+      ],
+    },
+    {
       title: 'COMMUNITY & MARKETING',
       items: [
         { id: 'chatroom_live' as AdminTabType, label: 'Daily Ultimate Search Chat', icon: Trophy, badge: 'Live' },
@@ -222,6 +230,8 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
         return <AdminContactSupportView />;
       case 'library':
         return <AdminLibraryView />;
+      case 'hints':
+        return <AdminHintsView />;
       default:
         return <AdminDashboardView onNavigateTab={(tab) => setActiveTab(tab)} />;
     }

@@ -668,6 +668,16 @@
           ]
         }
       ]
+    },
+    "competition_hints": {
+      "indexes": [
+        {
+          "fields": [
+            { "fieldPath": "competitionType", "order": "ASCENDING" },
+            { "fieldPath": "status", "order": "ASCENDING" }
+          ]
+        }
+      ]
     }
   }
 }

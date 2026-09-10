@@ -7,6 +7,7 @@ import { ChatroomLiveView } from './components/Community/ChatroomLive/ChatroomLi
 import { SchoolDomeView } from './components/SchoolDome/SchoolDomeView';
 import { CommunityTab } from './components/Community/CommunityTab';
 import { LibraryTab } from './components/Library/LibraryTab';
+import { HintsView } from './components/Hints/HintsView';
 import { WalletModal } from './components/Wallet/WalletModal';
 import { AuthModal } from './components/Auth/AuthModal';
 import { AuthLandingScreen } from './components/Auth/AuthLandingScreen';
@@ -89,6 +90,11 @@ function MainLayout() {
         {activeTab === 'school_dome_results' && (
           <div className="max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 pt-1.5 sm:pt-3 pb-1.5 sm:pb-3">
             <SchoolDomeView initialTab="results" />
+          </div>
+        )}
+        {activeTab === 'hints' && (
+          <div className="max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 pt-1.5 sm:pt-3 pb-1.5 sm:pb-3">
+            <HintsView />
           </div>
         )}
         {activeTab === 'library' && <LibraryTab />}

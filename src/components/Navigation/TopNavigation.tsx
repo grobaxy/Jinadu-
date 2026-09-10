@@ -24,6 +24,7 @@ import {
   Smartphone,
   Shield,
   Megaphone,
+  Lightbulb,
 } from 'lucide-react';
 
 interface TopNavigationProps {
@@ -66,6 +67,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
     { id: 'home', label: 'Home', icon: Home, badgeKey: 'home' },
     { id: 'daily_qa', label: 'Daily Ultimate search', icon: Trophy, badgeKey: 'daily_qa' },
     { id: 'school_dome', label: 'School Dome', icon: Swords, badgeKey: 'school_dome' },
+    { id: 'hints', label: 'Hints', icon: Lightbulb, badgeKey: 'hints' },
     { id: 'library', label: 'Library', icon: BookOpen, badgeKey: 'library' },
     { id: 'community', label: 'Community', icon: Users, badgeKey: 'community' },
   ];

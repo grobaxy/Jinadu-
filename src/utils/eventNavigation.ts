@@ -85,6 +85,14 @@ export function resolveEventChannel(event: PlatformEventItem): EventTargetChanne
         badgeClass: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20',
       };
     }
+    if (event.targetTab === 'hints') {
+      return {
+        tab: 'hints',
+        label: 'Competition Hints',
+        actionText: 'View Competition Hints',
+        badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+      };
+    }
   }
 
   // 3. Category metadata lookup

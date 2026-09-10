@@ -791,6 +791,14 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // ==========================================
+    // GROBAAX COMPETITION HINTS RULES
+    // ==========================================
+    match /competition_hints/{hintId} {
+      allow read: if true;
+      allow write: if isManager() || isSuperAdmin();
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;

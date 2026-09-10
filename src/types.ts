@@ -135,12 +135,36 @@ export type AdminTabType =
   | 'notifications'
   | 'subscriptions'
   | 'library'
+  | 'hints'
   | 'settings'
   | 'contact';
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 
-export type TabType = 'home' | 'gus' | 'daily_qa' | 'school_dome' | 'school_dome_results' | 'library' | 'community';
+export type TabType = 'home' | 'gus' | 'daily_qa' | 'school_dome' | 'school_dome_results' | 'hints' | 'library' | 'community';
+
+// ==========================================
+// GROBAAX COMPETITION HINTS TYPES & SCHEMAS
+// ==========================================
+export type CompetitionHintType = 'daily_qa' | 'school_dome';
+export type HintSubscriptionTier = 'premium' | 'vip' | 'both';
+export type HintStatus = 'draft' | 'published' | 'hidden';
+
+export interface CompetitionHint {
+  id: string;
+  competitionType: CompetitionHintType; // 'daily_qa' (Daily Ultimate Search) | 'school_dome' (School Dome)
+  title: string;
+  category: string; // Main category or subject
+  topic: string; // Specific topic
+  areasToPrepare: string[]; // Areas/topics students should prepare
+  preparationMessage: string; // Additional preparation message
+  accessLevel: HintSubscriptionTier; // 'premium' | 'vip' | 'both'
+  status: HintStatus; // 'draft' | 'published' | 'hidden'
+  createdByUid?: string;
+  createdByName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // ==========================================
 // GROBAAX AI LIBRARY TYPES & SCHEMAS

@@ -92,6 +92,7 @@ export function getTabsForRole(role?: ManagerRole | null, uid?: string | null): 
       'notifications',
       'subscriptions',
       'library',
+      'hints',
       'settings',
       'contact',
     ];
@@ -122,6 +123,7 @@ export function getTabsForRole(role?: ManagerRole | null, uid?: string | null): 
       'notifications',
       'subscriptions',
       'library',
+      'hints',
       'settings',
       'contact',
     ];
@@ -138,6 +140,7 @@ export function getTabsForRole(role?: ManagerRole | null, uid?: string | null): 
       tabs.add('gus');
       tabs.add('questions');
       tabs.add('live_management');
+      tabs.add('hints');
       break;
     case 'GROUP_BATTLE_MANAGER':
       tabs.add('group_battle');
@@ -154,6 +157,7 @@ export function getTabsForRole(role?: ManagerRole | null, uid?: string | null): 
     case 'EVENTS_MANAGER':
       tabs.add('events');
       tabs.add('school_dome');
+      tabs.add('hints');
       break;
     case 'COMMUNITY_ANNOUNCEMENT_MANAGER':
       tabs.add('community');
@@ -170,9 +174,11 @@ export function getTabsForRole(role?: ManagerRole | null, uid?: string | null): 
     case 'LIVE_COMPETITION_MANAGER':
       tabs.add('live_management');
       tabs.add('questions');
+      tabs.add('hints');
       break;
     case 'QUESTION_MANAGER':
       tabs.add('questions');
+      tabs.add('hints');
       break;
     case 'NOTIFICATION_MANAGER':
       tabs.add('notifications');
