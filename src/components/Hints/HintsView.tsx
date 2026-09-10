@@ -79,18 +79,20 @@ export function HintsView() {
     ''
   ).toLowerCase();
 
-  const isExplicitFree =
+  const isExplicitFree = !isSuperOrAdmin && (
     rawTier.includes('free') ||
-    (!currentUser?.isPremium && !currentUser?.isSubscribed && !isUserSubscribed && !rawTier);
+    (!currentUser?.isPremium && !currentUser?.isSubscribed && !isUserSubscribed && !rawTier)
+  );
 
   const isVipTier =
-    !isExpired &&
+    isSuperOrAdmin ||
+    (!isExpired &&
     !isExplicitFree &&
     (Boolean(currentUser?.isVip) ||
       rawTier.includes('vip') ||
       rawTier.includes('titan') ||
       rawTier.includes('legend') ||
-      rawTier.includes('annual'));
+      rawTier.includes('annual')));
 
   const isPremiumTier =
     !isExpired &&
@@ -121,7 +123,7 @@ export function HintsView() {
       if (adminSimulatedTier !== 'actual') {
         return adminSimulatedTier;
       }
-      return actualUserTier;
+      return actualUserTier === 'free' ? 'vip' : actualUserTier;
     }
     return actualUserTier;
   }, [isSuperOrAdmin, adminSimulatedTier, actualUserTier]);

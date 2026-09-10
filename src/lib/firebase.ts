@@ -1443,33 +1443,52 @@ export const ensureUserInFirestore = async (
       major: existing?.major || existing?.departmentName || fallbackDetails?.major || fallbackDetails?.departmentName || (isSuper ? 'Executive Administrator' : 'Undergraduate'),
       bio: existing?.bio || fallbackDetails?.bio || (isSuper ? 'Primary Super Administrator of Grobaax Box.' : 'Scholar in Grobaax Academy'),
       verified: existing?.verified !== undefined ? existing.verified : true,
-      gpBalance: existing?.gpBalance !== undefined ? Number(existing.gpBalance) : (fallbackDetails?.gpBalance !== undefined ? Number(fallbackDetails.gpBalance) : 0),
+      gpBalance: existing?.gpBalance !== undefined && !isNaN(Number(existing.gpBalance))
+        ? Number(existing.gpBalance)
+        : (fallbackDetails?.gpBalance !== undefined && !isNaN(Number(fallbackDetails.gpBalance))
+            ? Number(fallbackDetails.gpBalance)
+            : (isSuper ? 100000 : 0)),
       grbxTokens: existing?.grbxTokens !== undefined ? existing.grbxTokens : (fallbackDetails?.grbxTokens ?? 0),
       stakedTokens: existing?.stakedTokens !== undefined ? existing.stakedTokens : (fallbackDetails?.stakedTokens ?? 0),
       reputationPoints: existing?.reputationPoints !== undefined ? existing.reputationPoints : (fallbackDetails?.reputationPoints ?? 100),
       gusRank: existing?.gusRank !== undefined ? existing.gusRank : (fallbackDetails?.gusRank ?? 0),
       gusTier: existing?.gusTier || fallbackDetails?.gusTier || (isSuper ? 'Grandmaster' : 'Scholar'),
-      activePlanId: existing?.activePlanId || fallbackDetails?.activePlanId || '',
-      membershipTier: existing?.membershipTier || fallbackDetails?.membershipTier || 'Free Scholar',
-      subscriptionTier: existing?.subscriptionTier || fallbackDetails?.subscriptionTier || (existing?.membershipTier || 'Free Scholar'),
-      subscriptionPlan: existing?.subscriptionPlan || fallbackDetails?.subscriptionPlan || existing?.membershipTier || '',
-      planId: existing?.planId || fallbackDetails?.planId || existing?.activePlanId || '',
-      tier: existing?.tier || fallbackDetails?.tier || existing?.membershipTier || 'Free Scholar',
-      plan: existing?.plan || fallbackDetails?.plan || existing?.membershipTier || '',
-      isSubscribed: Boolean(
+      activePlanId: isSuper ? 'plan_titan_naira' : (existing?.activePlanId || fallbackDetails?.activePlanId || ''),
+      membershipTier: isSuper ? 'Grobaax Titan Annual VIP' : (existing?.membershipTier || fallbackDetails?.membershipTier || 'Free Scholar'),
+      subscriptionTier: isSuper ? 'Grobaax Titan Annual VIP' : (existing?.subscriptionTier || fallbackDetails?.subscriptionTier || (existing?.membershipTier || 'Free Scholar')),
+      subscriptionPlan: isSuper ? 'Grobaax Titan Annual VIP' : (existing?.subscriptionPlan || fallbackDetails?.subscriptionPlan || existing?.membershipTier || ''),
+      planId: isSuper ? 'plan_titan_naira' : (existing?.planId || fallbackDetails?.planId || existing?.activePlanId || ''),
+      tier: isSuper ? 'Grobaax Titan Annual VIP' : (existing?.tier || fallbackDetails?.tier || existing?.membershipTier || 'Free Scholar'),
+      plan: isSuper ? 'Grobaax Titan Annual VIP' : (existing?.plan || fallbackDetails?.plan || existing?.membershipTier || ''),
+      isSubscribed: isSuper ? true : Boolean(
         existing?.isSubscribed ||
         fallbackDetails?.isSubscribed ||
         (existing?.activePlanId && !existing.activePlanId.toLowerCase().includes('free')) ||
         (existing?.membershipTier && !existing.membershipTier.toLowerCase().includes('free') && existing.membershipTier.toLowerCase() !== 'starter scholar')
       ),
-      isPremium: Boolean(
+      isPremium: isSuper ? true : Boolean(
         existing?.isPremium ||
         fallbackDetails?.isPremium ||
         (existing?.activePlanId && !existing.activePlanId.toLowerCase().includes('free')) ||
         (existing?.membershipTier && !existing.membershipTier.toLowerCase().includes('free') && existing.membershipTier.toLowerCase() !== 'starter scholar')
       ),
-      subscriptionExpiry: existing?.subscriptionExpiry || fallbackDetails?.subscriptionExpiry || '',
-      subscription: existing?.subscription || fallbackDetails?.subscription || undefined,
+      isVip: isSuper ? true : Boolean(
+        existing?.isVip ||
+        fallbackDetails?.isVip ||
+        (existing?.membershipTier && (existing.membershipTier.toLowerCase().includes('vip') || existing.membershipTier.toLowerCase().includes('titan')))
+      ),
+      subscriptionExpiry: isSuper ? '2099-12-31T23:59:59.999Z' : (existing?.subscriptionExpiry || fallbackDetails?.subscriptionExpiry || ''),
+      subscription: isSuper ? {
+        planId: 'plan_titan_naira',
+        name: 'Grobaax Titan Annual VIP',
+        planName: 'Grobaax Titan Annual VIP',
+        price: 25000,
+        currency: 'NGN',
+        duration: '1 Years',
+        startDate: '2025-01-01T00:00:00.000Z',
+        expiryDate: '2099-12-31T23:59:59.999Z',
+        status: 'active',
+      } : (existing?.subscription || fallbackDetails?.subscription || undefined),
       walletAddress: existing?.walletAddress || fallbackDetails?.walletAddress || `0x${uid.substring(0, 10)}${Math.random().toString(16).substring(2, 6)}`,
       privacy: existing?.privacy || fallbackDetails?.privacy || DEFAULT_PRIVACY,
       badges: existing?.badges || fallbackDetails?.badges || [],
@@ -1490,6 +1509,33 @@ export const ensureUserInFirestore = async (
         await setDoc(usernameRef, { uid, username: generatedUsername, createdAt: serverTimestamp() }, { merge: true });
       } catch (uErr) {
         // Ignored
+      }
+    } else if (isSuper) {
+      // Self-heal super admin's Firestore document to guarantee VIP tier and maintain their personal GP balance
+      const adminPatch: Record<string, any> = {
+        role: 'admin',
+        membershipTier: 'Grobaax Titan Annual VIP',
+        subscriptionTier: 'Grobaax Titan Annual VIP',
+        subscriptionPlan: 'Grobaax Titan Annual VIP',
+        activePlanId: 'plan_titan_naira',
+        planId: 'plan_titan_naira',
+        tier: 'Grobaax Titan Annual VIP',
+        plan: 'Grobaax Titan Annual VIP',
+        isSubscribed: true,
+        isPremium: true,
+        isVip: true,
+        verified: true,
+        subscriptionExpiry: '2099-12-31T23:59:59.999Z',
+        updatedAt: serverTimestamp(),
+      };
+      if (existing?.gpBalance === undefined || isNaN(Number(existing?.gpBalance))) {
+        adminPatch.gpBalance = 100000;
+        profileData.gpBalance = 100000;
+      }
+      try {
+        await setDoc(userDocRef, adminPatch, { merge: true });
+      } catch (healErr) {
+        console.warn('Super admin self-heal notice:', healErr);
       }
     }
 

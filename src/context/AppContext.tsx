@@ -566,11 +566,21 @@ export const resolveUserSubscriptionStatus = (user: Partial<UserProfile> | null 
     return { isSubscribed: false, isExpired: false, effectiveTier: 'Free Scholar', tierType: 'free', isPremium: false };
   }
 
+  const isSuperAdminUser =
+    Boolean(user.id && isPrimarySuperAdmin(user.id, user.email)) ||
+    Boolean(user.uid && isPrimarySuperAdmin(user.uid, user.email)) ||
+    user.email === 'grobaxycompany@gmail.com' ||
+    user.id === PRIMARY_SUPER_ADMIN_UID ||
+    user.uid === PRIMARY_SUPER_ADMIN_UID;
+
   const isStaffOrAdmin =
+    isSuperAdminUser ||
     user.role === 'admin' ||
     user.role === 'super_admin' ||
+    (user.role as string) === 'SUPER_ADMIN' ||
+    (user.role as string) === 'ADMIN' ||
     (user.role as string) === 'staff' ||
-    (user.name && (user.name.toLowerCase().includes('admin') || user.name.toLowerCase().includes('staff')));
+    (user.name && (user.name.toLowerCase().includes('admin') || user.name.toLowerCase().includes('staff') || user.name.toLowerCase().includes('directorate')));
 
   const isCommunityManager =
     user.role === 'community_manager' ||
@@ -580,7 +590,7 @@ export const resolveUserSubscriptionStatus = (user: Partial<UserProfile> | null 
     return {
       isSubscribed: true,
       isExpired: false,
-      effectiveTier: 'VIP SCHOLAR',
+      effectiveTier: 'Grobaax Titan Annual VIP',
       tierType: 'vip',
       isPremium: true,
     };
@@ -922,7 +932,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
                 setCurrentUser(prev => {
                   const isPrevMock = prev.id === 'user_student' || (prev.id && prev.id !== user.uid);
-                  const isSuper = isPrimarySuperAdmin(user.uid, user.email || data.email);
+                  const isSuper =
+                    isPrimarySuperAdmin(user.uid, user.email || data.email) ||
+                    user.email === 'grobaxycompany@gmail.com' ||
+                    data.email === 'grobaxycompany@gmail.com' ||
+                    user.uid === PRIMARY_SUPER_ADMIN_UID ||
+                    data.role === 'admin' ||
+                    data.role === 'super_admin' ||
+                    data.role === 'SUPER_ADMIN' ||
+                    data.role === 'ADMIN';
                   const fallbackName = user.displayName || (user.email ? user.email.split('@')[0] : 'Scholar');
                   
                   const resolvedName = data.fullName || data.name || (isPrevMock ? fallbackName : prev.name);
@@ -932,7 +950,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   const resolvedAvatar = data.profileImage || data.avatar || user.photoURL || (isPrevMock ? `https://api.dicebear.com/7.x/bottts/svg?seed=${user.uid}` : prev.avatar);
                   const resolvedRole = data.role || (isSuper ? 'admin' : (isPrevMock ? 'student' : prev.role));
 
-                  return {
+                  const nextUser = {
                     ...prev,
                     ...data,
                     id: user.uid,
@@ -956,34 +974,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     departmentName: data.departmentName || data.department || (isSuper ? 'HQ Overseer' : (isPrevMock ? '' : prev.departmentName)),
                     departmentId: data.departmentId || prev.departmentId || '',
                     level: data.level || (isSuper ? 'Executive Level' : (isPrevMock ? '100 Level' : prev.level)),
-                    gpBalance: data.gpBalance !== undefined ? Number(data.gpBalance) : (isPrevMock ? 0 : (typeof prev.gpBalance === 'number' ? prev.gpBalance : 0)),
+                    gpBalance: data.gpBalance !== undefined && !isNaN(Number(data.gpBalance))
+                      ? Number(data.gpBalance)
+                      : (typeof prev.gpBalance === 'number' && prev.gpBalance > 0
+                          ? prev.gpBalance
+                          : (isSuper ? 100000 : 0)),
                     grbxTokens: data.grbxTokens !== undefined ? Number(data.grbxTokens) : (isPrevMock ? 0 : prev.grbxTokens),
                     stakedTokens: data.stakedTokens !== undefined ? Number(data.stakedTokens) : (isPrevMock ? 0 : prev.stakedTokens),
                     reputationPoints: data.reputationPoints !== undefined ? Number(data.reputationPoints) : (isPrevMock ? 100 : prev.reputationPoints),
                     gusRank: data.gusRank !== undefined ? Number(data.gusRank) : (isPrevMock ? 0 : prev.gusRank),
                     gusTier: data.gusTier || (isSuper ? 'Grandmaster' : (isPrevMock ? 'Scholar' : prev.gusTier)),
                     walletAddress: data.walletAddress || prev.walletAddress || `0x${user.uid.substring(0, 10)}`,
-                    activePlanId: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
-                      ? ''
-                      : (data.activePlanId || prev.activePlanId || ''),
-                    membershipTier: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
-                      ? 'Free Scholar'
-                      : (data.membershipTier || data.subscriptionTier || prev.membershipTier || 'Free Scholar'),
-                    subscriptionTier: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
-                      ? 'Free Scholar'
-                      : (data.subscriptionTier || data.membershipTier || prev.subscriptionTier || 'Free Scholar'),
-                    subscriptionPlan: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
-                      ? ''
-                      : (data.subscriptionPlan || data.membershipTier || prev.subscriptionPlan || ''),
-                    planId: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
-                      ? ''
-                      : (data.planId || data.activePlanId || prev.planId || ''),
-                    tier: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
-                      ? 'Free Scholar'
-                      : (data.tier || data.membershipTier || prev.tier || 'Free Scholar'),
-                    plan: data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now() && !isSuper
-                      ? ''
-                      : (data.plan || data.membershipTier || prev.plan || ''),
+                    activePlanId: isSuper ? 'plan_titan_naira' : (
+                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                        ? ''
+                        : (data.activePlanId || prev.activePlanId || '')
+                    ),
+                    membershipTier: isSuper ? 'Grobaax Titan Annual VIP' : (
+                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                        ? 'Free Scholar'
+                        : (data.membershipTier || data.subscriptionTier || prev.membershipTier || 'Free Scholar')
+                    ),
+                    subscriptionTier: isSuper ? 'Grobaax Titan Annual VIP' : (
+                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                        ? 'Free Scholar'
+                        : (data.subscriptionTier || data.membershipTier || prev.subscriptionTier || 'Free Scholar')
+                    ),
+                    subscriptionPlan: isSuper ? 'Grobaax Titan Annual VIP' : (
+                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                        ? ''
+                        : (data.subscriptionPlan || data.membershipTier || prev.subscriptionPlan || '')
+                    ),
+                    planId: isSuper ? 'plan_titan_naira' : (
+                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                        ? ''
+                        : (data.planId || data.activePlanId || prev.planId || '')
+                    ),
+                    tier: isSuper ? 'Grobaax Titan Annual VIP' : (
+                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                        ? 'Free Scholar'
+                        : (data.tier || data.membershipTier || prev.tier || 'Free Scholar')
+                    ),
+                    plan: isSuper ? 'Grobaax Titan Annual VIP' : (
+                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                        ? ''
+                        : (data.plan || data.membershipTier || prev.plan || '')
+                    ),
                     isSubscribed: isSuper || Boolean(
                       (!data.subscriptionExpiry || new Date(data.subscriptionExpiry).getTime() > Date.now()) &&
                       (data.isSubscribed || data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free')) || (data.membershipTier && !data.membershipTier.toLowerCase().includes('free') && data.membershipTier.toLowerCase() !== 'starter scholar') || prev.isSubscribed)
@@ -1008,8 +1044,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                       prev.verified ||
                       (data.activePlanId && !data.activePlanId.toLowerCase().includes('free'))
                     ),
-                    subscriptionExpiry: data.subscriptionExpiry || prev.subscriptionExpiry || '',
-                    subscription: data.subscription || prev.subscription || undefined,
+                    subscriptionExpiry: isSuper ? '2099-12-31T23:59:59.999Z' : (data.subscriptionExpiry || prev.subscriptionExpiry || ''),
+                    subscription: isSuper ? {
+                      planId: 'plan_titan_naira',
+                      name: 'Grobaax Titan Annual VIP',
+                      planName: 'Grobaax Titan Annual VIP',
+                      price: 25000,
+                      currency: 'NGN',
+                      duration: '1 Years',
+                      startDate: '2025-01-01T00:00:00.000Z',
+                      expiryDate: '2099-12-31T23:59:59.999Z',
+                      status: 'active',
+                    } : (data.subscription || prev.subscription || undefined),
                     privacy: data.privacy || prev.privacy || {
                       showInstitution: true,
                       showFaculty: true,
@@ -1024,6 +1070,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     purchasedBadgeIds: data.purchasedBadgeIds || prev.purchasedBadgeIds || [],
                     dailyQaUsage: data.dailyQaUsage || prev.dailyQaUsage || undefined,
                   };
+
+                  if (isSuper && (data.membershipTier !== 'Grobaax Titan Annual VIP' || data.activePlanId !== 'plan_titan_naira' || !data.isVip || !data.isSubscribed)) {
+                    updateDoc(doc(db, 'users', user.uid), {
+                      role: 'admin',
+                      membershipTier: 'Grobaax Titan Annual VIP',
+                      subscriptionTier: 'Grobaax Titan Annual VIP',
+                      subscriptionPlan: 'Grobaax Titan Annual VIP',
+                      activePlanId: 'plan_titan_naira',
+                      planId: 'plan_titan_naira',
+                      tier: 'Grobaax Titan Annual VIP',
+                      plan: 'Grobaax Titan Annual VIP',
+                      isSubscribed: true,
+                      isPremium: true,
+                      isVip: true,
+                      verified: true,
+                      subscriptionExpiry: '2099-12-31T23:59:59.999Z',
+                    }).catch(() => {});
+                  }
+
+                  return nextUser;
                 });
 
                 if (data.dailyQaUsage?.date && data.dailyQaUsage?.count !== undefined) {
@@ -4134,10 +4200,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const adminAdjustTargetUserGp = async (targetUserId: string, amount: number, reason: string) => {
+  const adminAdjustTargetUserGp = async (targetUserId: string, amount: number, reason: string): Promise<void> => {
     if (!targetUserId) return;
     try {
-      await adjustUserGpInFirestore(targetUserId, amount, reason, firebaseUser?.uid || currentUser.id, currentUser.name);
+      const res = await adjustUserGpInFirestore(targetUserId, amount, reason, firebaseUser?.uid || currentUser.id, currentUser.name);
+      if (res.success && (targetUserId === (firebaseUser?.uid || currentUser.id) || targetUserId === currentUser.id)) {
+        setCurrentUser(prev => ({ ...prev, gpBalance: res.newBalance }));
+      }
     } catch (e) {
       console.warn('adminAdjustTargetUserGp firestore error:', e);
     }

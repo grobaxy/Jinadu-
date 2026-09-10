@@ -105,7 +105,12 @@ export function AdminUsersView() {
           }
         }
 
-        const isSuper = isPrimarySuperAdmin(docSnap.id, userEmail);
+        const isSuper =
+          isPrimarySuperAdmin(docSnap.id, userEmail) ||
+          userEmail === 'grobaxycompany@gmail.com' ||
+          docSnap.id === PRIMARY_SUPER_ADMIN_UID ||
+          data.role === 'admin' ||
+          data.role === 'super_admin';
         const isMockName = (data.fullName === 'Alex Chen' || data.name === 'Alex Chen') && userEmail !== 'alex@mit.edu' && docSnap.id !== 'user_student';
         const resolvedName = (!isMockName && (data.fullName || data.name || data.displayName)) || (userEmail ? userEmail.split('@')[0] : 'Grobaax Scholar');
         const resolvedRole = isSuper ? 'admin' : (data.role || 'student');
@@ -121,24 +126,34 @@ export function AdminUsersView() {
           authProvider: detectedProvider,
           createdAt: createdDateStr || data.joinedDate || '',
           isRepresentative: Boolean(data.isRepresentative),
-          institution: data.institutionName || data.institution || 'Unassigned Institution',
+          institution: data.institutionName || data.institution || (isSuper ? 'Grobaax Systems Administration' : 'Unassigned Institution'),
           institutionCategory: data.institutionCategory || 'University',
-          department: data.departmentName || data.department || 'General Studies',
-          level: data.level || '100 Level',
-          major: data.major || data.departmentName || data.department || 'Undergraduate',
+          department: data.departmentName || data.department || (isSuper ? 'HQ Overseer' : 'General Studies'),
+          level: data.level || (isSuper ? 'Executive Level' : '100 Level'),
+          major: data.major || data.departmentName || data.department || (isSuper ? 'Executive Administrator' : 'Undergraduate'),
           grbxTokens: data.grbxTokens || 0,
-          gpBalance: typeof data.gpBalance === 'number' ? data.gpBalance : Number(data.gpBalance || 0),
+          gpBalance: typeof data.gpBalance === 'number' ? data.gpBalance : (data.gpBalance ? Number(data.gpBalance) : (isSuper ? 100000 : 0)),
           stakedTokens: data.stakedTokens || 0,
           reputationPoints: data.reputationPoints || 100,
           gusRank: data.gusRank || 0,
-          gusTier: data.gusTier || 'Scholar',
+          gusTier: data.gusTier || (isSuper ? 'Grandmaster' : 'Scholar'),
           walletAddress: data.walletAddress || `0x${docSnap.id.substring(0, 10)}`,
-          bio: data.bio || '',
-          verified: Boolean(data.verified),
+          bio: data.bio || (isSuper ? 'Primary Super Administrator of Grobaax Box.' : ''),
+          verified: Boolean(data.verified || isSuper),
           studentIdCardUrl: data.studentIdCardUrl || '',
-          idVerificationStatus: data.idVerificationStatus || (data.verified ? 'verified' : (data.studentIdCardUrl ? 'pending' : 'unsubmitted')),
+          idVerificationStatus: isSuper ? 'verified' : (data.idVerificationStatus || (data.verified ? 'verified' : (data.studentIdCardUrl ? 'pending' : 'unsubmitted'))),
           idCardUploadedAt: data.idCardUploadedAt || '',
           isPostingSuspended: Boolean(data.isPostingSuspended || data.accountStatus === 'suspended'),
+          activePlanId: isSuper ? 'plan_titan_naira' : (data.activePlanId || ''),
+          membershipTier: isSuper ? 'Grobaax Titan Annual VIP' : (data.membershipTier || data.subscriptionTier || 'Free Scholar'),
+          subscriptionTier: isSuper ? 'Grobaax Titan Annual VIP' : (data.subscriptionTier || data.membershipTier || 'Free Scholar'),
+          subscriptionPlan: isSuper ? 'Grobaax Titan Annual VIP' : (data.subscriptionPlan || data.membershipTier || ''),
+          planId: isSuper ? 'plan_titan_naira' : (data.planId || data.activePlanId || ''),
+          tier: isSuper ? 'Grobaax Titan Annual VIP' : (data.tier || data.membershipTier || 'Free Scholar'),
+          isSubscribed: isSuper || Boolean(data.isSubscribed || data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free'))),
+          isPremium: isSuper || Boolean(data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free'))),
+          isVip: isSuper || Boolean(data.isVip || (data.membershipTier && data.membershipTier.toLowerCase().includes('vip'))),
+          subscriptionExpiry: isSuper ? '2099-12-31T23:59:59.999Z' : (data.subscriptionExpiry || ''),
           privacy: data.privacy || {
             showInstitution: true,
             showDepartment: true,

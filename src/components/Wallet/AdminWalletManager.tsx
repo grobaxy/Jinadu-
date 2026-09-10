@@ -188,6 +188,8 @@ export const AdminWalletManager: React.FC = () => {
         }
       }
 
+      await loadUsersForWallet();
+
       setAdjustSuccessMsg(`Successfully adjusted GP for ${targetUser.name || targetUser.username} by ${amt > 0 ? '+' : ''}${amt.toLocaleString()} GP.`);
       setAdjustAmount('');
       setAdjustReason('');
@@ -640,7 +642,7 @@ export const AdminWalletManager: React.FC = () => {
                 className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
                 <option value={currentUser.id}>
-                  👤 Logged In Admin: {currentUser.name} (@{currentUser.username}) - [{currentUser.gpBalance.toLocaleString()} GP]
+                  👑 Admin Personal Wallet: {currentUser.name} (@{currentUser.username}) - [{(currentUser.gpBalance || 0).toLocaleString()} GP] • VIP Titan Plan
                 </option>
                 {allUsers
                   .filter((u) => {

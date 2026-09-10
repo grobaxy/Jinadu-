@@ -2457,22 +2457,34 @@ export const WalletModal: React.FC = () => {
 
           {/* TAB 5: MEMBERSHIP UPGRADE PLANS (SYNCED LIVE FROM FIRESTORE ADMIN) */}
           {activeTab === 'upgrade' && (() => {
-            const isUserExpired = currentUser.subscriptionExpiry
+            const isSuper =
+              Boolean(currentUser.id && isPrimarySuperAdmin(currentUser.id, currentUser.email)) ||
+              Boolean(currentUser.uid && isPrimarySuperAdmin(currentUser.uid, currentUser.email)) ||
+              currentUser.email === 'grobaxycompany@gmail.com' ||
+              currentUser.id === PRIMARY_SUPER_ADMIN_UID ||
+              currentUser.uid === PRIMARY_SUPER_ADMIN_UID ||
+              currentUser.role === 'admin' ||
+              currentUser.role === 'super_admin';
+
+            const isUserExpired = !isSuper && currentUser.subscriptionExpiry
               ? new Date(currentUser.subscriptionExpiry).getTime() <= Date.now()
               : false;
 
-            const activeTierName = !isUserExpired && currentUser.membershipTier && !currentUser.membershipTier.toLowerCase().includes('free')
-              ? currentUser.membershipTier
-              : (!isUserExpired && currentUser.activePlanId
-                ? (subscriptionPlans.find(p => p.planId === currentUser.activePlanId || p.id === currentUser.activePlanId)?.name || currentUser.membershipTier || 'Free Scholar')
-                : (currentUser.membershipTier || currentUser.subscriptionTier || 'Free Scholar'));
+            const activeTierName = isSuper
+              ? 'Grobaax Titan Annual VIP'
+              : (!isUserExpired && currentUser.membershipTier && !currentUser.membershipTier.toLowerCase().includes('free')
+                ? currentUser.membershipTier
+                : (!isUserExpired && currentUser.activePlanId
+                  ? (subscriptionPlans.find(p => p.planId === currentUser.activePlanId || p.id === currentUser.activePlanId)?.name || currentUser.membershipTier || 'Free Scholar')
+                  : (currentUser.membershipTier || currentUser.subscriptionTier || 'Free Scholar')));
 
-            const isFreeBase =
+            const isFreeBase = !isSuper && (
               isUserExpired ||
               (!currentUser.activePlanId &&
                 (!currentUser.membershipTier ||
                   currentUser.membershipTier.toLowerCase().trim() === 'starter scholar' ||
-                  currentUser.membershipTier.toLowerCase().includes('free')));
+                  currentUser.membershipTier.toLowerCase().includes('free')))
+            );
 
             return (
               <div className="space-y-6">
@@ -2591,18 +2603,19 @@ export const WalletModal: React.FC = () => {
 
                   {/* Firestore Admin Synced Plans */}
                   {(activeSubscriptionPlans.length > 0 ? activeSubscriptionPlans : subscriptionPlans.filter(p => p.active !== false)).map((plan) => {
-                    const isPlanExpired = currentUser.subscriptionExpiry
+                    const isPlanExpired = !isSuper && currentUser.subscriptionExpiry
                       ? new Date(currentUser.subscriptionExpiry).getTime() <= Date.now()
                       : false;
 
-                    const isCurrent = !isPlanExpired && Boolean(
-                      (currentUser.activePlanId && (currentUser.activePlanId === plan.planId || currentUser.activePlanId === plan.id)) ||
-                      (currentUser.subscription?.planId && (currentUser.subscription.planId === plan.planId || currentUser.subscription.planId === plan.id)) ||
-                      ((currentUser as any).planId && ((currentUser as any).planId === plan.planId || (currentUser as any).planId === plan.id)) ||
-                      (currentUser.membershipTier && currentUser.membershipTier.trim().toLowerCase() === plan.name.trim().toLowerCase()) ||
-                      (currentUser.subscriptionTier && currentUser.subscriptionTier.trim().toLowerCase() === plan.name.trim().toLowerCase()) ||
-                      ((currentUser as any).subscriptionPlan && (currentUser as any).subscriptionPlan.trim().toLowerCase() === plan.name.trim().toLowerCase())
-                    );
+                    const isCurrent = (isSuper && (plan.planId === 'plan_titan_naira' || plan.name.toLowerCase().includes('titan') || plan.name.toLowerCase().includes('vip'))) ||
+                      (!isPlanExpired && Boolean(
+                        (currentUser.activePlanId && (currentUser.activePlanId === plan.planId || currentUser.activePlanId === plan.id)) ||
+                        (currentUser.subscription?.planId && (currentUser.subscription.planId === plan.planId || currentUser.subscription.planId === plan.id)) ||
+                        ((currentUser as any).planId && ((currentUser as any).planId === plan.planId || (currentUser as any).planId === plan.id)) ||
+                        (currentUser.membershipTier && currentUser.membershipTier.trim().toLowerCase() === plan.name.trim().toLowerCase()) ||
+                        (currentUser.subscriptionTier && currentUser.subscriptionTier.trim().toLowerCase() === plan.name.trim().toLowerCase()) ||
+                        ((currentUser as any).subscriptionPlan && (currentUser as any).subscriptionPlan.trim().toLowerCase() === plan.name.trim().toLowerCase())
+                      ));
 
                     return (
                       <div
