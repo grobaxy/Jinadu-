@@ -40,26 +40,22 @@ import {
 
 interface HintFormData {
   competitionType: CompetitionHintType;
-  title: string;
-  category: string;
-  topic: string;
-  areasToPrepare: string[];
-  newAreaInput: string;
-  preparationMessage: string;
+  roundLabel: string;
+  possibleQuestions: string[];
   accessLevel: HintSubscriptionTier;
   status: HintStatus;
+  bulkText: string;
+  showBulkInput: boolean;
 }
 
 const DEFAULT_FORM_DATA: HintFormData = {
   competitionType: 'daily_qa',
-  title: '',
-  category: '',
-  topic: '',
-  areasToPrepare: [],
-  newAreaInput: '',
-  preparationMessage: '',
+  roundLabel: '',
+  possibleQuestions: [''],
   accessLevel: 'both',
   status: 'published',
+  bulkText: '',
+  showBulkInput: false,
 };
 
 export function AdminHintsView() {
@@ -120,6 +116,27 @@ export function AdminHintsView() {
     return { total, published, drafts, hidden, dailyQA, schoolDome };
   }, [hints]);
 
+  // Helper to extract questions from hint safely
+  const getHintQuestions = (hint: CompetitionHint): string[] => {
+    if (Array.isArray(hint.possibleQuestions) && hint.possibleQuestions.length > 0) {
+      return hint.possibleQuestions.filter((q) => q && q.trim().length > 0);
+    }
+    // Backward compatibility for legacy hints
+    const fallback: string[] = [];
+    if (hint.preparationMessage && hint.preparationMessage.trim()) {
+      fallback.push(hint.preparationMessage.trim());
+    }
+    if (Array.isArray(hint.areasToPrepare) && hint.areasToPrepare.length > 0) {
+      hint.areasToPrepare.forEach((a) => {
+        if (a && a.trim() && !fallback.includes(a.trim())) fallback.push(a.trim());
+      });
+    }
+    if (hint.topic && hint.topic.trim() && !fallback.includes(hint.topic.trim())) {
+      fallback.push(hint.topic.trim());
+    }
+    return fallback;
+  };
+
   // Filtered hints
   const filteredHints = useMemo(() => {
     return hints.filter((hint) => {
@@ -131,10 +148,10 @@ export function AdminHintsView() {
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchTitle = hint.title.toLowerCase().includes(q);
-        const matchCategory = hint.category.toLowerCase().includes(q);
-        const matchTopic = hint.topic.toLowerCase().includes(q);
-        return matchTitle || matchCategory || matchTopic;
+        const questions = getHintQuestions(hint).join(' ').toLowerCase();
+        const matchLabel = (hint.roundLabel || hint.title || '').toLowerCase().includes(q);
+        const matchQuestions = questions.includes(q);
+        return matchLabel || matchQuestions;
       }
       return true;
     });
@@ -150,36 +167,66 @@ export function AdminHintsView() {
 
   const handleOpenEditModal = (hint: CompetitionHint) => {
     setEditingHintId(hint.id);
+    const existingQuestions = getHintQuestions(hint);
     setFormData({
       competitionType: hint.competitionType,
-      title: hint.title,
-      category: hint.category,
-      topic: hint.topic,
-      areasToPrepare: [...hint.areasToPrepare],
-      newAreaInput: '',
-      preparationMessage: hint.preparationMessage,
+      roundLabel: hint.roundLabel || hint.title || '',
+      possibleQuestions: existingQuestions.length > 0 ? existingQuestions : [''],
       accessLevel: hint.accessLevel,
       status: hint.status,
+      bulkText: '',
+      showBulkInput: false,
     });
     setFormError(null);
     setIsModalOpen(true);
   };
 
-  // Add area tag to form
-  const handleAddArea = () => {
-    if (!formData.newAreaInput.trim()) return;
+  // Question manipulation handlers
+  const handleAddQuestionField = () => {
     setFormData((prev) => ({
       ...prev,
-      areasToPrepare: [...prev.areasToPrepare, prev.newAreaInput.trim()],
-      newAreaInput: '',
+      possibleQuestions: [...prev.possibleQuestions, ''],
     }));
   };
 
-  const handleRemoveArea = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      areasToPrepare: prev.areasToPrepare.filter((_, idx) => idx !== index),
-    }));
+  const handleUpdateQuestion = (index: number, text: string) => {
+    setFormData((prev) => {
+      const updated = [...prev.possibleQuestions];
+      updated[index] = text;
+      return { ...prev, possibleQuestions: updated };
+    });
+  };
+
+  const handleRemoveQuestion = (index: number) => {
+    setFormData((prev) => {
+      if (prev.possibleQuestions.length <= 1) {
+        return { ...prev, possibleQuestions: [''] };
+      }
+      return {
+        ...prev,
+        possibleQuestions: prev.possibleQuestions.filter((_, idx) => idx !== index),
+      };
+    });
+  };
+
+  const handleImportBulkQuestions = () => {
+    if (!formData.bulkText.trim()) return;
+    const lines = formData.bulkText
+      .split('\n')
+      .map((line) => line.trim().replace(/^(\d+[\.\)\-:]\s*)/, '')) // strip leading "1.", "1)", etc.
+      .filter((line) => line.length > 0);
+
+    if (lines.length === 0) return;
+
+    setFormData((prev) => {
+      const existing = prev.possibleQuestions.filter((q) => q.trim().length > 0);
+      return {
+        ...prev,
+        possibleQuestions: [...existing, ...lines],
+        bulkText: '',
+        showBulkInput: false,
+      };
+    });
   };
 
   // Save / Update hint handler
@@ -187,28 +234,13 @@ export function AdminHintsView() {
     e.preventDefault();
     setFormError(null);
 
-    // Validation
-    if (!formData.title.trim()) {
-      setFormError('Please provide a hint title.');
-      return;
-    }
-    if (!formData.category.trim()) {
-      setFormError('Please enter a category or subject.');
-      return;
-    }
-    if (!formData.topic.trim()) {
-      setFormError('Please enter a specific topic.');
-      return;
-    }
+    // Clean questions
+    const validQuestions = formData.possibleQuestions
+      .map((q) => q.trim())
+      .filter((q) => q.length > 0);
 
-    // Include any unsaved area input
-    const finalAreas = [...formData.areasToPrepare];
-    if (formData.newAreaInput.trim()) {
-      finalAreas.push(formData.newAreaInput.trim());
-    }
-
-    if (finalAreas.length === 0) {
-      setFormError('Please enter at least one area or topic for students to prepare.');
+    if (validQuestions.length === 0) {
+      setFormError('Please enter at least one possible question for this competition hint.');
       return;
     }
 
@@ -218,30 +250,24 @@ export function AdminHintsView() {
         // Update existing hint
         await updateCompetitionHint(editingHintId, {
           competitionType: formData.competitionType,
-          title: formData.title.trim(),
-          category: formData.category.trim(),
-          topic: formData.topic.trim(),
-          areasToPrepare: finalAreas,
-          preparationMessage: formData.preparationMessage.trim(),
+          roundLabel: formData.roundLabel.trim(),
+          possibleQuestions: validQuestions,
           accessLevel: formData.accessLevel,
           status: formData.status,
         });
-        showToast('Hint updated successfully!');
+        showToast('Competition hint updated successfully!');
       } else {
         // Create new hint
         await createCompetitionHint({
           competitionType: formData.competitionType,
-          title: formData.title.trim(),
-          category: formData.category.trim(),
-          topic: formData.topic.trim(),
-          areasToPrepare: finalAreas,
-          preparationMessage: formData.preparationMessage.trim(),
+          roundLabel: formData.roundLabel.trim(),
+          possibleQuestions: validQuestions,
           accessLevel: formData.accessLevel,
           status: formData.status,
           createdByUid: currentUser?.id,
           createdByName: currentUser?.name || 'Admin',
         });
-        showToast('New hint created successfully!');
+        showToast('New competition hint published successfully!');
       }
 
       setIsModalOpen(false);
@@ -553,50 +579,44 @@ export function AdminHintsView() {
                   </div>
                 </div>
 
-                {/* Title & Topic */}
+                {/* Round Label / Title */}
                 <div className="space-y-1">
                   <h4 className="text-base font-bold text-slate-900 dark:text-white">
-                    {hint.title}
+                    {hint.roundLabel || hint.title || (isDailyQA ? 'Daily Ultimate Search Hint' : 'School Dome Hint')}
                   </h4>
-                  <div className="flex items-center gap-2 flex-wrap text-xs text-slate-500 dark:text-slate-400">
-                    <span className="font-semibold text-blue-600 dark:text-blue-400">
-                      Category: {hint.category}
-                    </span>
-                    <span>•</span>
-                    <span className="font-medium text-slate-700 dark:text-slate-300">
-                      Topic: {hint.topic}
-                    </span>
+                  <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Posted {new Date(hint.updatedAt || hint.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
 
-                {/* Areas To Prepare Preview */}
-                {hint.areasToPrepare && hint.areasToPrepare.length > 0 && (
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      Areas to Prepare ({hint.areasToPrepare.length}):
-                    </span>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {hint.areasToPrepare.map((area, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium"
-                        >
-                          {area}
+                {/* Possible Questions Preview */}
+                {(() => {
+                  const questions = getHintQuestions(hint);
+                  return (
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Target className="w-3.5 h-3.5 text-blue-500" />
+                          <span>Possible Questions to Ask ({questions.length}):</span>
                         </span>
-                      ))}
+                      </div>
+                      <div className="space-y-1.5">
+                        {questions.map((q, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-800 dark:text-slate-200 flex items-start gap-2"
+                          >
+                            <span className="w-5 h-5 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <span className="leading-relaxed font-medium">{q}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Preparation Advice */}
-                {hint.preparationMessage && (
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-600 dark:text-slate-400">
-                    <span className="font-bold text-slate-700 dark:text-slate-300">
-                      Advice:
-                    </span>{' '}
-                    {hint.preparationMessage}
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             );
           })}
@@ -698,118 +718,108 @@ export function AdminHintsView() {
                 </div>
               </div>
 
-              {/* 2. Hint Title */}
+              {/* 2. Round / Challenge Label (Optional) */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Hint Title *
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                  <span>Round / Challenge Label (Optional)</span>
+                  <span className="text-[10px] text-slate-400 font-normal">e.g. Round 1, Today's Challenge</span>
                 </label>
                 <input
                   type="text"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="e.g. Nigerian Independence & Leaders"
+                  value={formData.roundLabel}
+                  onChange={(e) => setFormData({ ...formData, roundLabel: e.target.value })}
+                  placeholder="e.g. Round 1, Today's Search Challenge (or leave blank)"
                   className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"
                 />
               </div>
 
-              {/* 3. Category & Topic (Two columns) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Main Category / Subject *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    placeholder="e.g. Nigerian History, Biology, Physics"
-                    className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
-                </div>
+              {/* 3. Possible Questions Section */}
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Possible Questions to Ask *</span>
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Enter the questions that will eventually be asked when this competition starts.
+                    </p>
+                  </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Specific Topic *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.topic}
-                    onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
-                    placeholder="e.g. Nigerian Independence (1960)"
-                    className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
-                </div>
-              </div>
-
-              {/* 4. Areas to Prepare (Multi-tag input) */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                  <span>Areas Students Should Prepare *</span>
-                  <span className="text-[10px] text-slate-400 font-normal">
-                    Press Enter or click Add
-                  </span>
-                </label>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={formData.newAreaInput}
-                    onChange={(e) => setFormData({ ...formData, newAreaInput: e.target.value })}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddArea();
-                      }
-                    }}
-                    placeholder="e.g. Important historical dates, Nigerian leaders"
-                    className="flex-1 px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
                   <button
                     type="button"
-                    onClick={handleAddArea}
-                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold transition cursor-pointer"
+                    onClick={() => setFormData((prev) => ({ ...prev, showBulkInput: !prev.showBulkInput }))}
+                    className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                   >
-                    Add Area
+                    {formData.showBulkInput ? 'Close Paste Tool' : 'Paste Questions (Bulk)'}
                   </button>
                 </div>
 
-                {formData.areasToPrepare.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {formData.areasToPrepare.map((area, idx) => (
-                      <span
-                        key={idx}
-                        className="px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50 text-xs font-medium flex items-center gap-1.5"
+                {/* Bulk Paste Area */}
+                {formData.showBulkInput && (
+                  <div className="p-3.5 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 space-y-2">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Paste multiple questions (one per line):
+                    </span>
+                    <textarea
+                      rows={4}
+                      value={formData.bulkText}
+                      onChange={(e) => setFormData({ ...formData, bulkText: e.target.value })}
+                      placeholder={"In what year did Nigeria gain independence?\nWho was the first Governor-General?\nWhat is the capital of Nigeria?"}
+                      className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-mono"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleImportBulkQuestions}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer"
                       >
-                        <span>{area}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveArea(idx)}
-                          className="hover:text-rose-500 cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </span>
-                    ))}
+                        Add to Questions List
+                      </button>
+                    </div>
                   </div>
                 )}
+
+                {/* Dynamic Questions List */}
+                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                  {formData.possibleQuestions.map((question, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span className="w-7 h-8 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        Q{idx + 1}
+                      </span>
+                      <textarea
+                        rows={2}
+                        value={question}
+                        onChange={(e) => handleUpdateQuestion(idx, e.target.value)}
+                        placeholder={`Enter possible question #${idx + 1}...`}
+                        className="flex-1 px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium resize-none"
+                      />
+                      {formData.possibleQuestions.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveQuestion(idx)}
+                          className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer mt-1"
+                          title="Remove question"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddQuestionField}
+                  className="w-full py-2 px-3 rounded-xl border border-dashed border-blue-300 dark:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Another Possible Question</span>
+                </button>
               </div>
 
-              {/* 5. Additional Preparation Message */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Additional Preparation Message
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.preparationMessage}
-                  onChange={(e) => setFormData({ ...formData, preparationMessage: e.target.value })}
-                  placeholder="e.g. Prepare well and understand the important events surrounding Nigerian independence."
-                  className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-
-              {/* 6. Subscription Access Tier & Visibility (Two columns) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              {/* 4. Subscription Access Tier & Visibility (Two columns) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Subscription Access Level *
@@ -822,11 +832,10 @@ export function AdminHintsView() {
                     className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-semibold focus:outline-none"
                   >
                     <option value="both">Premium and VIP (Recommended)</option>
-                    <option value="premium">Premium Only</option>
                     <option value="vip">VIP Only</option>
                   </select>
                   <p className="text-[10px] text-slate-400">
-                    Free users are always locked out of protected details.
+                    Free scholars are locked out and will be prompted to subscribe.
                   </p>
                 </div>
 
@@ -889,7 +898,7 @@ export function AdminHintsView() {
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Are you sure you want to permanently delete{' '}
                 <span className="font-bold text-slate-800 dark:text-slate-200">
-                  "{hintToDelete.title}"
+                  "{hintToDelete.roundLabel || hintToDelete.title || (hintToDelete.competitionType === 'daily_qa' ? 'Daily Ultimate Search Hint' : 'School Dome Hint')}"
                 </span>
                 ? This action cannot be undone.
               </p>

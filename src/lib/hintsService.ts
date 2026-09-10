@@ -96,9 +96,19 @@ export function subscribeToCompetitionHints(
         const items: CompetitionHint[] = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
+          // Extract questions safely from array, or fallback to preparationMessage/title
+          let questions: string[] = [];
+          if (Array.isArray(data.possibleQuestions)) {
+            questions = data.possibleQuestions.filter((q: any) => typeof q === 'string' && q.trim().length > 0);
+          } else if (typeof data.preparationMessage === 'string' && data.preparationMessage.trim()) {
+            questions = [data.preparationMessage.trim()];
+          }
+
           items.push({
             id: docSnap.id,
             competitionType: data.competitionType as CompetitionHintType,
+            possibleQuestions: questions,
+            roundLabel: data.roundLabel || '',
             title: data.title || '',
             category: data.category || '',
             topic: data.topic || '',
@@ -133,11 +143,13 @@ export function subscribeToCompetitionHints(
 
 export interface CreateHintInput {
   competitionType: CompetitionHintType;
-  title: string;
-  category: string;
-  topic: string;
-  areasToPrepare: string[];
-  preparationMessage: string;
+  possibleQuestions: string[];
+  roundLabel?: string;
+  title?: string;
+  category?: string;
+  topic?: string;
+  areasToPrepare?: string[];
+  preparationMessage?: string;
   accessLevel: HintSubscriptionTier;
   status: HintStatus;
   createdByUid?: string;
@@ -152,14 +164,22 @@ export async function createCompetitionHint(input: CreateHintInput): Promise<Com
   const hintDocRef = doc(db, HINTS_COLLECTION, docId);
   const now = new Date().toISOString();
 
+  const cleanedQuestions = Array.isArray(input.possibleQuestions)
+    ? input.possibleQuestions.map((q) => q.trim()).filter((q) => q.length > 0)
+    : [];
+
   const newHint: CompetitionHint = {
     id: docId,
     competitionType: input.competitionType,
-    title: input.title.trim(),
-    category: input.category.trim(),
-    topic: input.topic.trim(),
-    areasToPrepare: input.areasToPrepare.filter((item) => item.trim().length > 0),
-    preparationMessage: input.preparationMessage.trim(),
+    possibleQuestions: cleanedQuestions,
+    roundLabel: (input.roundLabel || '').trim(),
+    title: (input.title || '').trim(),
+    category: (input.category || '').trim(),
+    topic: (input.topic || '').trim(),
+    areasToPrepare: Array.isArray(input.areasToPrepare)
+      ? input.areasToPrepare.filter((item) => item.trim().length > 0)
+      : [],
+    preparationMessage: (input.preparationMessage || '').trim(),
     accessLevel: input.accessLevel,
     status: input.status,
     createdByUid: input.createdByUid || auth?.currentUser?.uid || '',

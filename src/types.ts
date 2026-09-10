@@ -153,11 +153,13 @@ export type HintStatus = 'draft' | 'published' | 'hidden';
 export interface CompetitionHint {
   id: string;
   competitionType: CompetitionHintType; // 'daily_qa' (Daily Ultimate Search) | 'school_dome' (School Dome)
-  title: string;
-  category: string; // Main category or subject
-  topic: string; // Specific topic
-  areasToPrepare: string[]; // Areas/topics students should prepare
-  preparationMessage: string; // Additional preparation message
+  possibleQuestions: string[]; // Possible questions that admin will ask in the competition
+  roundLabel?: string; // e.g. "Round 1" or "Today's Challenge" (optional)
+  title?: string; // Legacy / optional title
+  category?: string; // Legacy category
+  topic?: string; // Legacy topic
+  areasToPrepare?: string[]; // Legacy areas
+  preparationMessage?: string; // Legacy preparation message
   accessLevel: HintSubscriptionTier; // 'premium' | 'vip' | 'both'
   status: HintStatus; // 'draft' | 'published' | 'hidden'
   createdByUid?: string;

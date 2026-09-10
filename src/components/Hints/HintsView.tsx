@@ -20,17 +20,17 @@ import {
   AlertCircle,
   Search,
   ArrowRight,
-  BookOpen,
   Compass,
   Zap,
   ChevronRight,
-  Target,
   Crown,
   Shield,
   Key,
   X,
   User,
   Check,
+  HelpCircle,
+  Eye,
 } from 'lucide-react';
 
 export function HintsView() {
@@ -51,7 +51,7 @@ export function HintsView() {
   const [loading, setLoading] = useState(true);
   const [selectedHintToUnlock, setSelectedHintToUnlock] = useState<CompetitionHint | null>(null);
 
-  // Determine user permissions and subscription state
+  // Administrative check
   const isSuperOrAdmin =
     firebaseUser?.uid === PRIMARY_SUPER_ADMIN_UID ||
     firebaseUser?.email === 'grobaxycompany@gmail.com' ||
@@ -61,6 +61,9 @@ export function HintsView() {
     currentUser?.role === 'admin' ||
     currentUser?.role === 'super_admin' ||
     Boolean((currentUser as any)?.managerRole);
+
+  // Admin tier simulator to preview and test how each tier sees the page
+  const [adminSimulatedTier, setAdminSimulatedTier] = useState<'actual' | 'free' | 'premium' | 'vip' | 'admin'>('actual');
 
   // Check user subscription status
   const isExpired = currentUser?.subscriptionExpiry
@@ -76,38 +79,72 @@ export function HintsView() {
     ''
   ).toLowerCase();
 
+  const isExplicitFree =
+    rawTier.includes('free') ||
+    (!currentUser?.isPremium && !currentUser?.isSubscribed && !isUserSubscribed && !rawTier);
+
   const isVipTier =
-    isSuperOrAdmin ||
-    (!isExpired && (
-      Boolean(currentUser?.isVip) ||
+    !isExpired &&
+    !isExplicitFree &&
+    (Boolean(currentUser?.isVip) ||
       rawTier.includes('vip') ||
+      rawTier.includes('titan') ||
       rawTier.includes('legend') ||
-      rawTier.includes('master') ||
-      rawTier.includes('annual')
-    ));
+      rawTier.includes('annual'));
 
   const isPremiumTier =
-    isVipTier ||
-    (!isExpired && (
+    !isExpired &&
+    !isExplicitFree &&
+    (isVipTier ||
       Boolean(currentUser?.isPremium) ||
       Boolean((currentUser as any)?.isSubscribed) ||
       Boolean(isUserSubscribed) ||
       rawTier.includes('premium') ||
       rawTier.includes('pro') ||
-      rawTier.includes('scholar')
-    ));
+      rawTier.includes('starter') ||
+      rawTier.includes('basic') ||
+      rawTier.includes('champions') ||
+      rawTier.includes('master'));
 
-  // Determine definitive user tier: 'admin' | 'vip' | 'premium' | 'free'
-  const identifiedTier: 'admin' | 'vip' | 'premium' | 'free' = useMemo(() => {
-    if (isSuperOrAdmin) return 'admin';
+  // Determine actual user tier: 'vip' | 'premium' | 'free'
+  const actualUserTier: 'vip' | 'premium' | 'free' = useMemo(() => {
     if (!currentUser && !firebaseUser) return 'free';
     if (isExpired) return 'free';
     if (isVipTier) return 'vip';
     if (isPremiumTier) return 'premium';
     return 'free';
-  }, [isSuperOrAdmin, currentUser, firebaseUser, isExpired, isVipTier, isPremiumTier]);
+  }, [currentUser, firebaseUser, isExpired, isVipTier, isPremiumTier]);
 
-  const isSubscriber = identifiedTier === 'admin' || identifiedTier === 'vip' || identifiedTier === 'premium';
+  // Identified tier (respecting admin simulator)
+  const identifiedTier: 'admin' | 'vip' | 'premium' | 'free' = useMemo(() => {
+    if (isSuperOrAdmin) {
+      if (adminSimulatedTier !== 'actual') {
+        return adminSimulatedTier;
+      }
+      return actualUserTier;
+    }
+    return actualUserTier;
+  }, [isSuperOrAdmin, adminSimulatedTier, actualUserTier]);
+
+  // Backward compatibility helper to extract questions
+  const getHintQuestions = (hint: CompetitionHint): string[] => {
+    if (hint.possibleQuestions && Array.isArray(hint.possibleQuestions) && hint.possibleQuestions.length > 0) {
+      return hint.possibleQuestions.filter((q) => typeof q === 'string' && q.trim().length > 0);
+    }
+    const legacyList: string[] = [];
+    if (hint.preparationMessage && hint.preparationMessage.trim()) {
+      legacyList.push(hint.preparationMessage.trim());
+    }
+    if (hint.areasToPrepare && Array.isArray(hint.areasToPrepare)) {
+      hint.areasToPrepare.forEach((a) => {
+        if (a && a.trim()) legacyList.push(a.trim());
+      });
+    }
+    if (hint.topic && hint.topic.trim()) {
+      legacyList.push(hint.topic.trim());
+    }
+    return legacyList;
+  };
 
   // Subscribe to real-time hints
   useEffect(() => {
@@ -149,8 +186,8 @@ export function HintsView() {
     if (identifiedTier === 'premium') {
       return hint.accessLevel !== 'vip';
     }
-    // Free users cannot view protected topics/areas
-    return false;
+    // Free users can only view hints explicitly marked 'free'
+    return hint.accessLevel === 'free';
   };
 
   // Filtered hints by competition, search query, and access status
@@ -165,10 +202,12 @@ export function HintsView() {
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchTitle = h.title.toLowerCase().includes(q);
-        const matchCategory = h.category.toLowerCase().includes(q);
-        const matchTopic = h.topic.toLowerCase().includes(q);
-        return matchTitle || matchCategory || matchTopic;
+        const matchRound = (h.roundLabel || '').toLowerCase().includes(q);
+        const matchTitle = (h.title || '').toLowerCase().includes(q);
+        const matchComp = (h.competitionType === 'daily_qa' ? 'daily ultimate search' : 'school dome').includes(q);
+        const questions = getHintQuestions(h);
+        const matchQuestions = questions.some((ques) => ques.toLowerCase().includes(q));
+        return matchRound || matchTitle || matchComp || matchQuestions;
       }
       return true;
     });
@@ -268,98 +307,127 @@ export function HintsView() {
       </div>
 
       {/* Prominent User Tier Identification Bar */}
-      <div className="p-4 sm:p-5 rounded-2xl border shadow-sm transition-all bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-start sm:items-center gap-3.5">
-          {/* Tier Avatar Badge */}
-          <div
-            className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${
-              identifiedTier === 'vip'
-                ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30'
-                : identifiedTier === 'premium'
-                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                : identifiedTier === 'admin'
-                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-            }`}
-          >
-            {identifiedTier === 'vip' ? (
-              <Crown className="w-6 h-6 text-amber-500" />
-            ) : identifiedTier === 'premium' ? (
-              <Shield className="w-6 h-6 text-blue-500" />
-            ) : identifiedTier === 'admin' ? (
-              <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-            ) : (
-              <Lock className="w-6 h-6 text-amber-500" />
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Your Account Tier:
-              </span>
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
-                  identifiedTier === 'vip'
-                    ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800'
-                    : identifiedTier === 'premium'
-                    ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
-                    : identifiedTier === 'admin'
-                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                    : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
-                }`}
-              >
-                {identifiedTier === 'vip' && <Crown className="w-3 h-3 text-amber-500" />}
-                {identifiedTier === 'premium' && <Shield className="w-3 h-3 text-blue-500" />}
-                {identifiedTier === 'admin' && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
-                {identifiedTier === 'free' && <User className="w-3 h-3 text-amber-500" />}
-                {identifiedTier === 'vip'
-                  ? 'VIP Scholar'
+      <div className="p-4 sm:p-5 rounded-2xl border shadow-sm transition-all bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 space-y-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            {/* Tier Avatar Badge */}
+            <div
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${
+                identifiedTier === 'vip'
+                  ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30'
                   : identifiedTier === 'premium'
-                  ? 'Premium Scholar'
+                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
                   : identifiedTier === 'admin'
-                  ? 'Administrator'
-                  : 'Free Scholar'}
-              </span>
-
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                ({unlockedCount} of {publishedHints.length} Hints Unlocked)
-              </span>
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+              }`}
+            >
+              {identifiedTier === 'vip' ? (
+                <Crown className="w-6 h-6 text-amber-500" />
+              ) : identifiedTier === 'premium' ? (
+                <Shield className="w-6 h-6 text-blue-500" />
+              ) : identifiedTier === 'admin' ? (
+                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+              ) : (
+                <Lock className="w-6 h-6 text-amber-500" />
+              )}
             </div>
 
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl">
-              {identifiedTier === 'vip' &&
-                'You have VIP status! All competition hints, topics, study areas, and preparation strategies are fully unlocked.'}
-              {identifiedTier === 'premium' &&
-                'You have Premium status! Standard and Premium hints are unlocked. Exclusive VIP hints require a VIP subscription.'}
-              {identifiedTier === 'admin' &&
-                'Administrative privileges active. All hint contents are visible for verification.'}
-              {identifiedTier === 'free' &&
-                'Free scholars can view hint titles, subjects, and dates. Subscribe to unlock the exact topics, areas to prepare, and strategic advice.'}
-            </p>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Your Account Tier:
+                </span>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                    identifiedTier === 'vip'
+                      ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800'
+                      : identifiedTier === 'premium'
+                      ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
+                      : identifiedTier === 'admin'
+                      ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                      : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                  }`}
+                >
+                  {identifiedTier === 'vip' && <Crown className="w-3 h-3 text-amber-500" />}
+                  {identifiedTier === 'premium' && <Shield className="w-3 h-3 text-blue-500" />}
+                  {identifiedTier === 'admin' && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
+                  {identifiedTier === 'free' && <User className="w-3 h-3 text-amber-500" />}
+                  {identifiedTier === 'vip'
+                    ? 'VIP Scholar'
+                    : identifiedTier === 'premium'
+                    ? 'Premium Scholar'
+                    : identifiedTier === 'admin'
+                    ? 'Administrator'
+                    : 'Free Scholar'}
+                </span>
+
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  ({unlockedCount} of {publishedHints.length} Hints Unlocked)
+                </span>
+              </div>
+
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl">
+                {identifiedTier === 'vip' &&
+                  'You have VIP status! All competition rounds, possible questions, and preparation strategies are fully unlocked.'}
+                {identifiedTier === 'premium' &&
+                  'You have Premium status! Standard and Premium hints are unlocked. Exclusive VIP rounds require an upgrade.'}
+                {identifiedTier === 'admin' &&
+                  'Administrative preview active. All hint rounds and possible questions are fully visible.'}
+                {identifiedTier === 'free' &&
+                  'Free scholars can browse hint titles, rounds, and subjects. Click "Unlock Hint" or "Subscribe" to access the possible questions.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Tier Specific Action */}
+          <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+            {identifiedTier === 'free' && (
+              <button
+                onClick={handleOpenUpgrade}
+                className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Key className="w-4 h-4 text-amber-300" />
+                <span>Unlock All Hints (Subscribe)</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+
+            {identifiedTier === 'premium' && lockedCount > 0 && (
+              <button
+                onClick={handleOpenUpgrade}
+                className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs sm:text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Crown className="w-4 h-4 text-amber-300" />
+                <span>Upgrade to VIP ({lockedCount} Locked)</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Tier Specific Action */}
-        {identifiedTier === 'free' && (
-          <button
-            onClick={handleOpenUpgrade}
-            className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md transition shrink-0 flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Key className="w-4 h-4 text-amber-300" />
-            <span>Unlock Hints (Subscribe)</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
-
-        {identifiedTier === 'premium' && lockedCount > 0 && (
-          <button
-            onClick={handleOpenUpgrade}
-            className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs sm:text-sm shadow-md transition shrink-0 flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Crown className="w-4 h-4 text-amber-300" />
-            <span>Upgrade to VIP ({lockedCount} Locked)</span>
-          </button>
+        {/* Admin Tier Simulator (For testing how Free, Premium, and VIP users view the page) */}
+        {isSuperOrAdmin && (
+          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 flex-wrap bg-slate-50 dark:bg-slate-800/40 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 p-3 sm:px-5 rounded-b-2xl">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+              <Eye className="w-3.5 h-3.5 text-blue-500" />
+              <span>Admin Preview Mode:</span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(['actual', 'free', 'premium', 'vip', 'admin'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setAdminSimulatedTier(mode)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    adminSimulatedTier === mode
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {mode === 'actual' ? 'Actual (Live)' : mode.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
@@ -489,6 +557,8 @@ export function HintsView() {
           {filteredHints.map((hint) => {
             const hasAccess = canAccessHint(hint);
             const isDailyQA = hint.competitionType === 'daily_qa';
+            const questions = getHintQuestions(hint);
+            const questionCount = questions.length;
 
             return (
               <div
@@ -502,20 +572,28 @@ export function HintsView() {
                 {/* Card Header */}
                 <div className="p-5 sm:p-6 space-y-4">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    {/* Competition Badge */}
-                    <div
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
-                        isDailyQA
-                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30'
-                          : 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30'
-                      }`}
-                    >
-                      {isDailyQA ? (
-                        <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                      ) : (
-                        <Swords className="w-3.5 h-3.5 text-blue-500" />
+                    {/* Competition Badge & Round Badge */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <div
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                          isDailyQA
+                            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30'
+                            : 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30'
+                        }`}
+                      >
+                        {isDailyQA ? (
+                          <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                        ) : (
+                          <Swords className="w-3.5 h-3.5 text-blue-500" />
+                        )}
+                        <span>{isDailyQA ? 'Daily Ultimate Search' : 'School Dome'}</span>
+                      </div>
+
+                      {hint.roundLabel && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-extrabold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                          {hint.roundLabel}
+                        </span>
                       )}
-                      <span>{isDailyQA ? 'Daily Ultimate Search' : 'School Dome'}</span>
                     </div>
 
                     {/* Access Badges & Unlock Action */}
@@ -533,7 +611,7 @@ export function HintsView() {
                         </span>
                       ) : (
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                          Premium & VIP
+                          Free & All
                         </span>
                       )}
 
@@ -558,18 +636,24 @@ export function HintsView() {
                     </div>
                   </div>
 
-                  {/* Title & Category */}
-                  <div className="space-y-1.5">
+                  {/* Title, Category & Question Count */}
+                  <div className="space-y-2">
                     <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white leading-snug">
                       {hint.title}
                     </h3>
                     <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 flex-wrap">
-                      <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold">
-                        Category: {hint.category}
+                      <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold flex items-center gap-1">
+                        <HelpCircle className="w-3 h-3 text-amber-500" />
+                        <span>{questionCount} Possible {questionCount === 1 ? 'Question' : 'Questions'}</span>
                       </span>
+                      {hint.category && (
+                        <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold">
+                          {hint.category}
+                        </span>
+                      )}
                       {hint.updatedAt && (
                         <span className="text-[11px] text-slate-400">
-                          Posted {new Date(hint.updatedAt).toLocaleDateString()}
+                          Updated {new Date(hint.updatedAt).toLocaleDateString()}
                         </span>
                       )}
                     </div>
@@ -578,44 +662,52 @@ export function HintsView() {
                   {/* Protected Content Area */}
                   {hasAccess ? (
                     <div className="space-y-4 pt-3 border-t border-slate-200/80 dark:border-slate-800/80">
-                      {/* Specific Topic */}
-                      <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70 space-y-1">
-                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                          <Target className="w-3.5 h-3.5 text-blue-500" />
-                          Specific Topic
-                        </span>
-                        <p className="text-sm font-bold text-slate-900 dark:text-white">
-                          {hint.topic}
-                        </p>
-                      </div>
+                      {/* Questions List */}
+                      {questionCount > 0 && (
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                              <HelpCircle className="w-3.5 h-3.5 text-amber-500" />
+                              <span>Possible Questions ({questionCount})</span>
+                            </span>
+                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Fully Unlocked</span>
+                            </span>
+                          </div>
 
-                      {/* Areas to Prepare */}
-                      {hint.areasToPrepare && hint.areasToPrepare.length > 0 && (
-                        <div className="space-y-2">
-                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                            <BookOpen className="w-3.5 h-3.5 text-amber-500" />
-                            Areas to Prepare
-                          </span>
-                          <ul className="space-y-1.5">
-                            {hint.areasToPrepare.map((area, idx) => (
-                              <li
-                                key={idx}
-                                className="flex items-start gap-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium"
+                          <div className="space-y-2">
+                            {questions.map((question, qIdx) => (
+                              <div
+                                key={qIdx}
+                                className="p-3.5 rounded-2xl bg-white/90 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 flex items-start gap-3 shadow-2xs"
                               >
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 shrink-0" />
-                                <span>{area}</span>
-                              </li>
+                                <span className="w-6 h-6 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400 font-black text-xs flex items-center justify-center shrink-0 border border-blue-500/20">
+                                  {qIdx + 1}
+                                </span>
+                                <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 leading-relaxed">
+                                  {question}
+                                </p>
+                              </div>
                             ))}
-                          </ul>
+                          </div>
                         </div>
                       )}
 
-                      {/* Preparation Message */}
+                      {/* Specific Topic (if available) */}
+                      {hint.topic && (
+                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 text-xs text-slate-700 dark:text-slate-300">
+                          <span className="font-bold text-slate-500 dark:text-slate-400 mr-2">Topic Area:</span>
+                          <span className="font-semibold text-slate-900 dark:text-white">{hint.topic}</span>
+                        </div>
+                      )}
+
+                      {/* Preparation Advice Message (if available) */}
                       {hint.preparationMessage && (
                         <div className="p-3.5 rounded-2xl bg-blue-500/10 dark:bg-blue-950/30 border border-blue-500/20 space-y-1">
                           <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
                             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                            Preparation Advice
+                            Strategy & Advice
                           </span>
                           <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-normal">
                             {hint.preparationMessage}
@@ -626,12 +718,12 @@ export function HintsView() {
                   ) : (
                     /* Locked View for Non-Subscribers with Direct Unlock & Subscribe Prompts */
                     <div className="relative rounded-2xl overflow-hidden border border-amber-200/60 dark:border-amber-900/40 bg-gradient-to-br from-amber-500/5 via-slate-100/70 to-blue-500/5 dark:from-amber-950/20 dark:via-slate-950/60 dark:to-blue-950/20 p-4 sm:p-5 mt-3 space-y-3">
-                      {/* Blurred placeholder hints to tease content */}
+                      {/* Blurred placeholder hints simulating questions */}
                       <div className="filter blur-xs select-none opacity-30 space-y-2.5 pointer-events-none">
-                        <div className="h-4 bg-slate-300 dark:bg-slate-700 rounded-md w-3/4" />
+                        <div className="h-4 bg-slate-300 dark:bg-slate-700 rounded-md w-4/5" />
                         <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-md w-full" />
+                        <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-md w-3/4" />
                         <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-md w-5/6" />
-                        <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-md w-2/3" />
                       </div>
 
                       {/* Lock Message & Unlock Button */}
@@ -641,16 +733,16 @@ export function HintsView() {
                         </div>
 
                         <div className="space-y-1">
-                          <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white flex items-center justify-center gap-1.5">
-                            <span>Locked Content</span>
-                            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                              ({hint.accessLevel === 'vip' ? 'VIP Plan' : 'Premium or VIP Plan'})
+                          <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white flex items-center justify-center gap-1.5 flex-wrap">
+                            <span>Locked Content ({questionCount} Questions)</span>
+                            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                              • {hint.accessLevel === 'vip' ? 'VIP Required' : 'Premium or VIP Required'}
                             </span>
                           </h4>
                           <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 max-w-xs mx-auto">
                             {hint.accessLevel === 'vip'
-                              ? 'This competition hint requires an active VIP subscription to access.'
-                              : 'Subscribe to unlock the exact topic, areas to prepare, and strategic advice for this round.'}
+                              ? 'This competition round is reserved for VIP subscribers.'
+                              : 'Subscribe or upgrade to reveal all possible questions and preparation strategies for this round.'}
                           </p>
                         </div>
 
@@ -722,19 +814,26 @@ export function HintsView() {
                 Unlock Competition Hint
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Subscribe to unlock strategic insights for this round and prepare before questions drop.
+                Subscribe to unlock all possible questions and strategic round insights.
               </p>
             </div>
 
             {/* Hint Summary Card */}
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
                   {selectedHintToUnlock.competitionType === 'daily_qa' ? 'Daily Ultimate Search' : 'School Dome'}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                  {selectedHintToUnlock.category}
-                </span>
+                {selectedHintToUnlock.roundLabel && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                    {selectedHintToUnlock.roundLabel}
+                  </span>
+                )}
+                {selectedHintToUnlock.category && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                    {selectedHintToUnlock.category}
+                  </span>
+                )}
               </div>
               <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
                 {selectedHintToUnlock.title}
@@ -749,11 +848,13 @@ export function HintsView() {
               <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
                 <div className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <span>Exact examination topic & curriculum focus</span>
+                  <span>
+                    <strong>{getHintQuestions(selectedHintToUnlock).length} Possible Questions</strong> for this round
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <span>Curated list of key areas to study</span>
+                  <span>Curriculum topics & subject areas to revise</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-500 shrink-0" />
