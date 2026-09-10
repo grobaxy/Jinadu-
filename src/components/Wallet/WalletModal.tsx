@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { UserRole, ThemeMode, BadgeStoreItem, SubscriptionPlan } from '../../types';
+import { UserRole, ThemeMode, BadgeStoreItem, SubscriptionPlan, PRIMARY_SUPER_ADMIN_UID } from '../../types';
+import { isPrimarySuperAdmin } from '../../lib/adminPermissions';
 import { UserBadgeItem } from '../ui/UserBadgeItem';
 import { BadgePurchaseModal } from './BadgePurchaseModal';
 import { ProfilePictureUploader } from './ProfilePictureUploader';

@@ -27,7 +27,7 @@ import {
   User,
   Zap,
 } from 'lucide-react';
-import { PastQuestion, PastQuestionSettings } from '../../types';
+import { PastQuestion, PastQuestionSettings, UserUploadCooldownStatus } from '../../types';
 import {
   fetchApprovedPastQuestions,
   fetchUserPastQuestions,
@@ -37,6 +37,7 @@ import {
   togglePastQuestionBookmark,
   fetchUserBookmarkedQuestionIds,
   checkUserWeeklyUploadLimit,
+  checkUserUploadCooldown,
   seedSamplePastQuestionsIfEmpty,
   getTodayDateKey,
 } from '../../lib/pastQuestionsService';
@@ -113,6 +114,20 @@ export const LibraryTab: React.FC = () => {
     currentWeekKey: '',
   });
 
+  // Upload Cooldown Status State (Tier-based: Free: locked, Premium: 30d, VIP: 15d)
+  const [uploadCooldownStatus, setUploadCooldownStatus] = useState<UserUploadCooldownStatus>({
+    canUpload: false,
+    userTier: 'free',
+    cooldownDays: 30,
+    daysRemaining: 0,
+    hoursRemaining: 0,
+    remainingUploads: 0,
+    lastUploadDate: null,
+    nextEligibleDate: null,
+    message: '',
+    reason: 'UPGRADE_REQUIRED',
+  });
+
   // Modals
   const [selectedQuestionForView, setSelectedQuestionForView] = useState<PastQuestion | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState<boolean>(false);
@@ -155,11 +170,23 @@ export const LibraryTab: React.FC = () => {
 
       // User specific data
       const uid = currentUser?.uid || '';
-      const [contribs, bookmarks, uploadCheck, viewQuota] = await Promise.all([
+      const [contribs, bookmarks, uploadCheck, viewQuota, cooldown] = await Promise.all([
         uid ? fetchUserPastQuestions(uid) : Promise.resolve([]),
         uid ? fetchUserBookmarkedQuestionIds(uid) : Promise.resolve([]),
         uid ? checkUserWeeklyUploadLimit(uid) : Promise.resolve({ canUpload: true, weekUploadCount: 0, maxUploadsPerWeek: 1, remainingUploads: 1, currentWeekKey: '' }),
         fetchUserDailyViewQuota(uid, userTier),
+        uid ? checkUserUploadCooldown(uid, userTier) : Promise.resolve({
+          canUpload: userTier !== 'free',
+          userTier,
+          cooldownDays: userTier === 'vip' ? 15 : userTier === 'premium' ? 30 : 0,
+          daysRemaining: 0,
+          hoursRemaining: 0,
+          remainingUploads: userTier === 'free' ? 0 : 1,
+          lastUploadDate: null,
+          nextEligibleDate: null,
+          message: '',
+          reason: userTier === 'free' ? 'UPGRADE_REQUIRED' : 'OK',
+        } as UserUploadCooldownStatus),
       ]);
       setUserContributions(contribs);
       setBookmarkedIds(bookmarks);
@@ -170,6 +197,7 @@ export const LibraryTab: React.FC = () => {
         remainingViews: viewQuota.remainingViews,
       });
       setViewedQuestionIdsToday(viewQuota.viewedQuestionIdsToday);
+      setUploadCooldownStatus(cooldown);
     } catch (err) {
       console.warn('Error loading library data:', err);
     } finally {
@@ -414,20 +442,30 @@ export const LibraryTab: React.FC = () => {
                 )}
               </div>
 
-              {/* Weekly Upload Quota Pill */}
+              {/* Tier-Based Upload Cooldown Pill */}
               <div className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs flex items-center gap-2.5">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Weekly Upload Quota
+                    {userTier === 'free' ? 'Upload Access' : userTier === 'vip' ? 'VIP Upload (15d)' : 'Premium Upload (30d)'}
                   </span>
                   <span className="font-bold text-slate-900 dark:text-slate-100">
-                    {weeklyUploadQuota.remainingUploads > 0 ? (
-                      <span className="text-emerald-600 dark:text-emerald-400">
-                        {weeklyUploadQuota.remainingUploads} upload left this week
+                    {userTier === 'free' ? (
+                      <button
+                        onClick={() => openWalletModal?.('upgrade')}
+                        className="text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Lock className="w-3 h-3" />
+                        Upgrade to Upload
+                      </button>
+                    ) : !uploadCooldownStatus.canUpload ? (
+                      <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        Cooldown: {uploadCooldownStatus.daysRemaining}d left
                       </span>
                     ) : (
-                      <span className="text-amber-600 dark:text-amber-400">
-                        Quota used ({weeklyUploadQuota.maxUploadsPerWeek}/week)
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        1 upload available
                       </span>
                     )}
                   </span>
@@ -752,6 +790,8 @@ export const LibraryTab: React.FC = () => {
             onOpenUpload={() => setIsUploadModalOpen(true)}
             canUploadToday={weeklyUploadQuota.canUpload}
             remainingUploads={weeklyUploadQuota.remainingUploads}
+            userTier={userTier}
+            cooldownStatus={uploadCooldownStatus}
           />
         )}
 
@@ -782,6 +822,8 @@ export const LibraryTab: React.FC = () => {
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onUploadSuccess={loadLibraryData}
+        userTier={userTier}
+        onUpgradeClick={() => openWalletModal?.('upgrade')}
         currentUser={{
           uid: currentUser?.uid || '',
           username: (userProfile as any)?.username || (currentUser as any)?.username,

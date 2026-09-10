@@ -350,6 +350,22 @@ export interface PastQuestionSettings {
   requireVerification: boolean;
   maxUploadsPerWeek: number; // default: 1 upload/contributor/week
   maxUploadsPerDay?: number; // legacy fallback
+  freeCanUpload?: boolean; // default: false (Free users cannot upload)
+  premiumUploadCooldownDays?: number; // default: 30 (1 upload every 30 days)
+  vipUploadCooldownDays?: number; // default: 15 (1 upload every 15 days)
+}
+
+export interface UserUploadCooldownStatus {
+  canUpload: boolean;
+  userTier: 'free' | 'premium' | 'vip';
+  cooldownDays: number; // 30 for premium, 15 for vip, 0 for free
+  daysRemaining: number;
+  hoursRemaining: number;
+  remainingUploads: number;
+  lastUploadDate: string | null;
+  nextEligibleDate: string | null;
+  message: string;
+  reason?: 'UPGRADE_REQUIRED' | 'COOLDOWN_ACTIVE' | 'OK';
 }
 
 export interface PastQuestionViewRecord {

@@ -23,6 +23,7 @@ import {
   PastQuestionStatus,
   PastQuestionViewRecord,
   PastQuestionUploadRecord,
+  UserUploadCooldownStatus,
 } from '../types';
 import { recordWalletTransactionInFirestore } from './firebase';
 import { grobaxNotificationService } from './notificationService';
@@ -43,6 +44,9 @@ export const DEFAULT_PAST_QUESTION_SETTINGS: PastQuestionSettings = {
   requireVerification: true,
   maxUploadsPerWeek: 1,
   maxUploadsPerDay: 1,
+  freeCanUpload: false,
+  premiumUploadCooldownDays: 30,
+  vipUploadCooldownDays: 15,
 };
 
 // Helper for clean ISO Date YYYY-MM-DD
@@ -103,6 +107,9 @@ export async function savePastQuestionSettings(settings: Partial<PastQuestionSet
     vipDailyViewLimit: settings.vipDailyViewLimit === 'unlimited' ? 'unlimited' : Math.max(1, Number(settings.vipDailyViewLimit) || 20),
     maxUploadsPerWeek: Math.max(1, Number(settings.maxUploadsPerWeek) || Number(settings.maxUploadsPerDay) || 1),
     maxUploadsPerDay: Math.max(1, Number(settings.maxUploadsPerWeek) || Number(settings.maxUploadsPerDay) || 1),
+    freeCanUpload: false, // strictly enforced: free cannot upload
+    premiumUploadCooldownDays: 30, // Premium: 1 upload every 30 days
+    vipUploadCooldownDays: 15, // VIP: 1 upload every 15 days
   };
 
   try {
@@ -121,72 +128,207 @@ export async function savePastQuestionSettings(settings: Partial<PastQuestionSet
 }
 
 /**
- * Check if a student has reached their weekly upload limit
+ * Check User Upload Cooldown & Tier Eligibility:
+ * - Free users: CANNOT upload anything until they subscribe.
+ * - Premium users: 1 upload every 30 days (daily countdown deducting from 30 days).
+ * - VIP users: 1 upload every 15 days (daily countdown deducting from 15 days).
  */
-export async function checkUserWeeklyUploadLimit(userId: string): Promise<{
+export async function checkUserUploadCooldown(
+  userId: string,
+  userTier: 'free' | 'premium' | 'vip' = 'free'
+): Promise<UserUploadCooldownStatus> {
+  if (!userId) {
+    return {
+      canUpload: false,
+      userTier: 'free',
+      cooldownDays: 0,
+      daysRemaining: 0,
+      hoursRemaining: 0,
+      remainingUploads: 0,
+      lastUploadDate: null,
+      nextEligibleDate: null,
+      reason: 'UPGRADE_REQUIRED',
+      message: 'Please sign in to upload past questions.',
+    };
+  }
+
+  // 1. FREE USERS: STRICTLY CANNOT UPLOAD
+  if (userTier === 'free') {
+    return {
+      canUpload: false,
+      userTier: 'free',
+      cooldownDays: 0,
+      daysRemaining: 0,
+      hoursRemaining: 0,
+      remainingUploads: 0,
+      lastUploadDate: null,
+      nextEligibleDate: null,
+      reason: 'UPGRADE_REQUIRED',
+      message: 'Free scholars cannot upload past questions. Upgrade to Premium (1 upload in 30 days) or VIP (1 upload in 15 days) to upload and earn GP rewards!',
+    };
+  }
+
+  // 2. Cooldown configuration
+  // Premium: 30 days, VIP: 15 days
+  const cooldownDays = userTier === 'vip' ? 15 : 30;
+  const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
+
+  // Check local cache for fast response
+  const localLastUploadKey = `grobax_pq_last_upload_${userId}`;
+  let lastUploadDate: string | null = null;
+  try {
+    lastUploadDate = localStorage.getItem(localLastUploadKey) || null;
+  } catch {}
+
+  try {
+    // Query Firestore uploads for this user
+    const q = query(
+      collection(db, PAST_QUESTION_UPLOADS_COLLECTION),
+      where('userId', '==', userId)
+    );
+    const snap = await getDocs(q);
+
+    for (const docSnap of snap.docs) {
+      const d = docSnap.data();
+      const upDate = d.uploadedAt || d.date;
+      if (upDate) {
+        if (!lastUploadDate || new Date(upDate).getTime() > new Date(lastUploadDate).getTime()) {
+          lastUploadDate = upDate;
+        }
+      }
+    }
+
+    // Also check past_questions collection
+    if (!lastUploadDate) {
+      const pqQ = query(
+        collection(db, PAST_QUESTIONS_COLLECTION),
+        where('uploadedBy', '==', userId)
+      );
+      const pqSnap = await getDocs(pqQ);
+      for (const docSnap of pqSnap.docs) {
+        const d = docSnap.data();
+        if (d.uploadedAt) {
+          if (!lastUploadDate || new Date(d.uploadedAt).getTime() > new Date(lastUploadDate).getTime()) {
+            lastUploadDate = d.uploadedAt;
+          }
+        }
+      }
+    }
+
+    if (lastUploadDate) {
+      try {
+        localStorage.setItem(localLastUploadKey, lastUploadDate);
+      } catch {}
+    }
+  } catch (err) {
+    console.warn('Notice querying upload cooldown from Firestore:', err);
+  }
+
+  // If user has never uploaded before, they can upload right now!
+  if (!lastUploadDate) {
+    return {
+      canUpload: true,
+      userTier,
+      cooldownDays,
+      daysRemaining: 0,
+      hoursRemaining: 0,
+      remainingUploads: 1,
+      lastUploadDate: null,
+      nextEligibleDate: null,
+      reason: 'OK',
+      message: `1 upload ready (${cooldownDays}-day cycle for ${userTier.toUpperCase()})`,
+    };
+  }
+
+  // Calculate elapsed time
+  const uploadTime = new Date(lastUploadDate).getTime();
+  const now = Date.now();
+  const elapsedMs = now - uploadTime;
+
+  if (elapsedMs >= cooldownMs) {
+    return {
+      canUpload: true,
+      userTier,
+      cooldownDays,
+      daysRemaining: 0,
+      hoursRemaining: 0,
+      remainingUploads: 1,
+      lastUploadDate,
+      nextEligibleDate: null,
+      reason: 'OK',
+      message: `1 upload ready (${cooldownDays}-day cycle for ${userTier.toUpperCase()})`,
+    };
+  }
+
+  // Cooldown is still active: every day deducting till next time
+  const diffMs = cooldownMs - elapsedMs;
+  const daysRemaining = Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+  const hoursRemaining = Math.max(1, Math.ceil(diffMs / (60 * 60 * 1000)));
+  const nextEligibleDate = new Date(uploadTime + cooldownMs).toISOString();
+
+  return {
+    canUpload: false,
+    userTier,
+    cooldownDays,
+    daysRemaining,
+    hoursRemaining,
+    remainingUploads: 0,
+    lastUploadDate,
+    nextEligibleDate,
+    reason: 'COOLDOWN_ACTIVE',
+    message: `Next upload in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} (${cooldownDays}-day cycle for ${userTier.toUpperCase()})`,
+  };
+}
+
+/**
+ * Backwards compatibility check for weekly upload limit - wraps checkUserUploadCooldown
+ */
+export async function checkUserWeeklyUploadLimit(
+  userId: string,
+  userTier: 'free' | 'premium' | 'vip' = 'free'
+): Promise<{
   canUpload: boolean;
   weekUploadCount: number;
   maxUploadsPerWeek: number;
   remainingUploads: number;
   currentWeekKey: string;
+  cooldownStatus: UserUploadCooldownStatus;
 }> {
-  if (!userId) {
-    return { canUpload: false, weekUploadCount: 0, maxUploadsPerWeek: 1, remainingUploads: 0, currentWeekKey: getYearWeekKey() };
-  }
-
-  const weekKey = getYearWeekKey();
-  const settings = await fetchPastQuestionSettings();
-  const maxAllowed = settings.maxUploadsPerWeek || settings.maxUploadsPerDay || 1;
-
-  try {
-    const q = query(
-      collection(db, PAST_QUESTION_UPLOADS_COLLECTION),
-      where('userId', '==', userId),
-      where('week', '==', weekKey)
-    );
-    const snap = await getDocs(q);
-    const count = snap.size;
-    return {
-      canUpload: count < maxAllowed,
-      weekUploadCount: count,
-      maxUploadsPerWeek: maxAllowed,
-      remainingUploads: Math.max(0, maxAllowed - count),
-      currentWeekKey: weekKey,
-    };
-  } catch (err) {
-    console.warn('Error checking weekly upload count from Firestore:', err);
-    // Fallback to local storage verification if Firestore indexing is pending
-    const localKey = `grobax_pq_upload_${userId}_${weekKey}`;
-    const localCount = Number(localStorage.getItem(localKey) || '0');
-    return {
-      canUpload: localCount < maxAllowed,
-      weekUploadCount: localCount,
-      maxUploadsPerWeek: maxAllowed,
-      remainingUploads: Math.max(0, maxAllowed - localCount),
-      currentWeekKey: weekKey,
-    };
-  }
+  const cooldown = await checkUserUploadCooldown(userId, userTier);
+  return {
+    canUpload: cooldown.canUpload,
+    weekUploadCount: cooldown.canUpload ? 0 : 1,
+    maxUploadsPerWeek: 1,
+    remainingUploads: cooldown.remainingUploads,
+    currentWeekKey: getYearWeekKey(),
+    cooldownStatus: cooldown,
+  };
 }
 
 /**
- * Backward compatibility alias for weekly check
+ * Backward compatibility alias for upload check
  */
-export async function checkUserDailyUploadLimit(userId: string): Promise<{
+export async function checkUserDailyUploadLimit(
+  userId: string,
+  userTier: 'free' | 'premium' | 'vip' = 'free'
+): Promise<{
   canUpload: boolean;
   todayUploadCount: number;
   maxUploadsPerDay: number;
   remainingUploads: number;
   weekUploadCount: number;
   maxUploadsPerWeek: number;
+  cooldownStatus: UserUploadCooldownStatus;
 }> {
-  const weekly = await checkUserWeeklyUploadLimit(userId);
+  const res = await checkUserWeeklyUploadLimit(userId, userTier);
   return {
-    canUpload: weekly.canUpload,
-    todayUploadCount: weekly.weekUploadCount,
-    maxUploadsPerDay: weekly.maxUploadsPerWeek,
-    remainingUploads: weekly.remainingUploads,
-    weekUploadCount: weekly.weekUploadCount,
-    maxUploadsPerWeek: weekly.maxUploadsPerWeek,
+    canUpload: res.canUpload,
+    todayUploadCount: res.weekUploadCount,
+    maxUploadsPerDay: res.maxUploadsPerWeek,
+    remainingUploads: res.remainingUploads,
+    weekUploadCount: res.weekUploadCount,
+    maxUploadsPerWeek: res.maxUploadsPerWeek,
+    cooldownStatus: res.cooldownStatus,
   };
 }
 
@@ -287,6 +429,7 @@ export async function submitPastQuestion(data: {
   uploadedBy: string;
   uploadedByName: string;
   uploadedByEmail?: string;
+  userTier?: 'free' | 'premium' | 'vip';
   userProfile?: {
     institution?: string;
     institutionName?: string;
@@ -297,12 +440,18 @@ export async function submitPastQuestion(data: {
   };
 }): Promise<{ success: boolean; questionId?: string; error?: string }> {
   try {
-    // 1. Verify weekly limit
-    const limitCheck = await checkUserWeeklyUploadLimit(data.uploadedBy);
-    if (!limitCheck.canUpload) {
+    // 1. Verify user subscription tier and upload cooldown
+    const cooldownCheck = await checkUserUploadCooldown(data.uploadedBy, data.userTier || 'free');
+    if (!cooldownCheck.canUpload) {
+      if (cooldownCheck.reason === 'UPGRADE_REQUIRED') {
+        return {
+          success: false,
+          error: 'Free scholars cannot upload past questions. Upgrade to Premium (1 upload every 30 days) or VIP (1 upload every 15 days) to contribute and earn GP!',
+        };
+      }
       return {
         success: false,
-        error: `Weekly upload limit reached (${limitCheck.maxUploadsPerWeek} upload/week). You can submit another past question next week!`,
+        error: `Upload cooldown active. Next upload available in ${cooldownCheck.daysRemaining} day${cooldownCheck.daysRemaining === 1 ? '' : 's'}. Premium scholars can upload once every 30 days, VIP scholars once every 15 days.`,
       };
     }
 
@@ -366,22 +515,31 @@ export async function submitPastQuestion(data: {
 
     await setDoc(doc(db, PAST_QUESTIONS_COLLECTION, questionId), newPastQuestion);
 
-    // 5. Record weekly upload log
+    // 5. Record upload log for cooldown tracking
     const todayKey = getTodayDateKey();
     const weekKey = getYearWeekKey();
+    const nowIso = new Date().toISOString();
     const uploadLogRef = doc(collection(db, PAST_QUESTION_UPLOADS_COLLECTION));
     await setDoc(uploadLogRef, {
       userId: data.uploadedBy,
       questionId,
       date: todayKey,
       week: weekKey,
-      uploadedAt: new Date().toISOString(),
+      userTier: data.userTier || 'premium',
+      uploadedAt: nowIso,
+      uploadedAtMillis: Date.now(),
     });
 
-    // Update local storage backup
-    const localKey = `grobax_pq_upload_${data.uploadedBy}_${weekKey}`;
-    const cur = Number(localStorage.getItem(localKey) || '0');
-    localStorage.setItem(localKey, String(cur + 1));
+    // Update local storage backup for instantaneous cooldown deduction
+    try {
+      localStorage.setItem(`grobax_pq_last_upload_${data.uploadedBy}`, nowIso);
+      const localKey = `grobax_pq_upload_${data.uploadedBy}_${weekKey}`;
+      const cur = Number(localStorage.getItem(localKey) || '0');
+      localStorage.setItem(localKey, String(cur + 1));
+    } catch {}
+
+    // Invalidate caches so UI displays changes immediately
+    clearApprovedQuestionsCache();
 
     // 6. Dispatch Real-Time Admin Notification to Firestore & Notification Service
     try {
@@ -468,8 +626,37 @@ export function subscribeToAdminPastQuestions(
   }
 }
 
+let _approvedQuestionsCache: PastQuestion[] | null = null;
+let _approvedQuestionsCacheTimestamp = 0;
+const CACHE_TTL_MS = 60 * 1000; // 1 minute fresh cache
+
+export function clearApprovedQuestionsCache(): void {
+  _approvedQuestionsCache = null;
+  _approvedQuestionsCacheTimestamp = 0;
+  try {
+    localStorage.removeItem('grobax_pq_approved_cache');
+  } catch {}
+}
+
+export function getCachedApprovedPastQuestions(): PastQuestion[] {
+  if (_approvedQuestionsCache && _approvedQuestionsCache.length > 0) {
+    return _approvedQuestionsCache;
+  }
+  try {
+    const raw = localStorage.getItem('grobax_pq_approved_cache');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        _approvedQuestionsCache = parsed;
+        return parsed;
+      }
+    }
+  } catch {}
+  return [];
+}
+
 /**
- * Fetch Approved Past Questions with Optional Filters
+ * Fetch Approved Past Questions with Optional Filters (Fast Multi-Layer Cached)
  */
 export async function fetchApprovedPastQuestions(filters?: {
   institutionCategory?: string;
@@ -480,59 +667,95 @@ export async function fetchApprovedPastQuestions(filters?: {
   academicSession?: string;
   semester?: string;
   searchQuery?: string;
+  bypassCache?: boolean;
 }): Promise<PastQuestion[]> {
-  try {
-    const q = query(
-      collection(db, PAST_QUESTIONS_COLLECTION),
-      where('status', '==', 'approved')
-    );
-    const snap = await getDocs(q);
-    let list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PastQuestion));
+  const now = Date.now();
+  let baseList: PastQuestion[] = [];
 
-    // Sort by upload date desc
-    list.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+  const isCacheValid =
+    !filters?.bypassCache &&
+    _approvedQuestionsCache &&
+    _approvedQuestionsCache.length > 0 &&
+    now - _approvedQuestionsCacheTimestamp < CACHE_TTL_MS;
 
-    // In-memory filter pipeline for responsive multi-dimensional querying
-    if (filters) {
-      if (filters.institutionCategory && filters.institutionCategory !== 'All Categories') {
-        list = list.filter((item) => item.institutionCategory === filters.institutionCategory);
+  if (isCacheValid && _approvedQuestionsCache) {
+    baseList = [..._approvedQuestionsCache];
+  } else {
+    try {
+      const q = query(
+        collection(db, PAST_QUESTIONS_COLLECTION),
+        where('status', '==', 'approved')
+      );
+      const snap = await getDocs(q);
+      baseList = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PastQuestion));
+
+      // Sort by upload date desc
+      baseList.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+
+      // If empty in Firestore, fallback to sample starter questions
+      if (baseList.length === 0 && SAMPLE_VERIFIED_PAST_QUESTIONS.length > 0) {
+        baseList = SAMPLE_VERIFIED_PAST_QUESTIONS.map((s, idx) => ({
+          ...s,
+          id: `pq-sample-${idx + 1}`,
+        })) as PastQuestion[];
       }
-      if (filters.institutionId && filters.institutionId !== 'all') {
-        list = list.filter((item) => item.institutionId === filters.institutionId);
-      }
-      if (filters.facultyName && filters.facultyName !== 'All Faculties' && filters.facultyName !== 'all') {
-        list = list.filter((item) => item.facultyName === filters.facultyName);
-      }
-      if (filters.departmentName && filters.departmentName !== 'All Departments' && filters.departmentName !== 'all') {
-        list = list.filter((item) => item.departmentName.toLowerCase() === filters.departmentName?.toLowerCase());
-      }
-      if (filters.level && filters.level !== 'All Levels' && filters.level !== 'all') {
-        list = list.filter((item) => item.level.toLowerCase().includes(filters.level?.toLowerCase() || ''));
-      }
-      if (filters.academicSession && filters.academicSession !== 'All Sessions') {
-        list = list.filter((item) => item.academicSession === filters.academicSession);
-      }
-      if (filters.semester && filters.semester !== 'All Semesters') {
-        list = list.filter((item) => item.semester.toLowerCase().includes(filters.semester?.toLowerCase() || ''));
-      }
-      if (filters.searchQuery && filters.searchQuery.trim()) {
-        const queryTerm = filters.searchQuery.toLowerCase().trim();
-        list = list.filter((item) =>
-          item.courseCode.toLowerCase().includes(queryTerm) ||
-          item.courseTitle.toLowerCase().includes(queryTerm) ||
-          item.departmentName.toLowerCase().includes(queryTerm) ||
-          item.facultyName.toLowerCase().includes(queryTerm) ||
-          item.institutionName.toLowerCase().includes(queryTerm) ||
-          item.academicSession.toLowerCase().includes(queryTerm)
-        );
+
+      // Update in-memory & local caches
+      _approvedQuestionsCache = baseList;
+      _approvedQuestionsCacheTimestamp = now;
+      try {
+        localStorage.setItem('grobax_pq_approved_cache', JSON.stringify(baseList));
+      } catch {}
+    } catch (err) {
+      console.warn('Error fetching approved past questions from Firestore, checking cache:', err);
+      baseList = getCachedApprovedPastQuestions();
+      if (baseList.length === 0) {
+        baseList = SAMPLE_VERIFIED_PAST_QUESTIONS.map((s, idx) => ({
+          ...s,
+          id: `pq-sample-${idx + 1}`,
+        })) as PastQuestion[];
       }
     }
-
-    return list;
-  } catch (err) {
-    console.warn('Error fetching approved past questions from Firestore:', err);
-    return [];
   }
+
+  // In-memory filter pipeline for responsive multi-dimensional querying
+  let list = [...baseList];
+  if (filters) {
+    if (filters.institutionCategory && filters.institutionCategory !== 'All Categories') {
+      list = list.filter((item) => item.institutionCategory === filters.institutionCategory);
+    }
+    if (filters.institutionId && filters.institutionId !== 'all') {
+      list = list.filter((item) => item.institutionId === filters.institutionId);
+    }
+    if (filters.facultyName && filters.facultyName !== 'All Faculties' && filters.facultyName !== 'all') {
+      list = list.filter((item) => item.facultyName === filters.facultyName);
+    }
+    if (filters.departmentName && filters.departmentName !== 'All Departments' && filters.departmentName !== 'all') {
+      list = list.filter((item) => item.departmentName.toLowerCase() === filters.departmentName?.toLowerCase());
+    }
+    if (filters.level && filters.level !== 'All Levels' && filters.level !== 'all') {
+      list = list.filter((item) => item.level.toLowerCase().includes(filters.level?.toLowerCase() || ''));
+    }
+    if (filters.academicSession && filters.academicSession !== 'All Sessions') {
+      list = list.filter((item) => item.academicSession === filters.academicSession);
+    }
+    if (filters.semester && filters.semester !== 'All Semesters') {
+      list = list.filter((item) => item.semester.toLowerCase().includes(filters.semester?.toLowerCase() || ''));
+    }
+    if (filters.searchQuery && filters.searchQuery.trim()) {
+      const queryTerm = filters.searchQuery.toLowerCase().trim();
+      list = list.filter((item) =>
+        item.courseCode.toLowerCase().includes(queryTerm) ||
+        item.courseTitle.toLowerCase().includes(queryTerm) ||
+        item.departmentName.toLowerCase().includes(queryTerm) ||
+        item.facultyName.toLowerCase().includes(queryTerm) ||
+        item.institutionName.toLowerCase().includes(queryTerm) ||
+        item.academicSession.toLowerCase().includes(queryTerm)
+      );
+    }
+  }
+
+  return list;
 }
 
 /**
@@ -725,6 +948,30 @@ export async function checkAndRecordPastQuestionView(
 
   const isUnlimited = dailyLimit === 'unlimited';
   const todayKey = getTodayDateKey();
+
+  // If user is VIP / unlimited, grant instantaneous access and log view asynchronously in background
+  if (isUnlimited && userId) {
+    const viewDocRef = doc(collection(db, PAST_QUESTION_VIEWS_COLLECTION));
+    setDoc(viewDocRef, {
+      userId,
+      questionId,
+      date: todayKey,
+      viewedAt: new Date().toISOString(),
+      userTier,
+    }).catch(() => {});
+
+    try {
+      const qRef = doc(db, PAST_QUESTIONS_COLLECTION, questionId);
+      updateDoc(qRef, { viewsCount: increment(1) }).catch(() => {});
+    } catch {}
+
+    return {
+      allowed: true,
+      viewsToday: 0,
+      dailyLimit: 'unlimited',
+      remainingViews: 'unlimited',
+    };
+  }
 
   // If user is guest/no ID, let them view up to 2 previews locally
   if (!userId) {
@@ -1139,10 +1386,15 @@ export const SAMPLE_VERIFIED_PAST_QUESTIONS: Omit<PastQuestion, 'id'>[] = [
   },
 ];
 
+let _hasSeededThisSession = false;
+
 /**
- * Ensures initial starter past questions exist if collection is empty
+ * Ensures initial starter past questions exist if collection is empty (Non-blocking / cached check)
  */
 export async function seedSamplePastQuestionsIfEmpty(): Promise<void> {
+  if (_hasSeededThisSession) return;
+  _hasSeededThisSession = true;
+
   try {
     const q = query(collection(db, PAST_QUESTIONS_COLLECTION), limit(1));
     const snap = await getDocs(q);
@@ -1151,6 +1403,7 @@ export async function seedSamplePastQuestionsIfEmpty(): Promise<void> {
         const id = `PQ-INIT-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
         await setDoc(doc(db, PAST_QUESTIONS_COLLECTION, id), { id, ...sample });
       }
+      clearApprovedQuestionsCache();
     }
   } catch (err) {
     console.warn('Could not seed initial past questions:', err);

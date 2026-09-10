@@ -17,6 +17,10 @@ import {
   Plus,
   Loader2,
   Info,
+  Lock,
+  Crown,
+  ShieldCheck,
+  ArrowRight,
 } from 'lucide-react';
 import {
   INSTITUTION_CATEGORIES,
@@ -28,15 +32,19 @@ import { NIGERIAN_INSTITUTIONS } from '../../data/nigerianInstitutions';
 import {
   submitPastQuestion,
   checkUserWeeklyUploadLimit,
+  checkUserUploadCooldown,
   checkDuplicatePastQuestion,
   generateCompositeKey,
   fetchPastQuestionSettings,
 } from '../../lib/pastQuestionsService';
+import { UserUploadCooldownStatus } from '../../types';
 
 interface PastQuestionUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUploadSuccess: () => void;
+  userTier?: 'free' | 'premium' | 'vip';
+  onUpgradeClick?: () => void;
   currentUser: {
     uid: string;
     username?: string;
@@ -55,6 +63,8 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
   isOpen,
   onClose,
   onUploadSuccess,
+  userTier = 'free',
+  onUpgradeClick,
   currentUser,
   existingQuestions = [],
 }) => {
@@ -82,12 +92,24 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [gpRewardAmount, setGpRewardAmount] = useState<number>(50);
+  const [uploadCooldown, setUploadCooldown] = useState<UserUploadCooldownStatus>({
+    canUpload: userTier !== 'free',
+    userTier,
+    cooldownDays: userTier === 'vip' ? 15 : userTier === 'premium' ? 30 : 0,
+    daysRemaining: 0,
+    hoursRemaining: 0,
+    remainingUploads: userTier === 'free' ? 0 : 1,
+    lastUploadDate: null,
+    nextEligibleDate: null,
+    message: '',
+    reason: userTier === 'free' ? 'UPGRADE_REQUIRED' : 'OK',
+  });
   const [weeklyUploadCheck, setWeeklyUploadCheck] = useState<{
     canUpload: boolean;
     weekUploadCount: number;
     maxUploadsPerWeek: number;
     remainingUploads: number;
-  }>({ canUpload: true, weekUploadCount: 0, maxUploadsPerWeek: 1, remainingUploads: 1 });
+  }>({ canUpload: userTier !== 'free', weekUploadCount: 0, maxUploadsPerWeek: 1, remainingUploads: userTier === 'free' ? 0 : 1 });
 
   // Autocomplete suggestions
   const [courseSuggestions, setCourseSuggestions] = useState<{ code: string; title: string }[]>([]);
@@ -127,9 +149,15 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
         setGpRewardAmount(s.uploadGpReward || 50);
       });
 
-      // Verify weekly upload limit
-      checkUserWeeklyUploadLimit(currentUser.uid).then((res) => {
-        setWeeklyUploadCheck(res);
+      // Verify cooldown status according to tier (Free: blocked; Premium: 30 days; VIP: 15 days)
+      checkUserUploadCooldown(currentUser.uid, userTier).then((res) => {
+        setUploadCooldown(res);
+        setWeeklyUploadCheck({
+          canUpload: res.canUpload,
+          weekUploadCount: res.canUpload ? 0 : 1,
+          maxUploadsPerWeek: 1,
+          remainingUploads: res.remainingUploads,
+        });
       });
 
       // 1. Automatically assign School / Institution
@@ -415,6 +443,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
         uploadedByName: currentUser.fullName || currentUser.username || 'Scholar Contributor',
         uploadedByEmail: currentUser.email || '',
         userProfile: currentUser,
+        userTier,
       });
 
       if (!res.success) {
@@ -477,25 +506,171 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
             </button>
           </div>
 
-          {/* Weekly Limit & Reward Banner */}
-          <div className="px-6 py-2.5 bg-blue-50/80 dark:bg-slate-800/80 border-b border-blue-100 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2 text-blue-950 dark:text-blue-200 font-medium">
-              <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span>
-                Weekly Limit:{' '}
-                <strong className={weeklyUploadCheck.canUpload ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}>
-                  {weeklyUploadCheck.remainingUploads} upload{weeklyUploadCheck.remainingUploads === 1 ? '' : 's'} remaining this week
-                </strong>
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-400 font-semibold">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Verified Contribution Bounty: +{gpRewardAmount} GP</span>
-            </div>
-          </div>
+          {/* Free Tier Upgrade Required View */}
+          {userTier === 'free' ? (
+            <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1 flex flex-col items-center text-center justify-center">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-amber-500/20 via-blue-500/20 to-purple-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 dark:text-amber-400 shadow-inner">
+                <Lock className="w-8 h-8" />
+              </div>
 
-          {/* Scrollable Form Body */}
-          <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 flex-1">
+              <div className="max-w-md space-y-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  <Crown className="w-3.5 h-3.5" />
+                  Subscription Required
+                </span>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                  Upgrade to Upload Past Questions
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Free scholars can view up to 2 past examination questions daily. To upload past questions, contribute to our national repository, and earn <strong className="text-amber-500 font-bold">+{gpRewardAmount} GP</strong> bounty rewards per approved paper, an active Premium or VIP subscription is required.
+                </p>
+              </div>
+
+              {/* Tier Comparison Matrix */}
+              <div className="w-full max-w-lg grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
+                {/* Free Plan */}
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Current Plan</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-slate-100">Free Scholar</div>
+                  <ul className="text-[11px] text-slate-600 dark:text-slate-400 space-y-1 pt-1">
+                    <li className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                      2 views/day
+                    </li>
+                    <li className="flex items-center gap-1.5 text-rose-500 font-semibold">
+                      <X className="w-3 h-3" />
+                      Uploads locked
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Premium Plan */}
+                <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 space-y-2 relative">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Popular</div>
+                  <div className="text-sm font-bold text-blue-950 dark:text-blue-200">Premium</div>
+                  <ul className="text-[11px] text-slate-600 dark:text-blue-300 space-y-1 pt-1">
+                    <li className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                      10 views/day
+                    </li>
+                    <li className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                      1 upload / 30 days
+                    </li>
+                    <li className="flex items-center gap-1.5 text-amber-600 font-bold">
+                      <Sparkles className="w-3 h-3" />
+                      +{gpRewardAmount} GP bounty
+                    </li>
+                  </ul>
+                </div>
+
+                {/* VIP Plan */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/80 to-purple-50/50 dark:from-amber-950/30 dark:to-purple-950/30 border border-amber-300/80 dark:border-amber-700/60 space-y-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Fastest Cooldown</div>
+                  <div className="text-sm font-bold text-amber-950 dark:text-amber-200 flex items-center gap-1">
+                    <Crown className="w-3.5 h-3.5 text-amber-500" />
+                    VIP Scholar
+                  </div>
+                  <ul className="text-[11px] text-slate-600 dark:text-amber-200 space-y-1 pt-1">
+                    <li className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3 h-3 text-amber-600" />
+                      Unlimited views
+                    </li>
+                    <li className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-bold">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                      1 upload / 15 days
+                    </li>
+                    <li className="flex items-center gap-1.5 text-amber-600 font-bold">
+                      <Sparkles className="w-3 h-3" />
+                      +{gpRewardAmount} GP bounty
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center gap-3 w-full max-w-md">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onUpgradeClick?.();
+                  }}
+                  id="upgrade-to-upload-btn"
+                  className="w-full sm:flex-1 py-3 px-6 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-xs font-black shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                >
+                  <Crown className="w-4 h-4 text-amber-300" />
+                  Upgrade Subscription Now
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full sm:w-auto py-3 px-5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Cooldown Status & Reward Banner */}
+              <div className={`px-6 py-3 border-b flex flex-wrap items-center justify-between gap-3 text-xs ${
+                !uploadCooldown.canUpload
+                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/50'
+                  : 'bg-emerald-50/80 dark:bg-slate-800/80 border-emerald-200 dark:border-slate-700/60'
+              }`}>
+                <div className="flex items-center gap-2.5">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    userTier === 'vip'
+                      ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                      : 'bg-blue-600/20 text-blue-700 dark:text-blue-300 border border-blue-500/30'
+                  }`}>
+                    {userTier === 'vip' ? 'VIP Scholar (15d Cooldown)' : 'Premium Scholar (30d Cooldown)'}
+                  </span>
+
+                  {!uploadCooldown.canUpload ? (
+                    <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-200 font-semibold">
+                      <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      <span>
+                        Cooldown Active: Next upload in{' '}
+                        <strong className="text-rose-600 dark:text-rose-400 font-bold">
+                          {uploadCooldown.daysRemaining} day{uploadCooldown.daysRemaining === 1 ? '' : 's'}
+                        </strong>
+                        {uploadCooldown.nextEligibleDate ? ` (${uploadCooldown.nextEligibleDate})` : ''}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-semibold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <span>Upload Eligible: 1 upload ready</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {userTier === 'premium' && !uploadCooldown.canUpload && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onUpgradeClick?.();
+                      }}
+                      className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      <Crown className="w-3 h-3 text-amber-500" />
+                      Cut to 15 days with VIP
+                    </button>
+                  )}
+                  <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-400 font-semibold">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>Verified Bounty: +{gpRewardAmount} GP</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scrollable Form Body */}
+              <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 flex-1">
             {/* Error Message */}
             {error && (
               <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-200 text-xs flex items-start gap-2.5">
@@ -832,7 +1007,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
 
               <button
                 type="submit"
-                disabled={isLoading || !weeklyUploadCheck.canUpload || !!duplicateWarning}
+                disabled={isLoading || !uploadCooldown.canUpload || !weeklyUploadCheck.canUpload || !!duplicateWarning}
                 id="submit-pq-upload-btn"
                 className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 text-white text-xs font-bold shadow-md transition-all"
               >
@@ -840,6 +1015,11 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Submitting...
+                  </>
+                ) : !uploadCooldown.canUpload ? (
+                  <>
+                    <Clock className="w-4 h-4" />
+                    Upload Cooldown Active ({uploadCooldown.daysRemaining}d left)
                   </>
                 ) : duplicateWarning ? (
                   <>
@@ -855,6 +1035,8 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
               </button>
             </div>
           </form>
+        </>
+      )}
         </motion.div>
       </div>
     </AnimatePresence>

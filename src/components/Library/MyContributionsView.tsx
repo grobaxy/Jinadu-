@@ -20,6 +20,12 @@ interface MyContributionsViewProps {
   onOpenUpload: () => void;
   canUploadToday?: boolean;
   remainingUploads?: number;
+  userTier?: 'free' | 'premium' | 'vip';
+  cooldownStatus?: {
+    canUpload: boolean;
+    daysRemaining: number;
+    cooldownDays: number;
+  };
 }
 
 export const MyContributionsView: React.FC<MyContributionsViewProps> = ({
@@ -28,6 +34,8 @@ export const MyContributionsView: React.FC<MyContributionsViewProps> = ({
   onOpenUpload,
   canUploadToday = true,
   remainingUploads = 1,
+  userTier = 'free',
+  cooldownStatus,
 }) => {
   const [filterStatus, setFilterStatus] = useState<PastQuestionStatus | 'all'>('all');
 
@@ -129,7 +137,11 @@ export const MyContributionsView: React.FC<MyContributionsViewProps> = ({
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors"
         >
           <UploadCloud className="w-4 h-4" />
-          Upload New Question ({remainingUploads} remaining this week)
+          {userTier === 'free'
+            ? 'Upload Past Question (Upgrade to Upload)'
+            : cooldownStatus && !cooldownStatus.canUpload
+            ? `Upload Past Question (${cooldownStatus.daysRemaining}d cooldown)`
+            : 'Upload New Question'}
         </button>
       </div>
 

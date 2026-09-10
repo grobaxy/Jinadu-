@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, User as FirebaseUser } from 'firebase/auth';
-import { collection, doc, setDoc, addDoc, deleteDoc, serverTimestamp, onSnapshot, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, onSnapshot, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
 import {
   grobaxDataService,
   institutionRepo,
