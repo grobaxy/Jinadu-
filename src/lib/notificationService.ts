@@ -11,6 +11,7 @@ import {
   QualificationCompetition,
   WithdrawalRecord,
   Transaction,
+  CompetitionHint,
 } from '../types';
 import { grobaxDataService } from './dataAccess';
 
@@ -37,6 +38,7 @@ export interface NotificationDataSource {
   studentVerifications?: Array<{ id: string; status?: string; createdAt?: any }>;
   reportedPosts?: Array<{ id: string; status?: string }>;
   liveFixtures?: Array<{ id: string; status?: string }>;
+  hints?: CompetitionHint[];
 }
 
 type NotificationSubscriber = (state: {
@@ -57,6 +59,7 @@ class GrobaaxNotificationService {
     league: 0,
     gus: 0,
     daily_qa: 0,
+    hints: 0,
     school_dome: 0,
     school_dome_results: 0,
     library: 0,
@@ -379,11 +382,24 @@ class GrobaaxNotificationService {
     const schoolDomeCount = this.eventCounts['school_dome'] || 0;
     const schoolDomeResultsCount = this.eventCounts['school_dome_results'] || 0;
 
+    // 11. Hints Section (Strategic Preparation Hints)
+    const hintsReadTime = lastRead['hints'] || 0;
+    let hintsCount = this.eventCounts['hints'] || 0;
+    if (ds.hints && ds.hints.length > 0) {
+      const unreadHints = ds.hints.filter((h) => {
+        if (h.status !== 'published') return false;
+        const time = this.parseTimestamp((h as any).updatedAt || (h as any).createdAt);
+        return time > hintsReadTime;
+      }).length;
+      hintsCount += unreadHints;
+    }
+
     this.userCounts = {
       home: homeCount,
       league: leagueCount,
       gus: gusCount,
       daily_qa: chatCount,
+      hints: hintsCount,
       school_dome: schoolDomeCount,
       school_dome_results: schoolDomeResultsCount,
       library: libraryCount,

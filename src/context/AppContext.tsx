@@ -136,8 +136,10 @@ import {
   UserListingEligibility,
   UserSectionUnreadCounts,
   AdminSectionUnreadCounts,
+  CompetitionHint,
 } from '../types';
 import { grobaxNotificationService } from '../lib/notificationService';
+import { subscribeToCompetitionHints, getCachedCompetitionHints } from '../lib/hintsService';
 import {
   saveMinimartProductToFirestore,
   updateMinimartProductStatusInFirestore,
@@ -4486,6 +4488,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     grobaxNotificationService.getSnapshot().admin
   );
 
+  // Global Hints State for realtime notification badge signal
+  const [competitionHints, setCompetitionHints] = useState<CompetitionHint[]>(() =>
+    getCachedCompetitionHints()
+  );
+
+  useEffect(() => {
+    const unsub = subscribeToCompetitionHints(
+      (items) => {
+        setCompetitionHints(items);
+      },
+      (err) => {
+        console.warn('AppContext hints listener note:', err);
+      }
+    );
+    return () => unsub();
+  }, []);
+
   // Initialize Notification Service with current user ID
   useEffect(() => {
     grobaxNotificationService.initUser(firebaseUser?.uid || currentUser.id);
@@ -4523,6 +4542,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reportedPosts: posts.filter(p => p.status === 'Reported'),
       liveFixtures: fixtures as any,
       libraryMaterials: pendingPastQuestions as any,
+      hints: competitionHints,
     });
   }, [
     firebaseUser?.uid,
@@ -4539,6 +4559,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     representativeRecords,
     fixtures,
     pendingPastQuestions,
+    competitionHints,
   ]);
 
   // When active tab changes, mark that section as read automatically

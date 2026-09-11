@@ -2637,6 +2637,7 @@ export type UserNavSectionKey =
   | 'home'
   | 'league'
   | 'gus'
+  | 'hints'
   | 'library'
   | 'community'
   | 'sug'
@@ -2653,6 +2654,7 @@ export interface UserSectionUnreadCounts {
   league: number;
   gus: number;
   daily_qa: number;
+  hints: number;
   library: number;
   community: number;
   sug: number;

@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { CompetitionHint, CompetitionHintType, HintSubscriptionTier, HintStatus } from '../types';
+import { grobaxNotificationService } from './notificationService';
 
 export const HINTS_COLLECTION = 'competition_hints';
 const CACHE_KEY = 'grobax_competition_hints_cache';
@@ -199,6 +200,10 @@ export async function createCompetitionHint(input: CreateHintInput): Promise<Com
     const current = getCachedCompetitionHints();
     setCachedCompetitionHints([newHint, ...current]);
 
+    if (newHint.status === 'published') {
+      grobaxNotificationService.incrementSection('hints', 1);
+    }
+
     return newHint;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `${HINTS_COLLECTION}/${docId}`);
@@ -226,6 +231,10 @@ export async function updateCompetitionHint(
     const current = getCachedCompetitionHints();
     const updated = current.map((item) => (item.id === id ? { ...item, ...updates, updatedAt: now } : item));
     setCachedCompetitionHints(updated);
+
+    if (updates.status === 'published') {
+      grobaxNotificationService.incrementSection('hints', 1);
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `${HINTS_COLLECTION}/${id}`);
   }

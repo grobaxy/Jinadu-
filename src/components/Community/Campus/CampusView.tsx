@@ -13,16 +13,20 @@ import {
   sendCampusChatRequest,
   respondCampusChatRequest,
   getSecureWhatsAppLink,
+  resolveUserSubscriptionTier,
 } from '../../../lib/campusService';
 import { openExternalWhatsApp } from '../../../lib/whatsappUtils';
 import {
   getFacultiesByCategory,
   getDepartmentsByFaculty,
 } from '../../../data/academicStructureData';
+import { StaticInstitution } from '../../../data/nigerianInstitutions';
 import { CampusJoinScreen } from './CampusJoinScreen';
 import { CampusStudentRow } from './CampusStudentRow';
 import { CampusConnectionsView } from './CampusConnectionsView';
 import { CampusEditWhatsAppModal } from './CampusEditWhatsAppModal';
+import { ConnectOtherSchoolsView } from './ConnectOtherSchoolsView';
+import { CrossCampusUpgradeModal } from './CrossCampusUpgradeModal';
 import {
   GraduationCap,
   Building2,
@@ -37,6 +41,10 @@ import {
   Loader2,
   RefreshCw,
   FolderTree,
+  Globe,
+  Crown,
+  Sparkles,
+  MapPin,
 } from 'lucide-react';
 
 export const CampusView: React.FC = () => {
@@ -48,7 +56,7 @@ export const CampusView: React.FC = () => {
   const [isEditWhatsAppOpen, setIsEditWhatsAppOpen] = useState(false);
 
   // 2. Navigation State within Campus
-  const [activeView, setActiveView] = useState<'directory' | 'connections'>('directory');
+  const [activeView, setActiveView] = useState<'directory' | 'connections' | 'other_schools'>('directory');
   const [selectedFaculty, setSelectedFaculty] = useState<string | null>(null);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
 
@@ -69,32 +77,57 @@ export const CampusView: React.FC = () => {
     accepted: [],
   });
 
-  // User's Academic Details
-  const institutionName = useMemo(() => {
+  // User's Home Academic Institution Details
+  const homeInstitutionName = useMemo(() => {
     return (
       currentUser.institution ||
       currentUser.institutionName ||
       currentUser.academicProfile?.institutionName ||
-      'University of Lagos'
+      'Ekiti State University, Ado-Ekiti'
     );
   }, [currentUser]);
 
-  const institutionCategory: InstitutionCategory = useMemo(() => {
+  const homeInstitutionCategory: InstitutionCategory = useMemo(() => {
     return (
-      currentUser.institutionCategory ||
-      currentUser.academicProfile?.institutionCategory ||
+      (currentUser.institutionCategory as InstitutionCategory) ||
+      (currentUser.academicProfile?.institutionCategory as InstitutionCategory) ||
       'University'
     );
   }, [currentUser]);
 
+  // Active institution currently explored (defaults to home school; Premium/VIP can switch to any other Nigerian institution)
+  const [activeInstitutionName, setActiveInstitutionName] = useState<string>(homeInstitutionName);
+  const [activeInstitutionCategory, setActiveInstitutionCategory] = useState<InstitutionCategory>(homeInstitutionCategory);
+  const [isCrossCampusUpgradeModalOpen, setIsCrossCampusUpgradeModalOpen] = useState(false);
+
+  // Sync if home school loads from Firestore
+  useEffect(() => {
+    if (activeInstitutionName === 'Ekiti State University, Ado-Ekiti' && homeInstitutionName) {
+      setActiveInstitutionName(homeInstitutionName);
+      setActiveInstitutionCategory(homeInstitutionCategory);
+    }
+  }, [homeInstitutionName, homeInstitutionCategory]);
+
+  const isCrossCampusActive = activeInstitutionName.toLowerCase() !== homeInstitutionName.toLowerCase();
+
+  // Tier check for cross-campus discovery privilege
+  const userTier = useMemo(() => resolveUserSubscriptionTier(currentUser), [currentUser]);
+  const isPremiumOrVip =
+    userTier === 'premium' ||
+    userTier === 'vip' ||
+    currentUser.role === 'admin' ||
+    currentUser.role === 'super_admin' ||
+    currentUser.isSuperAdmin ||
+    currentUser.role === 'community_manager';
+
   const facultiesList = useMemo(() => {
-    return getFacultiesByCategory(institutionCategory);
-  }, [institutionCategory]);
+    return getFacultiesByCategory(activeInstitutionCategory);
+  }, [activeInstitutionCategory]);
 
   const departmentsList = useMemo(() => {
     if (!selectedFaculty) return [];
-    return getDepartmentsByFaculty(institutionCategory, selectedFaculty);
-  }, [institutionCategory, selectedFaculty]);
+    return getDepartmentsByFaculty(activeInstitutionCategory, selectedFaculty);
+  }, [activeInstitutionCategory, selectedFaculty]);
 
   // Show temporary toast feedback
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -146,11 +179,11 @@ export const CampusView: React.FC = () => {
 
   // 3. Load Students for selected department or search
   const loadStudents = async () => {
-    if (!institutionName) return;
+    if (!activeInstitutionName) return;
     setIsLoadingStudents(true);
     try {
       const list = await fetchCampusStudents({
-        institution: institutionName,
+        institution: activeInstitutionName,
         faculty: selectedFaculty || undefined,
         department: selectedDepartment || undefined,
         search: searchQuery.trim() || undefined,
@@ -168,15 +201,44 @@ export const CampusView: React.FC = () => {
     if (membership) {
       loadStudents();
     }
-  }, [institutionName, selectedFaculty, selectedDepartment, searchQuery, membership]);
+  }, [activeInstitutionName, selectedFaculty, selectedDepartment, searchQuery, membership]);
+
+  // Cross-Campus Navigation Handlers
+  const handleConnectWithOtherSchoolsClick = () => {
+    if (!isPremiumOrVip) {
+      setIsCrossCampusUpgradeModalOpen(true);
+      return;
+    }
+    setActiveView('other_schools');
+  };
+
+  const handleSelectOtherInstitution = (inst: StaticInstitution) => {
+    setActiveInstitutionName(inst.name);
+    setActiveInstitutionCategory(inst.category);
+    setSelectedFaculty(null);
+    setSelectedDepartment(null);
+    setSearchQuery('');
+    setActiveView('directory');
+    showToast(`Switched campus to ${inst.name}. Select a faculty to explore.`);
+  };
+
+  const handleBackToHomeSchool = () => {
+    setActiveInstitutionName(homeInstitutionName);
+    setActiveInstitutionCategory(homeInstitutionCategory);
+    setSelectedFaculty(null);
+    setSelectedDepartment(null);
+    setSearchQuery('');
+    setActiveView('directory');
+    showToast(`Returned to your home campus: ${homeInstitutionName}`);
+  };
 
   // Handle Joining Campus
   const handleJoinedCampus = (whatsappNumber: string) => {
     setMembership({
       id: currentUser.id,
       userId: currentUser.id,
-      institution: institutionName,
-      institutionCategory,
+      institution: homeInstitutionName,
+      institutionCategory: homeInstitutionCategory,
       faculty: currentUser.faculty || currentUser.academicProfile?.facultyName || '',
       department: currentUser.department || currentUser.academicProfile?.departmentName || '',
       level: currentUser.level || currentUser.academicProfile?.level || '100 Level',
@@ -294,21 +356,28 @@ export const CampusView: React.FC = () => {
       <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 flex items-center gap-1">
                 <GraduationCap className="w-3 h-3 text-blue-600 dark:text-blue-400" /> CAMPUS DISCOVERY
               </span>
               <span className="text-xs font-semibold text-slate-400">•</span>
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                {institutionCategory}
+                {activeInstitutionCategory}
               </span>
+              {isCrossCampusActive && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                  <Globe className="w-3 h-3 text-amber-500" /> CROSS-CAMPUS ACTIVE
+                </span>
+              )}
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2 flex-wrap">
               <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400 shrink-0" />
-              <span>{institutionName.toUpperCase()}</span>
+              <span>{activeInstitutionName.toUpperCase()}</span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-              Discover and connect with registered students from your institution.
+              {isCrossCampusActive
+                ? `Exploring cross-campus scholars and academic faculties at ${activeInstitutionName}.`
+                : `Discover and connect with registered students from your institution.`}
             </p>
           </div>
 
@@ -337,13 +406,41 @@ export const CampusView: React.FC = () => {
           </div>
         </div>
 
-        {/* View Switcher: Directory vs Connections */}
-        <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+        {/* Cross-Campus Notification Pill if exploring another school */}
+        {isCrossCampusActive && (
+          <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-bold flex-wrap">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>
+                Exploring: <strong>{activeInstitutionName}</strong> &bull; Home Campus: <strong>{homeInstitutionName}</strong>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveView('other_schools')}
+                className="px-3 py-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer"
+              >
+                Change School
+              </button>
+              <button
+                type="button"
+                onClick={handleBackToHomeSchool}
+                className="px-3 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                ← Back to My School
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* View Switcher: Directory vs Connections vs Other Schools */}
+        <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 overflow-x-auto no-scrollbar">
           <button
             id="campus-tab-directory"
             type="button"
             onClick={() => setActiveView('directory')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               activeView === 'directory'
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -357,7 +454,7 @@ export const CampusView: React.FC = () => {
             id="campus-tab-connections"
             type="button"
             onClick={() => setActiveView('connections')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               activeView === 'connections'
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -371,11 +468,38 @@ export const CampusView: React.FC = () => {
               </span>
             )}
           </button>
+
+          <button
+            id="campus-tab-other-schools"
+            type="button"
+            onClick={handleConnectWithOtherSchoolsClick}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeView === 'other_schools'
+                ? 'bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-xs'
+                : isPremiumOrVip
+                ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Globe className="w-4 h-4 text-amber-500" />
+            <span>Connect with Other Schools</span>
+            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 flex items-center gap-0.5">
+              <Crown className="w-2.5 h-2.5" />
+              VIP / PRO
+            </span>
+          </button>
         </div>
       </div>
 
       {/* 2. MAIN CONTENT AREA */}
-      {activeView === 'connections' ? (
+      {activeView === 'other_schools' ? (
+        <ConnectOtherSchoolsView
+          onSelectInstitution={handleSelectOtherInstitution}
+          onBackToHomeSchool={handleBackToHomeSchool}
+          homeInstitutionName={homeInstitutionName}
+          currentViewingInstitutionName={activeInstitutionName}
+        />
+      ) : activeView === 'connections' ? (
         <CampusConnectionsView
           received={connections.received}
           sent={connections.sent}
@@ -654,6 +778,13 @@ export const CampusView: React.FC = () => {
           setMembership((prev) => (prev ? { ...prev, whatsappNumber: newNumber } : null));
           showToast('WhatsApp number updated successfully!');
         }}
+      />
+
+      {/* 4. CROSS-CAMPUS UPGRADE MODAL (For Free Scholars) */}
+      <CrossCampusUpgradeModal
+        isOpen={isCrossCampusUpgradeModalOpen}
+        onClose={() => setIsCrossCampusUpgradeModalOpen(false)}
+        homeInstitution={homeInstitutionName}
       />
     </div>
   );
