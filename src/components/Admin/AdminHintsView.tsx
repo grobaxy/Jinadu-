@@ -13,6 +13,7 @@ import {
   deleteCompetitionHint,
   getCachedCompetitionHints,
 } from '../../lib/hintsService';
+import { grobaxNotificationService } from '../../lib/notificationService';
 import {
   Lightbulb,
   Plus,
@@ -268,6 +269,14 @@ export function AdminHintsView() {
           createdByName: currentUser?.name || 'Admin',
         });
         showToast('New competition hint published successfully!');
+        if (formData.status === 'published') {
+          grobaxNotificationService.emitSectionNotification({
+            section: 'hints',
+            title: 'New Competition Hint',
+            message: `Strategic hints published for ${formData.competitionType === 'daily_qa' ? 'Daily Ultimate Search' : 'School Dome'} (${formData.roundLabel}).`,
+            targetRole: 'ALL',
+          });
+        }
       }
 
       setIsModalOpen(false);
@@ -285,6 +294,14 @@ export function AdminHintsView() {
     try {
       await updateCompetitionHint(hint.id, { status: newStatus });
       showToast(`Hint status changed to ${newStatus}`);
+      if (newStatus === 'published') {
+        grobaxNotificationService.emitSectionNotification({
+          section: 'hints',
+          title: 'Competition Hint Published',
+          message: `Strategic hints are now live for ${hint.competitionType === 'daily_qa' ? 'Daily Ultimate Search' : 'School Dome'}.`,
+          targetRole: 'ALL',
+        });
+      }
     } catch (err) {
       console.error('Failed to toggle status:', err);
       showToast('Error changing status. Try again.');

@@ -87,6 +87,9 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
         clearSectionNotification('school_dome');
         clearSectionNotification('school_dome_results');
       }
+      if (tabId === 'hints') {
+        clearSectionNotification('hints');
+      }
     }
   };
 
@@ -122,6 +125,9 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
         return <ShoppingBag className="w-4 h-4 text-purple-500 dark:text-purple-400" />;
       case 'announcement':
         return <Megaphone className="w-4 h-4 text-blue-500 dark:text-blue-400" />;
+      case 'hints':
+      case 'hint':
+        return <Lightbulb className="w-4 h-4 text-amber-500 dark:text-amber-400" />;
       case 'system':
         return <ShieldCheck className="w-4 h-4 text-blue-500 dark:text-blue-400" />;
       default:

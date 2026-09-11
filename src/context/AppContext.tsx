@@ -177,6 +177,7 @@ interface AppContextType {
   openWalletModal: (initialTab?: 'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade' | 'contact') => void;
   subscriptionPlans: SubscriptionPlan[];
   activeSubscriptionPlans: SubscriptionPlan[];
+  freeScholarPlan: SubscriptionPlan;
   subscribeToPlan: (
     plan: SubscriptionPlan,
     paymentMethod?: 'GP' | 'CARD' | 'TRANSFER',
@@ -397,6 +398,34 @@ interface AppContextType {
   triggerAiBroadcast: (message: string) => void;
   selectedRoleUser: UserProfile;
 }
+
+export const DEFAULT_FREE_SCHOLAR_PLAN: SubscriptionPlan = {
+  id: 'plan_free_scholar',
+  planId: 'plan_free_scholar',
+  name: 'Free Scholar',
+  shortDescription: 'Standard academic access to campus discussions and basic quizzes.',
+  fullDescription: 'Included default membership tier for all registered scholars on Grobaax.',
+  priceNaira: 0,
+  currency: 'NGN',
+  durationValue: 1,
+  durationUnit: 'Years',
+  benefits: [
+    'Daily Ultimate Search — 2 Responses',
+    'Browse Campus Minimart (Discovery Only)',
+    'Withdrawal Eligibility — Not Available',
+    'SchoolDome',
+    'Campus connect — Limited Access',
+    'Competition - Hint — Not Available',
+    'GbX Ads — Available',
+  ],
+  features: ['Lifetime Validity', 'Standard Access', 'Ad-Supported'],
+  badgeLabel: 'FREE FOREVER',
+  featured: false,
+  active: true,
+  displayOrder: 0,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
 
 export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
@@ -2478,9 +2507,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
-    // 6. Admin Subscription Plans Listener (Limit 10 + Cache)
+    // 6. Admin Subscription Plans Listener (Limit 25 + Cache)
     const unsubPlans = onSnapshot(
-      query(collection(db, 'subscriptionPlans'), limit(10)),
+      query(collection(db, 'subscriptionPlans'), limit(25)),
       (snap) => {
         if (!snap.empty) {
           const loaded: SubscriptionPlan[] = [];
@@ -2510,6 +2539,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setSubscriptionPlans(loaded);
           try {
             localStorage.setItem('grobax_saved_subscription_plans', JSON.stringify(loaded));
+            const freeP = loaded.find(p => p.planId === 'plan_free_scholar' || p.id === 'plan_free_scholar');
+            if (freeP) {
+              localStorage.setItem('grobax_saved_free_scholar_plan', JSON.stringify(freeP));
+            }
           } catch {}
         }
       },
@@ -5068,9 +5101,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isAuthReady, runSubscriptionSensorCheck]);
 
   const activeSubscriptionPlans = useMemo(
-    () => subscriptionPlans.filter(p => p.active !== false),
+    () => subscriptionPlans.filter(p => p.active !== false && p.planId !== 'plan_free_scholar' && p.id !== 'plan_free_scholar' && p.priceNaira > 0),
     [subscriptionPlans]
   );
+
+  const freeScholarPlan = useMemo<SubscriptionPlan>(() => {
+    const found = subscriptionPlans.find(
+      (p) => p.planId === 'plan_free_scholar' || p.id === 'plan_free_scholar'
+    );
+    if (found) return found;
+    try {
+      const cached = typeof window !== 'undefined' ? localStorage.getItem('grobax_saved_free_scholar_plan') : null;
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.name) return parsed;
+      }
+    } catch {}
+    return DEFAULT_FREE_SCHOLAR_PLAN;
+  }, [subscriptionPlans]);
 
   return (
     <AppContext.Provider
@@ -5097,6 +5145,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openWalletModal,
         subscriptionPlans,
         activeSubscriptionPlans,
+        freeScholarPlan,
         subscribeToPlan,
         registerPendingPayment,
         activePaymentSensor,

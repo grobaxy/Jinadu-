@@ -2,8 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Sparkles, ArrowUpRight, X } from 'lucide-react';
 
+/**
+ * Normalizes any admin-entered sponsor destination URL so external websites
+ * without http/https protocol correctly navigate to the external destination
+ * rather than resolving as an internal relative path.
+ */
+export const normalizeDestinationUrl = (url?: string): string => {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('mailto:') ||
+    trimmed.startsWith('tel:')
+  ) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('#') || trimmed.startsWith('/')) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+};
+
 export const AdvertisementTicker: React.FC = () => {
-  const { sponsorshipCampaigns, activeTab } = useApp();
+  const { sponsorshipCampaigns, activeTab, setActiveTab } = useApp();
   const [isVisible, setIsVisible] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
 
@@ -12,6 +35,22 @@ export const AdvertisementTicker: React.FC = () => {
     setIsVisible(true);
     setIsPaused(false);
   }, [activeTab]);
+
+  const handleDirectToWebsite = (e: React.MouseEvent, rawUrl?: string) => {
+    if (!rawUrl) return;
+    e.stopPropagation();
+    const target = normalizeDestinationUrl(rawUrl);
+    if (!target) return;
+
+    if (target.startsWith('#')) {
+      const tabId = target.replace('#', '').toLowerCase();
+      setActiveTab(tabId as any);
+    } else if (target.startsWith('/')) {
+      window.location.href = target;
+    } else {
+      window.open(target, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   // Hide sponsored ticker on Community tab and Daily Ultimate Search (daily_qa / gus tab)
   if (!isVisible || activeTab === 'community' || activeTab === 'daily_qa' || activeTab === 'gus') return null;
@@ -89,27 +128,47 @@ export const AdvertisementTicker: React.FC = () => {
             isPaused ? 'animate-ticker-paused' : ''
           }`}
         >
-          {repeatedItems.map((item, idx) => (
-            <div key={`${item.id}-${idx}`} className="inline-flex items-center gap-1.5 shrink-0 text-[11px] leading-none">
-              <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-blue-500/10 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-1">
-                <span>{item.logo}</span>
-                <span>{item.sponsorName}</span>
-              </span>
-              <span className="text-slate-700 dark:text-slate-200 font-semibold">{item.text}</span>
-              {('destinationUrl' in item) && item.destinationUrl && (
-                <a
-                  href={item.destinationUrl}
-                  target={item.destinationUrl.startsWith('http') ? '_blank' : '_self'}
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-0.5 text-blue-600 dark:text-blue-400 hover:underline font-bold ml-1 cursor-pointer"
-                >
-                  <span>{(item as any).ctaText || 'Learn More'}</span>
-                  <ArrowUpRight className="w-2.5 h-2.5" />
-                </a>
-              )}
-              <span className="text-slate-300 dark:text-slate-700 mx-1.5">•</span>
-            </div>
-          ))}
+          {repeatedItems.map((item, idx) => {
+            const destUrl = ('destinationUrl' in item ? (item as any).destinationUrl : '') || '';
+            const normalizedUrl = normalizeDestinationUrl(destUrl);
+            const hasUrl = Boolean(normalizedUrl);
+
+            return (
+              <div
+                key={`${item.id}-${idx}`}
+                onClick={(e) => {
+                  if (hasUrl) {
+                    handleDirectToWebsite(e, destUrl);
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 shrink-0 text-[11px] leading-none ${
+                  hasUrl ? 'cursor-pointer hover:opacity-90' : ''
+                }`}
+                title={hasUrl ? `Visit: ${normalizedUrl}` : undefined}
+              >
+                <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-blue-500/10 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-1">
+                  <span>{item.logo}</span>
+                  <span>{item.sponsorName}</span>
+                </span>
+                <span className={`text-slate-700 dark:text-slate-200 font-semibold ${hasUrl ? 'hover:underline' : ''}`}>
+                  {item.text}
+                </span>
+                {hasUrl && (
+                  <a
+                    href={normalizedUrl}
+                    onClick={(e) => handleDirectToWebsite(e, destUrl)}
+                    target={normalizedUrl.startsWith('http') ? '_blank' : '_self'}
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-0.5 text-blue-600 dark:text-blue-400 hover:underline font-bold ml-1 cursor-pointer"
+                  >
+                    <span>{(item as any).ctaText || 'Learn More'}</span>
+                    <ArrowUpRight className="w-2.5 h-2.5" />
+                  </a>
+                )}
+                <span className="text-slate-300 dark:text-slate-700 mx-1.5">•</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 

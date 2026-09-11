@@ -141,12 +141,17 @@ class GrobaaxNotificationService {
           user: defaultTime,
           minimart: defaultTime,
           announcements: defaultTime,
+          campus: defaultTime,
+          hints: defaultTime,
+          school_dome: defaultTime,
+          school_dome_results: defaultTime,
           admin_withdrawals: defaultTime,
           admin_rep_qualification: defaultTime,
           admin_sug_management: defaultTime,
           admin_community: defaultTime,
           admin_users: defaultTime,
           admin_transactions: defaultTime,
+          admin_hints: defaultTime,
         };
       }
     } catch (e) {
@@ -383,15 +388,15 @@ class GrobaaxNotificationService {
     const schoolDomeResultsCount = this.eventCounts['school_dome_results'] || 0;
 
     // 11. Hints Section (Strategic Preparation Hints)
-    const hintsReadTime = lastRead['hints'] || 0;
+    const hintsReadTime = lastRead['hints'] || (Date.now() - 48 * 60 * 60 * 1000);
     let hintsCount = this.eventCounts['hints'] || 0;
     if (ds.hints && ds.hints.length > 0) {
       const unreadHints = ds.hints.filter((h) => {
         if (h.status !== 'published') return false;
         const time = this.parseTimestamp((h as any).updatedAt || (h as any).createdAt);
-        return time > hintsReadTime;
+        return hintsReadTime > 0 ? time > hintsReadTime : true;
       }).length;
-      hintsCount += unreadHints;
+      hintsCount = Math.max(hintsCount, unreadHints);
     }
 
     this.userCounts = {

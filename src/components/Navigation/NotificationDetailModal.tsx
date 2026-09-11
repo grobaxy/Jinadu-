@@ -21,6 +21,7 @@ import {
   ArrowRight,
   Crown,
   GraduationCap,
+  Lightbulb,
 } from 'lucide-react';
 
 interface NotificationDetailModalProps {
@@ -99,10 +100,19 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
         setActiveTab('library');
         return;
       }
+      if (target.includes('hint')) {
+        setActiveTab('hints');
+        return;
+      }
       if (target.includes('community')) {
         setActiveTab('community');
         return;
       }
+    }
+
+    if (notification.type === 'hints' || notification.type === 'hint') {
+      setActiveTab('hints');
+      return;
     }
 
     if (notification.type === 'campus') {
@@ -161,6 +171,9 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
     }
     if (target.includes('library') || notification.type === 'academic_library') {
       return { label: 'Go to Academic Vault', icon: <BookOpen className="w-4 h-4 text-teal-300" /> };
+    }
+    if (target.includes('hint') || notification.type === 'hints' || notification.type === 'hint') {
+      return { label: 'Explore Competition Hints', icon: <Lightbulb className="w-4 h-4 text-amber-300" /> };
     }
     return { label: 'View Activity', icon: <ArrowRight className="w-4 h-4" /> };
   };
@@ -230,6 +243,13 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
           icon: <Megaphone className="w-5 h-5 text-blue-500 dark:text-blue-400" />,
           label: 'Campus Announcement',
           style: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+        };
+      case 'hints':
+      case 'hint':
+        return {
+          icon: <Lightbulb className="w-5 h-5 text-amber-500 dark:text-amber-400" />,
+          label: 'Competition Strategic Hints',
+          style: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
         };
       default:
         return {

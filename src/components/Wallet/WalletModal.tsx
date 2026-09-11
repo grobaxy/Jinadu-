@@ -128,6 +128,7 @@ export const WalletModal: React.FC = () => {
     setWalletModalTab,
     subscriptionPlans,
     activeSubscriptionPlans,
+    freeScholarPlan,
     subscribeToPlan,
     notifications,
     markNotificationRead,
@@ -2543,7 +2544,7 @@ export const WalletModal: React.FC = () => {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <span className="px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30">
-                          Free Forever
+                          {freeScholarPlan?.badgeLabel || 'Free Forever'}
                         </span>
                         <span className="text-[11px] font-mono text-blue-200 bg-blue-950/80 px-2.5 py-0.5 rounded-md border border-blue-500/20">
                           Lifetime
@@ -2552,13 +2553,13 @@ export const WalletModal: React.FC = () => {
 
                       <div>
                         <h4 className="font-black text-xl sm:text-2xl text-white tracking-tight">
-                          Free Scholar
+                          {freeScholarPlan?.name || 'Free Scholar'}
                         </h4>
                         <div className="text-3xl sm:text-4xl font-black text-white mt-1.5 tracking-tight flex items-baseline gap-1.5">
                           ₦0 <span className="text-xs font-semibold text-blue-200">/ Lifetime</span>
                         </div>
                         <p className="text-xs sm:text-sm text-blue-100/90 mt-2 leading-relaxed">
-                          Standard academic access to campus discussions and basic quizzes.
+                          {freeScholarPlan?.shortDescription || 'Standard academic access to campus discussions and basic quizzes.'}
                         </p>
                       </div>
 
@@ -2567,18 +2568,35 @@ export const WalletModal: React.FC = () => {
                           Standard Privileges:
                         </div>
                         <ul className="space-y-3 text-xs sm:text-sm text-white">
-                          <li className="flex items-start gap-2.5">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                            <span className="leading-snug font-medium">Daily Ultimate Search — 2 Responses</span>
-                          </li>
-                          <li className="flex items-start gap-2.5">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                            <span className="leading-snug font-medium">Browse Campus Minimart (Discovery Only)</span>
-                          </li>
-                          <li className="flex items-start gap-2.5">
-                            <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                            <span className="leading-snug font-medium text-slate-300">Withdrawal Eligibility — Not Available</span>
-                          </li>
+                          {(freeScholarPlan?.benefits && freeScholarPlan.benefits.length > 0
+                            ? freeScholarPlan.benefits
+                            : [
+                                'Daily Ultimate Search — 2 Responses',
+                                'Browse Campus Minimart (Discovery Only)',
+                                'Withdrawal Eligibility — Not Available',
+                                'SchoolDome',
+                                'Campus connect — Limited Access',
+                                'Competition - Hint — Not Available',
+                                'GbX Ads — Available',
+                              ]
+                          ).map((benefit, bIdx) => {
+                            const isUnavailable =
+                              benefit.toLowerCase().includes('not available') ||
+                              benefit.toLowerCase().includes('locked') ||
+                              benefit.toLowerCase().includes('disabled');
+                            return (
+                              <li key={bIdx} className="flex items-start gap-2.5">
+                                {isUnavailable ? (
+                                  <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                                ) : (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                                )}
+                                <span className={`leading-snug font-medium ${isUnavailable ? 'text-slate-300' : 'text-white'}`}>
+                                  {benefit}
+                                </span>
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
                     </div>
@@ -2602,8 +2620,10 @@ export const WalletModal: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Firestore Admin Synced Plans */}
-                  {(activeSubscriptionPlans.length > 0 ? activeSubscriptionPlans : subscriptionPlans.filter(p => p.active !== false)).map((plan) => {
+                  {/* Firestore Admin Synced Paid Plans */}
+                  {(activeSubscriptionPlans.length > 0 ? activeSubscriptionPlans : subscriptionPlans)
+                    .filter(p => p.active !== false && p.planId !== 'plan_free_scholar' && p.id !== 'plan_free_scholar' && p.priceNaira > 0)
+                    .map((plan) => {
                     const isPlanExpired = !isSuper && currentUser.subscriptionExpiry
                       ? new Date(currentUser.subscriptionExpiry).getTime() <= Date.now()
                       : false;

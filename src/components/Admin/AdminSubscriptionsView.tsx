@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { SubscriptionPlan, UserSubscriptionRecord, PRIMARY_SUPER_ADMIN_UID } from '../../types';
 import { grobaxDataService } from '../../lib/dataAccess';
 import { logManagerActivity } from '../../lib/adminPermissions';
-import { useApp, DEFAULT_SUBSCRIPTION_PLANS } from '../../context/AppContext';
+import { useApp, DEFAULT_SUBSCRIPTION_PLANS, DEFAULT_FREE_SCHOLAR_PLAN } from '../../context/AppContext';
 import {
   CreditCard,
   Plus,
@@ -239,6 +239,38 @@ export function AdminSubscriptionsView() {
     setIsModalOpen(true);
   };
 
+  const freeScholarPlan = plans.find(
+    (p) => p.planId === 'plan_free_scholar' || p.id === 'plan_free_scholar'
+  ) || (() => {
+    try {
+      const cached = localStorage.getItem('grobax_saved_free_scholar_plan');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.name) return parsed;
+      }
+    } catch {}
+    return DEFAULT_FREE_SCHOLAR_PLAN;
+  })();
+
+  const handleOpenEditFreeScholarModal = () => {
+    const target = freeScholarPlan;
+    setSelectedPlan(target);
+    setFormPlanId('plan_free_scholar');
+    setFormName(target.name || 'Free Scholar');
+    setFormShortDesc(target.shortDescription || 'Standard academic access to campus discussions and basic quizzes.');
+    setFormFullDesc(target.fullDescription || 'Included default membership tier for all registered scholars on Grobaax.');
+    setFormPriceNaira(0);
+    setFormDurationValue(1);
+    setFormDurationUnit('Years');
+    setFormBenefitsText((target.benefits || []).join('\n'));
+    setFormFeaturesText((target.features || []).join('\n'));
+    setFormBadgeLabel(target.badgeLabel || 'FREE FOREVER');
+    setFormFeatured(false);
+    setFormActive(true);
+    setFormDisplayOrder(0);
+    setIsModalOpen(true);
+  };
+
   const handleOpenEditModal = (plan: SubscriptionPlan) => {
     setSelectedPlan(plan);
     setFormPlanId(plan.planId);
@@ -277,27 +309,35 @@ export function AdminSubscriptionsView() {
       .map((f) => f.trim())
       .filter((f) => f.length > 0);
 
+    const isFreeScholarSave = formPlanId === 'plan_free_scholar';
+
     const planData: Omit<SubscriptionPlan, 'id'> = {
       planId: formPlanId.trim() || `plan_${Date.now()}`,
       name: formName.trim(),
       shortDescription: formShortDesc.trim(),
       fullDescription: formFullDesc.trim(),
-      priceNaira: Math.max(0, Number(formPriceNaira) || 0),
+      priceNaira: isFreeScholarSave ? 0 : Math.max(0, Number(formPriceNaira) || 0),
       currency: 'NGN',
-      durationValue: Number(formDurationValue) || 30,
-      durationUnit: formDurationUnit,
+      durationValue: isFreeScholarSave ? 1 : (Number(formDurationValue) || 30),
+      durationUnit: isFreeScholarSave ? 'Years' : formDurationUnit,
       benefits: benefitsArray,
       features: featuresArray,
       badgeLabel: formBadgeLabel.trim(),
-      featured: formFeatured,
-      active: formActive,
-      displayOrder: Number(formDisplayOrder) || 1,
+      featured: isFreeScholarSave ? false : formFeatured,
+      active: true,
+      displayOrder: isFreeScholarSave ? 0 : (Number(formDisplayOrder) || 1),
       createdAt: selectedPlan ? selectedPlan.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     try {
       await grobaxDataService.create('subscriptionPlans', planData, planData.planId);
+
+      if (isFreeScholarSave) {
+        try {
+          localStorage.setItem('grobax_saved_free_scholar_plan', JSON.stringify(planData));
+        } catch {}
+      }
 
       await logManagerActivity({
         managerUid: userProfile?.id || PRIMARY_SUPER_ADMIN_UID,
@@ -313,7 +353,9 @@ export function AdminSubscriptionsView() {
 
       setMessage({
         type: 'success',
-        text: selectedPlan ? 'Plan updated successfully! Synchronized with User App.' : 'New subscription plan created successfully!',
+        text: isFreeScholarSave
+          ? 'Free Scholar tier privileges updated successfully! Synchronized with User App.'
+          : (selectedPlan ? 'Plan updated successfully! Synchronized with User App.' : 'New subscription plan created successfully!'),
       });
       setIsModalOpen(false);
     } catch (err: any) {
@@ -331,6 +373,9 @@ export function AdminSubscriptionsView() {
         const updated = idx >= 0 ? [...prev.slice(0, idx), planData, ...prev.slice(idx + 1)] : [...prev, planData];
         try {
           localStorage.setItem('grobax_saved_subscription_plans', JSON.stringify(updated));
+          if (isFreeScholarSave) {
+            localStorage.setItem('grobax_saved_free_scholar_plan', JSON.stringify(planData));
+          }
         } catch {}
         return updated;
       });
@@ -386,6 +431,10 @@ export function AdminSubscriptionsView() {
   };
 
   const handleDeletePlan = (plan: SubscriptionPlan) => {
+    if (plan.planId === 'plan_free_scholar' || plan.id === 'plan_free_scholar') {
+      setMessage({ type: 'error', text: 'Free Scholar is the default fundamental tier and cannot be deleted.' });
+      return;
+    }
     setPlanToDelete(plan);
   };
 
@@ -443,11 +492,13 @@ export function AdminSubscriptionsView() {
     }
   };
 
-  const filteredPlans = plans.filter((p) =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.shortDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.planId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPlans = plans
+    .filter((p) => p.planId !== 'plan_free_scholar' && p.id !== 'plan_free_scholar' && p.priceNaira > 0)
+    .filter((p) =>
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.shortDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.planId.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   return (
     <div className="space-y-6">
@@ -579,6 +630,73 @@ export function AdminSubscriptionsView() {
                 <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span> Inactive/Draft Plans
               </span>
             </div>
+          </div>
+
+          {/* Base Membership Tier: Free Scholar */}
+          <div className="rounded-2xl border-2 border-dashed border-blue-300 dark:border-blue-700/60 bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-slate-50 dark:from-blue-950/25 dark:via-slate-900/60 dark:to-slate-900/40 p-6 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div className="space-y-2 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-600 text-white shadow-sm">
+                    {freeScholarPlan.badgeLabel || 'FREE FOREVER'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                    Base Membership Tier (Default for all registered scholars)
+                  </span>
+                </div>
+
+                <div className="flex items-baseline gap-3">
+                  <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                    {freeScholarPlan.name || 'Free Scholar'}
+                  </h3>
+                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                    ₦0 / Lifetime Access
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 dark:text-slate-400 max-w-2xl">
+                  {freeScholarPlan.shortDescription || 'Standard academic access to campus discussions and basic quizzes.'}
+                </p>
+
+                {/* Privileges summary */}
+                <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {(freeScholarPlan.benefits || []).slice(0, 6).map((benefit: string, idx: number) => {
+                    const isNotAvail = benefit.toLowerCase().includes('not available') || benefit.toLowerCase().includes('unavailable');
+                    return (
+                      <div key={idx} className="flex items-center space-x-1.5 text-xs">
+                        {isNotAvail ? (
+                          <XCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        )}
+                        <span className={isNotAvail ? 'text-slate-400 line-through' : 'text-slate-700 dark:text-slate-300'}>
+                          {benefit}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end gap-3 shrink-0">
+                <button
+                  onClick={handleOpenEditFreeScholarModal}
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  <span>Edit Free Scholar Tier</span>
+                </button>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 text-center lg:text-right">
+                  Changes instantly reflect on student upgrade modals
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Paid Subscription Plans ({filteredPlans.length})
+            </h3>
           </div>
 
           {/* Loading State */}
@@ -789,13 +907,18 @@ export function AdminSubscriptionsView() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl my-8 overflow-hidden">
+            {/* Modal Title Banner */}
             <div className="p-6 bg-blue-950 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-bold">
-                  {selectedPlan ? 'Edit Subscription Plan' : 'Create Subscription Plan'}
+                  {formPlanId === 'plan_free_scholar'
+                    ? 'Edit Free Scholar Base Tier'
+                    : (selectedPlan ? 'Edit Subscription Plan' : 'Create Subscription Plan')}
                 </h3>
                 <p className="text-xs text-blue-200 mt-0.5">
-                  Set plan pricing in Nigerian Naira (₦) & customize features for Grobaax users.
+                  {formPlanId === 'plan_free_scholar'
+                    ? 'Configure default membership privileges and benefits for all registered scholars.'
+                    : 'Set plan pricing in Nigerian Naira (₦) & customize features for Grobaax users.'}
                 </p>
               </div>
               <button
@@ -807,6 +930,15 @@ export function AdminSubscriptionsView() {
             </div>
 
             <form onSubmit={handleSavePlan} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {formPlanId === 'plan_free_scholar' && (
+                <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-900 dark:text-blue-200 text-xs flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-500 shrink-0" />
+                  <span>
+                    Base Membership Tier: Price is permanently locked at ₦0 (Lifetime). Any updates here will synchronize immediately with student upgrade modals.
+                  </span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
@@ -840,7 +972,7 @@ export function AdminSubscriptionsView() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Price in Naira (₦) *
+                    Price in Naira (₦) * {formPlanId === 'plan_free_scholar' && '(Free Forever)'}
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-blue-600">
@@ -851,38 +983,41 @@ export function AdminSubscriptionsView() {
                       required
                       min={0}
                       step="any"
-                      value={formPriceNaira}
+                      disabled={formPlanId === 'plan_free_scholar'}
+                      value={formPlanId === 'plan_free_scholar' ? 0 : formPriceNaira}
                       onChange={(e) => {
                         const val = e.target.value;
                         setFormPriceNaira(val === '' ? '' : Number(val));
                       }}
                       placeholder="e.g. 99, 300, 2500"
-                      className="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Duration Value & Unit *
+                    Duration Value & Unit * {formPlanId === 'plan_free_scholar' && '(Lifetime)'}
                   </label>
                   <div className="flex space-x-2">
                     <input
                       type="number"
                       required
                       min={1}
-                      value={formDurationValue}
+                      disabled={formPlanId === 'plan_free_scholar'}
+                      value={formPlanId === 'plan_free_scholar' ? 1 : formDurationValue}
                       onChange={(e) => setFormDurationValue(Number(e.target.value))}
-                      className="w-24 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                      className="w-24 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
                     />
                     <select
-                      value={formDurationUnit}
+                      disabled={formPlanId === 'plan_free_scholar'}
+                      value={formPlanId === 'plan_free_scholar' ? 'Years' : formDurationUnit}
                       onChange={(e) => setFormDurationUnit(e.target.value as any)}
-                      className="flex-1 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
                     >
                       <option value="Days">Days</option>
                       <option value="Months">Months</option>
-                      <option value="Years">Years</option>
+                      <option value="Years">Years (Lifetime)</option>
                     </select>
                   </div>
                 </div>
@@ -916,13 +1051,26 @@ export function AdminSubscriptionsView() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Benefits List (One per line)
+                  Benefits / Privileges List (One per line)
                 </label>
                 <textarea
                   rows={4}
                   value={formBenefitsText}
                   onChange={(e) => setFormBenefitsText(e.target.value)}
-                  placeholder="2x GP Reward Multiplier&#10;Verified Profile Badge&#10;Direct Representative Entry"
+                  placeholder="Daily Ultimate Search — 2 Responses&#10;Campus Minimart Browsing&#10;Withdrawal Eligibility — Not Available"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Key Features / Badges (One per line)
+                </label>
+                <textarea
+                  rows={2}
+                  value={formFeaturesText}
+                  onChange={(e) => setFormFeaturesText(e.target.value)}
+                  placeholder="Lifetime Validity&#10;Standard Access&#10;Ad-Supported"
                   className="w-full px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 font-mono"
                 />
               </div>
@@ -936,7 +1084,7 @@ export function AdminSubscriptionsView() {
                     type="text"
                     value={formBadgeLabel}
                     onChange={(e) => setFormBadgeLabel(e.target.value)}
-                    placeholder="e.g. POPULAR, RECOMMENDED, BEST VALUE"
+                    placeholder="e.g. FREE FOREVER, POPULAR, RECOMMENDED"
                     className="w-full px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -947,39 +1095,42 @@ export function AdminSubscriptionsView() {
                   </label>
                   <input
                     type="number"
-                    min={1}
-                    value={formDisplayOrder}
+                    min={0}
+                    disabled={formPlanId === 'plan_free_scholar'}
+                    value={formPlanId === 'plan_free_scholar' ? 0 : formDisplayOrder}
                     onChange={(e) => setFormDisplayOrder(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center space-x-6 pt-2">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formFeatured}
-                    onChange={(e) => setFormFeatured(e.target.checked)}
-                    className="rounded text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    Highlight as Featured Plan
-                  </span>
-                </label>
+              {formPlanId !== 'plan_free_scholar' && (
+                <div className="flex items-center space-x-6 pt-2">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formFeatured}
+                      onChange={(e) => setFormFeatured(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      Highlight as Featured Plan
+                    </span>
+                  </label>
 
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formActive}
-                    onChange={(e) => setFormActive(e.target.checked)}
-                    className="rounded text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    Plan Active (Visible to Users)
-                  </span>
-                </label>
-              </div>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formActive}
+                      onChange={(e) => setFormActive(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      Plan Active (Visible to Users)
+                    </span>
+                  </label>
+                </div>
+              )}
 
               <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end space-x-3">
                 <button

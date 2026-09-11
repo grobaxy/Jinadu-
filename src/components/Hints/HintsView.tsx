@@ -42,6 +42,7 @@ export function HintsView() {
     openWalletModal,
     openAuthModal,
     isUserSubscribed,
+    sectionNotifications,
   } = useApp();
 
   const [hints, setHints] = useState<CompetitionHint[]>(() => getCachedCompetitionHints());
@@ -181,6 +182,30 @@ export function HintsView() {
     [publishedHints]
   );
 
+  // Check if a hint is recently published (within the last 48 hours)
+  const isRecentHint = (hint: CompetitionHint): boolean => {
+    const timeStr = hint.updatedAt || hint.createdAt;
+    if (!timeStr) return false;
+    const ts = new Date(timeStr).getTime();
+    if (isNaN(ts)) return false;
+    return Date.now() - ts < 48 * 60 * 60 * 1000;
+  };
+
+  const recentHintsCount = useMemo(
+    () => publishedHints.filter((h) => isRecentHint(h)).length,
+    [publishedHints]
+  );
+  const dailyNewCount = useMemo(
+    () => publishedHints.filter((h) => h.competitionType === 'daily_qa' && isRecentHint(h)).length,
+    [publishedHints]
+  );
+  const schoolDomeNewCount = useMemo(
+    () => publishedHints.filter((h) => h.competitionType === 'school_dome' && isRecentHint(h)).length,
+    [publishedHints]
+  );
+
+  const activeHintsSignal = Math.max(sectionNotifications?.hints || 0, recentHintsCount);
+
   // Check access permissions for an individual hint based on user tier
   const canAccessHint = (hint: CompetitionHint): boolean => {
     if (identifiedTier === 'admin') return true;
@@ -250,9 +275,17 @@ export function HintsView() {
         <div className="absolute right-1/4 -bottom-10 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
 
         <div className="relative z-10 max-w-3xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider">
-            <Lightbulb className="w-4 h-4 text-amber-400" />
-            Official GROBAAX Competition Hints
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Lightbulb className="w-4 h-4 text-amber-400" />
+              <span>Official GROBAAX Competition Hints</span>
+            </div>
+            {activeHintsSignal > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black shadow-xs animate-pulse flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                {activeHintsSignal} NEW
+              </span>
+            )}
           </div>
 
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white leading-tight">
@@ -450,6 +483,11 @@ export function HintsView() {
             <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
               {publishedHints.length}
             </span>
+            {recentHintsCount > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-xs animate-pulse">
+                +{recentHintsCount} new
+              </span>
+            )}
           </button>
 
           <button
@@ -465,6 +503,11 @@ export function HintsView() {
             <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400">
               {dailyQACount}
             </span>
+            {dailyNewCount > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-xs animate-pulse">
+                +{dailyNewCount} new
+              </span>
+            )}
           </button>
 
           <button
@@ -480,6 +523,11 @@ export function HintsView() {
             <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400">
               {schoolDomeCount}
             </span>
+            {schoolDomeNewCount > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-xs animate-pulse">
+                +{schoolDomeNewCount} new
+              </span>
+            )}
           </button>
         </div>
 
@@ -594,6 +642,13 @@ export function HintsView() {
                       {hint.roundLabel && (
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-extrabold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
                           {hint.roundLabel}
+                        </span>
+                      )}
+
+                      {isRecentHint(hint) && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-xs animate-pulse gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          NEW
                         </span>
                       )}
                     </div>
