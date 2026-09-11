@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { BadgeStoreItem, SponsorshipCampaign, UserProfile } from '../../types';
+import { normalizeDestinationUrl } from '../../lib/urlUtils';
 import { db, adjustUserGpInFirestore } from '../../lib/firebase';
 import { collection, getDocs, query, limit } from 'firebase/firestore';
 import { AdminTransactionsView } from '../Admin/AdminTransactionsView';
@@ -226,7 +227,7 @@ export const AdminWalletManager: React.FC = () => {
       sponsorName: spSponsor,
       logo: spLogo || '📱',
       text: spText,
-      destinationUrl: spUrl || undefined,
+      destinationUrl: spUrl ? normalizeDestinationUrl(spUrl.trim()) : undefined,
       startDate: new Date().toISOString().split('T')[0],
       endDate: '2026-12-31',
       placement: spPlacement,

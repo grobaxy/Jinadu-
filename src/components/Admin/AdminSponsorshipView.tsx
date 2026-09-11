@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { SponsorshipCampaign } from '../../types';
 import { useApp } from '../../context/AppContext';
+import { normalizeDestinationUrl, safeOpenDestinationUrl } from '../../lib/urlUtils';
 import {
   Tag,
   Plus,
@@ -127,6 +128,10 @@ export function AdminSponsorshipView() {
     }
 
     try {
+      const cleanUrl = formData.destinationUrl?.trim()
+        ? normalizeDestinationUrl(formData.destinationUrl.trim())
+        : '';
+
       if (editingCampaign) {
         await updateSponsorshipCampaign(editingCampaign.id, {
           sponsorName: formData.sponsorName,
@@ -134,7 +139,7 @@ export function AdminSponsorshipView() {
           text: formData.text,
           logo: formData.logo || '📢',
           banner: formData.banner || '',
-          destinationUrl: formData.destinationUrl || '',
+          destinationUrl: cleanUrl,
           ctaText: formData.ctaText || 'Learn More',
           tag: formData.tag || '',
           badgeLabel: formData.badgeLabel || 'Sponsored',
@@ -152,7 +157,7 @@ export function AdminSponsorshipView() {
           text: formData.text || '',
           logo: formData.logo || '📢',
           banner: formData.banner || '',
-          destinationUrl: formData.destinationUrl || '',
+          destinationUrl: cleanUrl,
           ctaText: formData.ctaText || 'Learn More',
           tag: formData.tag || '',
           badgeLabel: formData.badgeLabel || 'Sponsored',
@@ -416,9 +421,20 @@ export function AdminSponsorshipView() {
                           <span className="font-bold text-amber-300">{camp.sponsorName}:</span>
                           <span>{camp.text}</span>
                           {camp.destinationUrl && (
-                            <span className="text-[10px] text-blue-400 underline font-bold">
+                            <a
+                              href={normalizeDestinationUrl(camp.destinationUrl)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                safeOpenDestinationUrl(camp.destinationUrl);
+                              }}
+                              className="text-[10px] text-blue-400 hover:text-blue-300 underline font-bold cursor-pointer transition-colors"
+                              title={`Visit: ${normalizeDestinationUrl(camp.destinationUrl)}`}
+                            >
                               [{camp.ctaText || 'Learn More'}]
-                            </span>
+                            </a>
                           )}
                         </div>
                       ))}
@@ -497,10 +513,15 @@ export function AdminSponsorshipView() {
 
                       {camp.destinationUrl && (
                         <a
-                          href={camp.destinationUrl}
+                          href={normalizeDestinationUrl(camp.destinationUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            safeOpenDestinationUrl(camp.destinationUrl);
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer"
                         >
                           <span>{camp.ctaText || 'Learn More'}</span>
                           <ArrowUpRight className="w-3.5 h-3.5" />
@@ -602,10 +623,21 @@ export function AdminSponsorshipView() {
                           </span>
                         )}
                         {camp.destinationUrl && (
-                          <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium truncate max-w-xs">
+                          <a
+                            href={normalizeDestinationUrl(camp.destinationUrl)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              safeOpenDestinationUrl(camp.destinationUrl);
+                            }}
+                            className="flex items-center gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-bold underline underline-offset-2 hover:underline cursor-pointer truncate max-w-xs transition-colors"
+                            title={`Open destination website: ${normalizeDestinationUrl(camp.destinationUrl)}`}
+                          >
                             <ExternalLink className="w-3 h-3 shrink-0" />
-                            {camp.destinationUrl}
-                          </span>
+                            <span className="truncate">{camp.destinationUrl}</span>
+                          </a>
                         )}
                         {camp.startDate && (
                           <span className="flex items-center gap-1">

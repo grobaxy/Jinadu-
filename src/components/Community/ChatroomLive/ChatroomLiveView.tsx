@@ -5,6 +5,7 @@ import {
   SponsorshipCampaign,
   PRIMARY_SUPER_ADMIN_UID,
 } from '../../../types';
+import { normalizeDestinationUrl, safeOpenDestinationUrl } from '../../../lib/urlUtils';
 import { ChatroomMessageItem } from './ChatroomMessageItem';
 import { ChatroomComposer } from './ChatroomComposer';
 import { CreateLiveQuestionModal } from './CreateLiveQuestionModal';
@@ -594,9 +595,14 @@ export const ChatroomLiveView: React.FC = () => {
               )}
               {activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.destinationUrl && (
                 <a
-                  href={activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.destinationUrl}
+                  href={normalizeDestinationUrl(activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.destinationUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    safeOpenDestinationUrl(activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.destinationUrl);
+                  }}
                   className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] rounded-lg transition flex items-center gap-1 shadow-xs cursor-pointer"
                 >
                   <span>{activeFeedAds[activePinnedAdIndex % activeFeedAds.length]?.ctaText || 'Learn More'}</span>
@@ -716,9 +722,14 @@ export const ChatroomLiveView: React.FC = () => {
 
                     {ad.destinationUrl && (
                       <a
-                        href={ad.destinationUrl}
+                        href={normalizeDestinationUrl(ad.destinationUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          safeOpenDestinationUrl(ad.destinationUrl);
+                        }}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer shrink-0"
                       >
                         <span>{ad.ctaText || 'Learn More'}</span>
