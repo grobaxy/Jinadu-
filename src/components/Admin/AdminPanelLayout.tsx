@@ -240,7 +240,10 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans antialiased">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 md:px-6 py-3 flex items-center justify-between shadow-sm">
+      <header
+        className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 md:px-6 py-3 flex items-center justify-between shadow-sm"
+        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
+      >
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}

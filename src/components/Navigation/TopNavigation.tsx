@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useDevicePlatform } from '../../hooks/useDevicePlatform';
 import { WalletButton } from '../Wallet/WalletButton';
 import { NotificationBadge } from '../ui/NotificationBadge';
 import { NotificationDetailModal } from './NotificationDetailModal';
@@ -47,6 +48,8 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
+
+  const { isIOS } = useDevicePlatform();
 
   const isSuperOrAdmin =
     firebaseUser?.uid === PRIMARY_SUPER_ADMIN_UID ||
@@ -124,48 +127,68 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white/95 dark:bg-slate-950/95 border-b border-slate-200/90 dark:border-slate-800/90 shadow-xs backdrop-blur-xl transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Top Header Row */}
-        <div className="h-14 flex items-center justify-between gap-2 sm:gap-3">
-          {/* Left Navigation Icons */}
-          <nav className="flex items-center gap-1 sm:gap-1.5">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              const badgeCount = (sectionNotifications && sectionNotifications[item.badgeKey]) || 0;
-
-              return (
-                <button
-                  key={item.id}
-                  id={`nav-tab-${item.id}`}
-                  onClick={() => handleTabClick(item.id)}
-                  title={item.label}
-                  className={`relative p-2 sm:px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 justify-center cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-900 text-white shadow-md shadow-blue-950/30 border border-blue-700/50'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900/80'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0" />
-                  <span className="hidden md:inline text-xs font-bold whitespace-nowrap">
-                    {item.label}
+    <>
+      <header
+        className="sticky top-0 z-50 w-full bg-white/95 dark:bg-slate-950/95 border-b border-slate-200/90 dark:border-slate-800/90 shadow-xs backdrop-blur-xl transition-colors"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          {/* Top Header Row */}
+          <div className="h-14 flex items-center justify-between gap-2 sm:gap-3">
+            {/* Left Section: On iPhone/iOS, shows Brand Mark. On Android/Desktop, keeps Top Navigation */}
+            {isIOS ? (
+              <div className="flex items-center gap-2 select-none">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-950 via-blue-900 to-blue-800 border border-blue-700/50 flex items-center justify-center text-white font-black text-sm shadow-md">
+                  G
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-black tracking-tight text-slate-900 dark:text-white">
+                    GROBAAX
                   </span>
-                  
-                  {badgeCount > 0 && (
-                    <NotificationBadge
-                      count={badgeCount}
-                      className="absolute -top-1 -right-1 shadow-sm"
-                    />
-                  )}
+                  <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                    ARENA
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <nav className="flex items-center gap-1 sm:gap-1.5">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  const badgeCount = (sectionNotifications && sectionNotifications[item.badgeKey]) || 0;
 
-                  {isActive && (
-                    <span className="absolute bottom-0 left-1.5 right-1.5 h-0.5 bg-blue-400 dark:bg-blue-400 rounded-full shadow-xs" />
-                  )}
-                </button>
-              );
-            })}
-          </nav>
+                  return (
+                    <button
+                      key={item.id}
+                      id={`nav-tab-${item.id}`}
+                      onClick={() => handleTabClick(item.id)}
+                      title={item.label}
+                      className={`relative p-2 sm:px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 justify-center cursor-pointer ${
+                        isActive
+                          ? 'bg-blue-900 text-white shadow-md shadow-blue-950/30 border border-blue-700/50'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900/80'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0" />
+                      <span className="hidden md:inline text-xs font-bold whitespace-nowrap">
+                        {item.label}
+                      </span>
+                      
+                      {badgeCount > 0 && (
+                        <NotificationBadge
+                          count={badgeCount}
+                          className="absolute -top-1 -right-1 shadow-sm"
+                        />
+                      )}
+
+                      {isActive && (
+                        <span className="absolute bottom-0 left-1.5 right-1.5 h-0.5 bg-blue-400 dark:bg-blue-400 rounded-full shadow-xs" />
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+            )}
 
           {/* Right Controls */}
           <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
@@ -313,5 +336,57 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
         />
       )}
     </header>
-  );
+
+    {/* iPhone/iOS Dedicated Bottom Navigation - Respects bottom safe-area / home indicator */}
+    {isIOS && (
+      <nav
+        id="ios-bottom-navigation"
+        aria-label="iOS Bottom Navigation"
+        className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-950/95 border-t border-slate-200/90 dark:border-slate-800/90 shadow-2xl backdrop-blur-xl transition-colors select-none"
+        style={{
+          paddingBottom: 'max(0.6rem, env(safe-area-inset-bottom, 0px))',
+          paddingTop: '0.45rem',
+        }}
+      >
+        <div className="max-w-md mx-auto px-2 flex items-center justify-around">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            const badgeCount = (sectionNotifications && sectionNotifications[item.badgeKey]) || 0;
+
+            return (
+              <button
+                key={item.id}
+                id={`nav-tab-${item.id}-ios`}
+                onClick={() => handleTabClick(item.id)}
+                title={item.label}
+                className={`relative min-w-[50px] py-1 px-1.5 rounded-xl transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer select-none ${
+                  isActive
+                    ? 'bg-blue-900 text-white shadow-md shadow-blue-950/30 border border-blue-700/50'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900/80'
+                }`}
+              >
+                <Icon className="w-5 h-5 shrink-0" />
+                <span className="text-[10px] font-bold tracking-tight text-center leading-tight truncate max-w-[62px]">
+                  {item.label === 'Daily Ultimate search' ? 'Daily GUS' : item.label}
+                </span>
+
+                {badgeCount > 0 && (
+                  <NotificationBadge
+                    count={badgeCount}
+                    className="absolute -top-1 right-0.5 shadow-sm scale-90"
+                  />
+                )}
+
+                {isActive && (
+                  <span className="absolute bottom-0.5 left-2 right-2 h-0.5 bg-blue-400 dark:bg-blue-400 rounded-full shadow-xs" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    )}
+  </>
+);
 };

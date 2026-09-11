@@ -54,7 +54,7 @@ export function AdminSubscriptionsView() {
   const [formName, setFormName] = useState('');
   const [formShortDesc, setFormShortDesc] = useState('');
   const [formFullDesc, setFormFullDesc] = useState('');
-  const [formPriceNaira, setFormPriceNaira] = useState<number>(1000);
+  const [formPriceNaira, setFormPriceNaira] = useState<number | string>(1000);
   const [formDurationValue, setFormDurationValue] = useState<number>(30);
   const [formDurationUnit, setFormDurationUnit] = useState<'Days' | 'Months' | 'Years'>('Days');
   const [formBenefitsText, setFormBenefitsText] = useState('');
@@ -282,7 +282,7 @@ export function AdminSubscriptionsView() {
       name: formName.trim(),
       shortDescription: formShortDesc.trim(),
       fullDescription: formFullDesc.trim(),
-      priceNaira: Number(formPriceNaira) || 0,
+      priceNaira: Math.max(0, Number(formPriceNaira) || 0),
       currency: 'NGN',
       durationValue: Number(formDurationValue) || 30,
       durationUnit: formDurationUnit,
@@ -850,10 +850,13 @@ export function AdminSubscriptionsView() {
                       type="number"
                       required
                       min={0}
-                      step={100}
+                      step="any"
                       value={formPriceNaira}
-                      onChange={(e) => setFormPriceNaira(Number(e.target.value))}
-                      placeholder="2500"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormPriceNaira(val === '' ? '' : Number(val));
+                      }}
+                      placeholder="e.g. 99, 300, 2500"
                       className="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                     />
                   </div>

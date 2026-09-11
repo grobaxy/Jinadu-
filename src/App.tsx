@@ -18,6 +18,7 @@ import { InAppPushToast } from './components/Navigation/InAppPushToast';
 import { PWASplashScreen } from './components/PWA/PWASplashScreen';
 import { PWAInstallBanner } from './components/PWA/PWAInstallBanner';
 import { OfflineIndicator } from './components/PWA/OfflineIndicator';
+import { useDevicePlatform } from './hooks/useDevicePlatform';
 
 function MainLayout() {
   const {
@@ -31,6 +32,8 @@ function MainLayout() {
     viewMode,
     setViewMode,
   } = useApp();
+
+  const { isIOS } = useDevicePlatform();
 
   // If user is not authenticated with Firebase, show Auth Landing Screen (Login/Register)
   if (!firebaseUser) {
@@ -75,7 +78,16 @@ function MainLayout() {
       <Header onOpenAdminPanel={() => setViewMode('admin')} />
 
       {/* Main Tab Content View */}
-      <main className="w-full">
+      <main
+        className="w-full"
+        style={
+          isIOS
+            ? {
+                paddingBottom: 'calc(4.75rem + env(safe-area-inset-bottom, 0px))',
+              }
+            : undefined
+        }
+      >
         {activeTab === 'home' && <HomeTab />}
         {activeTab === 'daily_qa' && (
           <div className="max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-6 pt-1.5 sm:pt-3 pb-1.5 sm:pb-3">
