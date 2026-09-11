@@ -404,13 +404,13 @@ export function HintsView() {
 
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl">
                 {identifiedTier === 'vip' &&
-                  'You have VIP status! All competition rounds, possible questions, and preparation strategies are fully unlocked.'}
+                  'You have VIP status! All competition rounds, hints, and preparation strategies are fully unlocked.'}
                 {identifiedTier === 'premium' &&
                   'You have Premium status! Standard and Premium hints are unlocked. Exclusive VIP rounds require an upgrade.'}
                 {identifiedTier === 'admin' &&
-                  'Administrative preview active. All hint rounds and possible questions are fully visible.'}
+                  'Administrative preview active. All hint rounds and hints are fully visible.'}
                 {identifiedTier === 'free' &&
-                  'Free scholars can browse hint titles, rounds, and subjects. Click "Unlock Hint" or "Subscribe" to access the possible questions.'}
+                  'Free scholars can browse hint titles, rounds, and subjects. Click "Unlock Hint" or "Subscribe" to access the hints.'}
               </p>
             </div>
           </div>
@@ -701,7 +701,7 @@ export function HintsView() {
                     <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 flex-wrap">
                       <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold flex items-center gap-1">
                         <HelpCircle className="w-3 h-3 text-amber-500" />
-                        <span>{questionCount} Possible {questionCount === 1 ? 'Question' : 'Questions'}</span>
+                        <span>{questionCount} {questionCount === 1 ? 'Hint' : 'Hints'}</span>
                       </span>
                       {hint.category && (
                         <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold">
@@ -725,7 +725,7 @@ export function HintsView() {
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                               <HelpCircle className="w-3.5 h-3.5 text-amber-500" />
-                              <span>Possible Questions ({questionCount})</span>
+                              <span>Hints ({questionCount})</span>
                             </span>
                             <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3" />
@@ -791,7 +791,7 @@ export function HintsView() {
 
                         <div className="space-y-1">
                           <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white flex items-center justify-center gap-1.5 flex-wrap">
-                            <span>Locked Content ({questionCount} Questions)</span>
+                            <span>Locked Content ({questionCount} {questionCount === 1 ? 'Hint' : 'Hints'})</span>
                             <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
                               • {hint.accessLevel === 'vip' ? 'VIP Required' : 'Premium or VIP Required'}
                             </span>
@@ -799,7 +799,7 @@ export function HintsView() {
                           <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 max-w-xs mx-auto">
                             {hint.accessLevel === 'vip'
                               ? 'This competition round is reserved for VIP subscribers.'
-                              : 'Subscribe or upgrade to reveal all possible questions and preparation strategies for this round.'}
+                              : 'Subscribe or upgrade to reveal all hints and preparation strategies for this round.'}
                           </p>
                         </div>
 
@@ -871,7 +871,7 @@ export function HintsView() {
                 Unlock Competition Hint
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Subscribe to unlock all possible questions and strategic round insights.
+                Subscribe to unlock all hints and strategic round insights.
               </p>
             </div>
 
@@ -906,7 +906,7 @@ export function HintsView() {
                 <div className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-500 shrink-0" />
                   <span>
-                    <strong>{getHintQuestions(selectedHintToUnlock).length} Possible Questions</strong> for this round
+                    <strong>{getHintQuestions(selectedHintToUnlock).length} {getHintQuestions(selectedHintToUnlock).length === 1 ? 'Hint' : 'Hints'}</strong> for this round
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

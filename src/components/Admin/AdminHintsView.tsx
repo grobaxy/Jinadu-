@@ -241,7 +241,7 @@ export function AdminHintsView() {
       .filter((q) => q.length > 0);
 
     if (validQuestions.length === 0) {
-      setFormError('Please enter at least one possible question for this competition hint.');
+      setFormError('Please enter at least one hint for this competition.');
       return;
     }
 
@@ -607,7 +607,7 @@ export function AdminHintsView() {
                   </div>
                 </div>
 
-                {/* Possible Questions Preview */}
+                {/* Hints Preview */}
                 {(() => {
                   const questions = getHintQuestions(hint);
                   return (
@@ -615,7 +615,7 @@ export function AdminHintsView() {
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                           <Target className="w-3.5 h-3.5 text-blue-500" />
-                          <span>Possible Questions to Ask ({questions.length}):</span>
+                          <span>Hints ({questions.length}):</span>
                         </span>
                       </div>
                       <div className="space-y-1.5">
@@ -750,16 +750,16 @@ export function AdminHintsView() {
                 />
               </div>
 
-              {/* 3. Possible Questions Section */}
+              {/* 3. Hints Section */}
               <div className="space-y-3 pt-1">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                       <Target className="w-3.5 h-3.5 text-blue-500" />
-                      <span>Possible Questions to Ask *</span>
+                      <span>Hints / Content to Reveal *</span>
                     </label>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Enter the questions that will eventually be asked when this competition starts.
+                      Enter the hints, questions, clues, or answers for this competition round.
                     </p>
                   </div>
 
@@ -768,7 +768,7 @@ export function AdminHintsView() {
                     onClick={() => setFormData((prev) => ({ ...prev, showBulkInput: !prev.showBulkInput }))}
                     className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                   >
-                    {formData.showBulkInput ? 'Close Paste Tool' : 'Paste Questions (Bulk)'}
+                    {formData.showBulkInput ? 'Close Paste Tool' : 'Paste Hints (Bulk)'}
                   </button>
                 </div>
 
@@ -776,7 +776,7 @@ export function AdminHintsView() {
                 {formData.showBulkInput && (
                   <div className="p-3.5 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 space-y-2">
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Paste multiple questions (one per line):
+                      Paste multiple hints (one per line):
                     </span>
                     <textarea
                       rows={4}
@@ -791,7 +791,7 @@ export function AdminHintsView() {
                         onClick={handleImportBulkQuestions}
                         className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer"
                       >
-                        Add to Questions List
+                        Add to Hints List
                       </button>
                     </div>
                   </div>
@@ -802,13 +802,13 @@ export function AdminHintsView() {
                   {formData.possibleQuestions.map((question, idx) => (
                     <div key={idx} className="flex items-start gap-2">
                       <span className="w-7 h-8 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
-                        Q{idx + 1}
+                        H{idx + 1}
                       </span>
                       <textarea
                         rows={2}
                         value={question}
                         onChange={(e) => handleUpdateQuestion(idx, e.target.value)}
-                        placeholder={`Enter possible question #${idx + 1}...`}
+                        placeholder={`Enter hint #${idx + 1}...`}
                         className="flex-1 px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium resize-none"
                       />
                       {formData.possibleQuestions.length > 1 && (
@@ -816,7 +816,7 @@ export function AdminHintsView() {
                           type="button"
                           onClick={() => handleRemoveQuestion(idx)}
                           className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer mt-1"
-                          title="Remove question"
+                          title="Remove hint"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -831,7 +831,7 @@ export function AdminHintsView() {
                   className="w-full py-2 px-3 rounded-xl border border-dashed border-blue-300 dark:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Add Another Possible Question</span>
+                  <span>Add Another Hint</span>
                 </button>
               </div>
 
