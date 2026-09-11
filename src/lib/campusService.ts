@@ -649,15 +649,25 @@ export async function sendCampusChatRequest(
     const sInst = (senderUser.institution || senderUser.academicProfile?.institutionName || '').trim().toLowerCase();
     const rInst = (recipientStudent.institution || '').trim().toLowerCase();
 
-    if (sInst && rInst && sInst !== rInst && !sInst.includes(rInst) && !rInst.includes(sInst)) {
-      return {
-        success: false,
-        error: 'Campus connections are strictly restricted to scholars within your own registered institution.',
-      };
-    }
-
     const senderTier = resolveUserSubscriptionTier(senderUser);
     const recipientTier = recipientStudent.tier || 'free';
+
+    const isPrivileged =
+      senderTier === 'premium' ||
+      senderTier === 'vip' ||
+      senderUser.role === 'admin' ||
+      senderUser.role === 'super_admin' ||
+      Boolean((senderUser as any)?.isSuperAdmin) ||
+      senderUser.role === 'community_manager';
+
+    if (sInst && rInst && sInst !== rInst && !sInst.includes(rInst) && !rInst.includes(sInst)) {
+      if (!isPrivileged) {
+        return {
+          success: false,
+          error: 'Cross-campus connections with other institutions require a Premium or VIP Scholar membership.',
+        };
+      }
+    }
 
     // Pre-allocate doc reference to guarantee ID match between Firestore Doc ID and payload.id
     const newDocRef = doc(collection(db, CAMPUS_REQUESTS_COLLECTION));
@@ -696,16 +706,29 @@ export async function sendCampusChatRequest(
         createdAtServer: serverTimestamp(),
       });
 
-      // Also create in-app notification doc for the recipient
+      // Also create in-app notification doc for the recipient with full sender details
+      const originDetails = [
+        newRequestPayload.senderInstitution,
+        newRequestPayload.senderFaculty,
+        newRequestPayload.senderDepartment,
+      ].filter(Boolean).join(' • ');
+
       await addDoc(collection(db, 'notifications'), {
         title: 'New Campus Connection Request',
-        message: `${newRequestPayload.senderName} wants to connect with you on GROBAAX Campus.`,
+        message: originDetails
+          ? `${newRequestPayload.senderName} (${originDetails}) wants to connect with you on GROBAAX Campus.`
+          : `${newRequestPayload.senderName} wants to connect with you on GROBAAX Campus.`,
         type: 'campus',
         targetUserId: recipientStudent.id,
         userId: recipientStudent.id,
         senderUserId: senderUser.id,
         senderName: newRequestPayload.senderName,
         senderAvatar: newRequestPayload.senderAvatar,
+        senderInstitution: newRequestPayload.senderInstitution,
+        senderFaculty: newRequestPayload.senderFaculty,
+        senderDepartment: newRequestPayload.senderDepartment,
+        senderLevel: newRequestPayload.senderLevel,
+        senderTier: newRequestPayload.senderTier,
         requestId: requestId,
         actionUrl: '/community?tab=campus&view=connections',
         isRead: false,
@@ -750,6 +773,11 @@ export async function respondCampusChatRequest(
     let senderIdForNotif = '';
     let recipientNameForNotif = 'A scholar';
     let recipientAvatarForNotif = '';
+    let recipientInstitutionForNotif = '';
+    let recipientFacultyForNotif = '';
+    let recipientDepartmentForNotif = '';
+    let recipientLevelForNotif = '';
+    let recipientTierForNotif = '';
 
     // 1. Multi-strategy Firestore update:
     // Strategy A: Direct update by Document ID
@@ -761,6 +789,11 @@ export async function respondCampusChatRequest(
         senderIdForNotif = snapData.senderId || '';
         recipientNameForNotif = snapData.recipientName || 'Your connection';
         recipientAvatarForNotif = snapData.recipientAvatar || '';
+        recipientInstitutionForNotif = snapData.recipientInstitution || '';
+        recipientFacultyForNotif = snapData.recipientFaculty || '';
+        recipientDepartmentForNotif = snapData.recipientDepartment || '';
+        recipientLevelForNotif = snapData.recipientLevel || '';
+        recipientTierForNotif = snapData.recipientTier || '';
 
         await updateDoc(directRef, {
           status: nextStatus,
@@ -783,6 +816,11 @@ export async function respondCampusChatRequest(
           senderIdForNotif = dData.senderId || senderIdForNotif;
           recipientNameForNotif = dData.recipientName || recipientNameForNotif;
           recipientAvatarForNotif = dData.recipientAvatar || recipientAvatarForNotif;
+          recipientInstitutionForNotif = dData.recipientInstitution || recipientInstitutionForNotif;
+          recipientFacultyForNotif = dData.recipientFaculty || recipientFacultyForNotif;
+          recipientDepartmentForNotif = dData.recipientDepartment || recipientDepartmentForNotif;
+          recipientLevelForNotif = dData.recipientLevel || recipientLevelForNotif;
+          recipientTierForNotif = dData.recipientTier || recipientTierForNotif;
 
           await updateDoc(doc(db, CAMPUS_REQUESTS_COLLECTION, d.id), {
             status: nextStatus,
@@ -810,6 +848,11 @@ export async function respondCampusChatRequest(
             senderIdForNotif = dData.senderId || senderIdForNotif;
             recipientNameForNotif = dData.recipientName || recipientNameForNotif;
             recipientAvatarForNotif = dData.recipientAvatar || recipientAvatarForNotif;
+            recipientInstitutionForNotif = dData.recipientInstitution || recipientInstitutionForNotif;
+            recipientFacultyForNotif = dData.recipientFaculty || recipientFacultyForNotif;
+            recipientDepartmentForNotif = dData.recipientDepartment || recipientDepartmentForNotif;
+            recipientLevelForNotif = dData.recipientLevel || recipientLevelForNotif;
+            recipientTierForNotif = dData.recipientTier || recipientTierForNotif;
 
             await updateDoc(doc(db, CAMPUS_REQUESTS_COLLECTION, d.id), {
               status: nextStatus,
@@ -828,15 +871,28 @@ export async function respondCampusChatRequest(
     // 2. If action is ACCEPT, create notification for sender in Firestore
     if (nextStatus === 'ACCEPTED' && senderIdForNotif) {
       try {
+        const originDetails = [
+          recipientInstitutionForNotif,
+          recipientFacultyForNotif,
+          recipientDepartmentForNotif,
+        ].filter(Boolean).join(' • ');
+
         await addDoc(collection(db, 'notifications'), {
           title: 'Campus Connection Accepted! 🎉',
-          message: `${recipientNameForNotif} accepted your Campus connection request. You can now chat on WhatsApp!`,
+          message: originDetails
+            ? `${recipientNameForNotif} (${originDetails}) accepted your Campus connection request. You can now chat on WhatsApp!`
+            : `${recipientNameForNotif} accepted your Campus connection request. You can now chat on WhatsApp!`,
           type: 'campus',
           targetUserId: senderIdForNotif,
           userId: senderIdForNotif,
           senderUserId: recipientId,
           senderName: recipientNameForNotif,
           senderAvatar: recipientAvatarForNotif,
+          senderInstitution: recipientInstitutionForNotif,
+          senderFaculty: recipientFacultyForNotif,
+          senderDepartment: recipientDepartmentForNotif,
+          senderLevel: recipientLevelForNotif,
+          senderTier: recipientTierForNotif,
           requestId,
           actionUrl: '/community?tab=campus&view=connections',
           isRead: false,

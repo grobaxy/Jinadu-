@@ -17,6 +17,7 @@ import {
   Smartphone,
   ShieldCheck,
   Megaphone,
+  GraduationCap,
 } from 'lucide-react';
 
 /**
@@ -78,6 +79,7 @@ export const InAppPushToast: React.FC = () => {
     navigateToAdminTab,
     currentUser,
     openWalletModal,
+    setCommunitySubTab,
   } = useApp();
   const [activeToast, setActiveToast] = useState<NotificationItem | null>(null);
   const lastSeenIdRef = useRef<string | null>(null);
@@ -160,12 +162,28 @@ export const InAppPushToast: React.FC = () => {
         setActiveTab('gus');
       } else if (target.includes('chat') || target.includes('daily')) {
         setActiveTab('daily_qa');
+      } else if (target.includes('campus') || target.includes('connection')) {
+        setActiveTab('community');
+        if (setCommunitySubTab) {
+          setCommunitySubTab('campus');
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('grobax_open_campus_view', { detail: 'connections' }));
+        }
       } else if (target.includes('community') || target.includes('feed') || target.includes('minimart')) {
         setActiveTab('community');
       } else if (target.includes('library') || target.includes('past_question')) {
         setActiveTab('library');
       } else {
         setActiveTab('home');
+      }
+    } else if (activeToast.type === 'campus') {
+      setActiveTab('community');
+      if (setCommunitySubTab) {
+        setCommunitySubTab('campus');
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('grobax_open_campus_view', { detail: 'connections' }));
       }
     } else if (activeToast.type === 'dome' || activeToast.type === 'league') {
       setActiveTab('home');
@@ -185,6 +203,8 @@ export const InAppPushToast: React.FC = () => {
 
   const getToastIcon = (t: string) => {
     switch (t) {
+      case 'campus':
+        return <GraduationCap className="w-5 h-5 text-blue-400" />;
       case 'dome':
       case 'arena':
         return <Swords className="w-5 h-5 text-blue-400" />;
@@ -230,7 +250,7 @@ export const InAppPushToast: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">
-                  New Update
+                  {activeToast.type === 'campus' ? 'Campus Connection' : 'New Update'}
                 </span>
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
               </div>
@@ -250,6 +270,57 @@ export const InAppPushToast: React.FC = () => {
           </button>
         </div>
 
+        {/* Full Details of Person Sending Chat Request */}
+        {(activeToast.type === 'campus' || activeToast.senderInstitution || activeToast.senderDepartment) && (
+          <div className="p-2.5 rounded-xl bg-slate-800/90 border border-blue-500/30 space-y-1.5 text-[11px]">
+            <div className="flex items-center gap-2">
+              {activeToast.senderAvatar ? (
+                <img
+                  src={activeToast.senderAvatar}
+                  alt={activeToast.senderName || 'Scholar'}
+                  className="w-8 h-8 rounded-full object-cover border border-blue-400/40 shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-300 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-400/30">
+                  {activeToast.senderName ? activeToast.senderName[0].toUpperCase() : 'S'}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <p className="font-bold text-white truncate text-xs">
+                    {activeToast.senderName || 'Scholar'}
+                  </p>
+                  {activeToast.senderTier && activeToast.senderTier !== 'free' && (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                      {activeToast.senderTier}
+                    </span>
+                  )}
+                </div>
+                {activeToast.senderInstitution && (
+                  <div className="flex items-center gap-1 text-[10px] text-blue-300 font-medium truncate mt-0.5">
+                    <Building2 className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{activeToast.senderInstitution}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {(activeToast.senderFaculty || activeToast.senderDepartment) && (
+              <div className="pt-1.5 border-t border-slate-700/60 flex items-center gap-1.5 text-[10px] text-slate-300">
+                <GraduationCap className="w-3 h-3 text-purple-400 shrink-0" />
+                <span className="truncate">
+                  {[activeToast.senderFaculty, activeToast.senderDepartment].filter(Boolean).join(' • ')}
+                </span>
+                {activeToast.senderLevel && (
+                  <span className="px-1.5 py-0.5 rounded bg-slate-700 text-[9px] font-semibold shrink-0 text-slate-300 ml-auto">
+                    {activeToast.senderLevel}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
           {activeToast.message}
         </p>
@@ -264,9 +335,11 @@ export const InAppPushToast: React.FC = () => {
             className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center gap-1 transition cursor-pointer shadow-xs"
           >
             <span>
-              {activeToast.targetRole === 'admin' ||
-              activeToast.actionUrl?.includes('library') ||
-              activeToast.type === 'academic_library'
+              {activeToast.type === 'campus' || activeToast.actionUrl?.includes('campus')
+                ? 'Review & Connect'
+                : activeToast.targetRole === 'admin' ||
+                  activeToast.actionUrl?.includes('library') ||
+                  activeToast.type === 'academic_library'
                 ? 'Review in Vault'
                 : 'View'}
             </span>

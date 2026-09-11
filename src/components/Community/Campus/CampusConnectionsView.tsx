@@ -12,6 +12,8 @@ import {
   Gem,
   Loader2,
   BadgeCheck,
+  Building2,
+  GraduationCap,
 } from 'lucide-react';
 
 interface CampusConnectionsViewProps {
@@ -226,11 +228,24 @@ export const CampusConnectionsView: React.FC<CampusConnectionsViewProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1.5">
-                        <span>{req.senderDepartment || 'Scholar'}</span>
-                        <span>•</span>
-                        <span>{req.senderLevel || '100 Level'}</span>
-                      </p>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
+                        {req.senderInstitution && (
+                          <p className="font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1 truncate text-[11px]">
+                            <Building2 className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{req.senderInstitution}</span>
+                          </p>
+                        )}
+                        <p className="truncate flex items-center gap-1.5 flex-wrap">
+                          {req.senderFaculty && (
+                            <span className="font-medium text-slate-600 dark:text-slate-300">
+                              {req.senderFaculty} •
+                            </span>
+                          )}
+                          <span>{req.senderDepartment || 'Scholar'}</span>
+                          <span>•</span>
+                          <span>{req.senderLevel || '100 Level'}</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -317,11 +332,24 @@ export const CampusConnectionsView: React.FC<CampusConnectionsViewProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1.5">
-                        <span>{req.recipientDepartment || 'Scholar'}</span>
-                        <span>•</span>
-                        <span>{req.recipientLevel || '100 Level'}</span>
-                      </p>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
+                        {req.recipientInstitution && (
+                          <p className="font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1 truncate text-[11px]">
+                            <Building2 className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{req.recipientInstitution}</span>
+                          </p>
+                        )}
+                        <p className="truncate flex items-center gap-1.5 flex-wrap">
+                          {req.recipientFaculty && (
+                            <span className="font-medium text-slate-600 dark:text-slate-300">
+                              {req.recipientFaculty} •
+                            </span>
+                          )}
+                          <span>{req.recipientDepartment || 'Scholar'}</span>
+                          <span>•</span>
+                          <span>{req.recipientLevel || '100 Level'}</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -381,6 +409,8 @@ export const CampusConnectionsView: React.FC<CampusConnectionsViewProps> = ({
               const otherAvatar = isSender ? req.recipientAvatar : req.senderAvatar;
               const otherDept = isSender ? req.recipientDepartment : req.senderDepartment;
               const otherLevel = isSender ? req.recipientLevel : req.senderLevel;
+              const otherInstitution = isSender ? req.recipientInstitution : req.senderInstitution;
+              const otherFaculty = isSender ? req.recipientFaculty : req.senderFaculty;
               const cachedTier = isSender ? req.recipientTier : req.senderTier;
               const displayTier = getResolvedTier(otherId, otherName, cachedTier);
               const showBlueBadge = getResolvedBlueBadge(otherId, otherName, displayTier);
@@ -419,11 +449,24 @@ export const CampusConnectionsView: React.FC<CampusConnectionsViewProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1.5">
-                        <span>{otherDept || 'Scholar'}</span>
-                        <span>•</span>
-                        <span>{otherLevel || '100 Level'}</span>
-                      </p>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
+                        {otherInstitution && (
+                          <p className="font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1 truncate text-[11px]">
+                            <Building2 className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{otherInstitution}</span>
+                          </p>
+                        )}
+                        <p className="truncate flex items-center gap-1.5 flex-wrap">
+                          {otherFaculty && (
+                            <span className="font-medium text-slate-600 dark:text-slate-300">
+                              {otherFaculty} •
+                            </span>
+                          )}
+                          <span>{otherDept || 'Scholar'}</span>
+                          <span>•</span>
+                          <span>{otherLevel || '100 Level'}</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
 

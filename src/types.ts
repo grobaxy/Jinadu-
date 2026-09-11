@@ -1905,12 +1905,20 @@ export interface NotificationItem {
   targetUserId?: string;
   targetRole?: string;
   excludeUserId?: string;
+  senderUserId?: string;
   senderName?: string;
+  senderAvatar?: string;
+  senderInstitution?: string;
+  senderFaculty?: string;
+  senderDepartment?: string;
+  senderLevel?: string;
+  senderTier?: string;
+  requestId?: string;
   title: string;
   message: string;
   timestamp: string;
   isRead: boolean;
-  type: 'dome' | 'gus' | 'league' | 'wallet' | 'announcement' | 'system' | 'reward' | 'academic_library' | 'library' | 'vtu' | 'minimart' | (string & {});
+  type: 'dome' | 'gus' | 'league' | 'wallet' | 'announcement' | 'system' | 'reward' | 'academic_library' | 'library' | 'vtu' | 'minimart' | 'campus' | (string & {});
   actionUrl?: string;
   createdAtMs?: number;
 }

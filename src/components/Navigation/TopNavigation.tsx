@@ -26,6 +26,7 @@ import {
   Shield,
   Megaphone,
   Lightbulb,
+  GraduationCap,
 } from 'lucide-react';
 
 interface TopNavigationProps {
@@ -99,6 +100,8 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
 
   const getNotifIcon = (type: string) => {
     switch (type) {
+      case 'campus':
+        return <GraduationCap className="w-4 h-4 text-blue-500 dark:text-blue-400" />;
       case 'league':
         return <Building2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />;
       case 'wallet':
@@ -297,6 +300,14 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
                               <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug line-clamp-2">
                                 {notif.message}
                               </p>
+                              {(notif.senderInstitution || notif.senderDepartment) && (
+                                <div className="flex items-center gap-1 pt-1 text-[10px] text-blue-600 dark:text-blue-400 font-bold truncate">
+                                  <GraduationCap className="w-3 h-3 shrink-0" />
+                                  <span className="truncate">
+                                    {[notif.senderInstitution, notif.senderFaculty, notif.senderDepartment].filter(Boolean).join(' • ')}
+                                  </span>
+                                </div>
+                              )}
                             </div>
 
                             {!notif.isRead && (

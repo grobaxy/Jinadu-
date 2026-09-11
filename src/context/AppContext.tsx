@@ -1907,6 +1907,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 targetUserId: data.targetUserId || data.userId || undefined,
                 targetRole: data.targetRole || undefined,
                 excludeUserId: data.excludeUserId || undefined,
+                senderUserId: data.senderUserId || undefined,
+                senderName: data.senderName || undefined,
+                senderAvatar: data.senderAvatar || undefined,
+                senderInstitution: data.senderInstitution || undefined,
+                senderFaculty: data.senderFaculty || undefined,
+                senderDepartment: data.senderDepartment || undefined,
+                senderLevel: data.senderLevel || undefined,
+                senderTier: data.senderTier || undefined,
+                requestId: data.requestId || undefined,
                 createdAtMs: data.createdAtMillis || (data.createdAt?.toMillis ? data.createdAt.toMillis() : Date.now()),
               };
             });

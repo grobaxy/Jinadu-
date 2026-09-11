@@ -20,6 +20,7 @@ import {
   Megaphone,
   ArrowRight,
   Crown,
+  GraduationCap,
 } from 'lucide-react';
 
 interface NotificationDetailModalProps {
@@ -33,7 +34,7 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
   onClose,
   onMarkAsRead,
 }) => {
-  const { setActiveTab, openWalletModal, navigateToAdminTab, currentUser } = useApp();
+  const { setActiveTab, openWalletModal, navigateToAdminTab, currentUser, setCommunitySubTab } = useApp();
 
   if (!notification) return null;
 
@@ -80,8 +81,18 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
         setActiveTab('gus');
         return;
       }
-      if (target.includes('chat') || target.includes('daily')) {
+      if (target.includes('daily_qa') || target.includes('daily')) {
         setActiveTab('daily_qa');
+        return;
+      }
+      if (target.includes('campus') || target.includes('connection')) {
+        setActiveTab('community');
+        if (setCommunitySubTab) {
+          setCommunitySubTab('campus');
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('grobax_open_campus_view', { detail: 'connections' }));
+        }
         return;
       }
       if (target.includes('library')) {
@@ -92,6 +103,17 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
         setActiveTab('community');
         return;
       }
+    }
+
+    if (notification.type === 'campus') {
+      setActiveTab('community');
+      if (setCommunitySubTab) {
+        setCommunitySubTab('campus');
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('grobax_open_campus_view', { detail: 'connections' }));
+      }
+      return;
     }
 
     if (notification.type === 'dome' || target.includes('dome') || target.includes('school_dome')) {
@@ -133,6 +155,9 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
     }
     if (target.includes('gus') || notification.type === 'gus') {
       return { label: 'Enter GUS Olympiad', icon: <Trophy className="w-4 h-4 text-amber-300" /> };
+    }
+    if (target.includes('campus') || notification.type === 'campus') {
+      return { label: 'Open Campus Connections & Chat', icon: <GraduationCap className="w-4 h-4 text-blue-300" /> };
     }
     if (target.includes('library') || notification.type === 'academic_library') {
       return { label: 'Go to Academic Vault', icon: <BookOpen className="w-4 h-4 text-teal-300" /> };
@@ -187,6 +212,12 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
           icon: <Smartphone className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />,
           label: 'Telecom Airtime & Data',
           style: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+        };
+      case 'campus':
+        return {
+          icon: <GraduationCap className="w-5 h-5 text-blue-500 dark:text-blue-400" />,
+          label: 'Campus Connection Request',
+          style: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
         };
       case 'minimart':
         return {
@@ -260,10 +291,79 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
           </span>
         </div>
 
+        {/* Scholar Profile & Origin Card for Chat Requests */}
+        {(notification.type === 'campus' || notification.senderInstitution || notification.senderDepartment) && (
+          <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>Scholar Origin & Profile</span>
+              </span>
+              {notification.senderTier && notification.senderTier !== 'free' && (
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                  {notification.senderTier} Scholar
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {notification.senderAvatar ? (
+                <img
+                  src={notification.senderAvatar}
+                  alt={notification.senderName || 'Scholar'}
+                  className="w-12 h-12 rounded-2xl object-cover border-2 border-blue-500/30 shrink-0 shadow-sm"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-2xl bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-black text-base shrink-0 border border-blue-500/30">
+                  {notification.senderName ? notification.senderName[0].toUpperCase() : 'S'}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white truncate">
+                  {notification.senderName || 'Campus Scholar'}
+                </h4>
+                {notification.senderInstitution && (
+                  <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1.5 mt-0.5 truncate">
+                    <Building2 className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{notification.senderInstitution}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-blue-200/60 dark:border-blue-900/40 text-xs">
+              {notification.senderFaculty && (
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-slate-400">Faculty</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-200 truncate">
+                    {notification.senderFaculty}
+                  </span>
+                </div>
+              )}
+              {notification.senderDepartment && (
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-slate-400">Department</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-200 truncate">
+                    {notification.senderDepartment}
+                  </span>
+                </div>
+              )}
+              {notification.senderLevel && (
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-slate-400">Academic Level</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-200 truncate">
+                    {notification.senderLevel}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Notification Body / Message Text */}
         <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/90 space-y-2.5 shadow-inner">
           <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 block">
-            Message Body from Administrator
+            {notification.type === 'campus' ? 'Connection Request Note' : 'Message Body'}
           </span>
           <p className="text-sm font-medium text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap">
             {notification.message}

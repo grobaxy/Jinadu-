@@ -618,7 +618,7 @@ export const CampusView: React.FC = () => {
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <GraduationCap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span>Faculties in {institutionName}</span>
+                  <span>Faculties in {activeInstitutionName}</span>
                 </h3>
                 <span className="text-xs font-bold text-slate-500">
                   {facultiesList.length} Faculties
