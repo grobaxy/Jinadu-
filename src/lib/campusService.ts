@@ -352,17 +352,19 @@ export async function fetchCampusStudents(params: {
   const studentsMap = new Map<string, CampusStudentCard>();
 
   // 1. Direct Firestore fetch from users collection
+  const rawUsersMap = new Map<string, any>();
   try {
     const usersRef = collection(db, 'users');
     const usersSnap = await getDocs(usersRef);
 
     usersSnap.forEach((d) => {
       const data = d.data();
+      rawUsersMap.set(d.id, data);
       const uInst = (data.institution || data.institutionName || data.academicProfile?.institutionName || '').trim().toLowerCase();
 
       if (uInst && (uInst === targetInst || uInst.includes(targetInst) || targetInst.includes(uInst))) {
-        const uFaculty = data.faculty || data.facultyName || data.academicProfile?.facultyName || '';
-        const uDept = data.department || data.departmentName || data.academicProfile?.departmentName || '';
+        const uFaculty = (data.faculty || data.facultyName || data.academicProfile?.facultyName || '').trim();
+        const uDept = (data.department || data.departmentName || data.academicProfile?.departmentName || '').trim();
         const uLevel = data.level || data.academicProfile?.level || '100 Level';
         const uName = data.name || data.fullName || data.username || 'Scholar';
         const uUsername = data.username ? (data.username.startsWith('@') ? data.username : `@${data.username}`) : '@scholar';
@@ -370,8 +372,19 @@ export async function fetchCampusStudents(params: {
         const uTier = resolveUserSubscriptionTier(data);
         const blueBadge = isUserBlueBadge(data);
 
-        const matchesFaculty = !faculty || uFaculty.toLowerCase().includes(faculty.toLowerCase()) || faculty.toLowerCase().includes(uFaculty.toLowerCase());
-        const matchesDepartment = !department || uDept.toLowerCase().includes(department.toLowerCase()) || department.toLowerCase().includes(uDept.toLowerCase());
+        // Faculty & department matching logic (prevents empty strings from matching all)
+        const matchesFaculty = !faculty || (
+          uFaculty.length > 0 && (
+            uFaculty.toLowerCase().includes(faculty.toLowerCase()) ||
+            faculty.toLowerCase().includes(uFaculty.toLowerCase())
+          )
+        );
+        const matchesDepartment = !department || (
+          uDept.length > 0 && (
+            uDept.toLowerCase().includes(department.toLowerCase()) ||
+            department.toLowerCase().includes(uDept.toLowerCase())
+          )
+        );
 
         let matchesSearch = true;
         if (search && search.trim()) {
@@ -416,30 +429,50 @@ export async function fetchCampusStudents(params: {
       const mInst = (data.institution || '').trim().toLowerCase();
       if (mInst && (mInst === targetInst || mInst.includes(targetInst) || targetInst.includes(mInst))) {
         if (!studentsMap.has(data.userId)) {
-          const matchesFaculty = !faculty || data.faculty.toLowerCase().includes(faculty.toLowerCase()) || faculty.toLowerCase().includes(data.faculty.toLowerCase());
-          const matchesDepartment = !department || data.department.toLowerCase().includes(department.toLowerCase()) || department.toLowerCase().includes(data.department.toLowerCase());
+          const mFaculty = (data.faculty || '').trim();
+          const mDept = (data.department || '').trim();
+
+          const matchesFaculty = !faculty || (
+            mFaculty.length > 0 && (
+              mFaculty.toLowerCase().includes(faculty.toLowerCase()) ||
+              faculty.toLowerCase().includes(mFaculty.toLowerCase())
+            )
+          );
+          const matchesDepartment = !department || (
+            mDept.length > 0 && (
+              mDept.toLowerCase().includes(department.toLowerCase()) ||
+              department.toLowerCase().includes(mDept.toLowerCase())
+            )
+          );
 
           let matchesSearch = true;
           if (search && search.trim()) {
             const s = search.trim().toLowerCase();
             matchesSearch =
-              data.department.toLowerCase().includes(s) ||
-              data.faculty.toLowerCase().includes(s);
+              mDept.toLowerCase().includes(s) ||
+              mFaculty.toLowerCase().includes(s);
           }
 
           if (matchesFaculty && matchesDepartment && matchesSearch) {
+            const rawUser = rawUsersMap.get(data.userId);
+            const uName = rawUser?.name || rawUser?.fullName || rawUser?.username || 'Scholar';
+            const uUsername = rawUser?.username ? (rawUser.username.startsWith('@') ? rawUser.username : `@${rawUser.username}`) : '@scholar';
+            const uAvatar = rawUser?.avatar || rawUser?.profileImage || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.userId}`;
+            const uTier = rawUser ? resolveUserSubscriptionTier(rawUser) : 'free';
+            const blueBadge = rawUser ? isUserBlueBadge(rawUser) : false;
+
             studentsMap.set(data.userId, {
               id: data.userId,
-              name: 'Scholar',
-              username: '@scholar',
-              avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${data.userId}`,
+              name: uName,
+              username: uUsername,
+              avatar: uAvatar,
               institution: data.institution,
-              faculty: data.faculty,
-              department: data.department,
-              level: data.level,
-              tier: 'free',
-              hasBlueBadge: false,
-              isVerified: false,
+              faculty: mFaculty,
+              department: mDept,
+              level: data.level || rawUser?.level || '100 Level',
+              tier: uTier,
+              hasBlueBadge: blueBadge,
+              isVerified: blueBadge,
               isOnline: true,
               connectionStatus: data.userId === currentUserId ? 'self' : 'none',
               joinedCampus: true,
@@ -484,91 +517,6 @@ export async function fetchCampusStudents(params: {
     } catch (reqErr) {
       console.warn('Error syncing connection requests to student cards:', reqErr);
     }
-  }
-
-  // 4. If no registered scholars exist in Firestore yet for this institution, provide realistic active scholars
-  if (studentsMap.size === 0 && institution) {
-    const cleanInstName = institution.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-    const fallbackFaculty = faculty || 'Faculty of Sciences';
-    const fallbackDept = department || 'Computer Science';
-
-    const sampleScholars = [
-      {
-        name: 'Chukwudi Okafor',
-        username: '@chuks_scholar',
-        level: '300 Level',
-        tier: 'premium' as const,
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      },
-      {
-        name: 'Amina Bello',
-        username: '@amina_bello',
-        level: '400 Level',
-        tier: 'vip' as const,
-        avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80',
-      },
-      {
-        name: 'Damilola Adeyemi',
-        username: '@dami_ade',
-        level: '200 Level',
-        tier: 'free' as const,
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-      },
-      {
-        name: 'Emeka Nwosu',
-        username: '@emeka_tech',
-        level: '400 Level',
-        tier: 'premium' as const,
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-      },
-      {
-        name: 'Zainab Ibrahim',
-        username: '@zainab_ib',
-        level: '300 Level',
-        tier: 'vip' as const,
-        avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=150&q=80',
-      },
-      {
-        name: 'Favour Johnson',
-        username: '@favour_j',
-        level: '100 Level',
-        tier: 'free' as const,
-        avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80',
-      },
-    ];
-
-    sampleScholars.forEach((s, idx) => {
-      const id = `scholar_${cleanInstName}_${idx + 1}`;
-      if (id !== currentUserId) {
-        let matchesSearch = true;
-        if (search && search.trim()) {
-          const q = search.trim().toLowerCase();
-          matchesSearch =
-            s.name.toLowerCase().includes(q) ||
-            s.username.toLowerCase().includes(q) ||
-            fallbackDept.toLowerCase().includes(q);
-        }
-
-        if (matchesSearch) {
-          studentsMap.set(id, {
-            id,
-            name: s.name,
-            username: s.username,
-            avatar: s.avatar,
-            institution,
-            faculty: fallbackFaculty,
-            department: fallbackDept,
-            level: s.level,
-            tier: s.tier,
-            hasBlueBadge: s.tier === 'premium' || s.tier === 'vip',
-            isVerified: s.tier === 'premium' || s.tier === 'vip',
-            isOnline: true,
-            connectionStatus: 'none',
-            joinedCampus: true,
-          });
-        }
-      }
-    });
   }
 
   return Array.from(studentsMap.values());
