@@ -5747,6 +5747,10 @@ export const evaluateAndProcessLiveAnswer = async (
     membershipTier?: string;
     gusTier?: string;
     gpBalance?: number;
+    subscriptionTier?: string;
+    subscriptionPlan?: string;
+    activePlanId?: string;
+    role?: string;
   },
   submittedAnswerText: string
 ): Promise<{
@@ -5861,15 +5865,197 @@ export const evaluateAndProcessLiveAnswer = async (
       return { isCorrect: false, isWinner: false };
     }
 
-    // MATCH FOUND! Compute new winner rank and admin-programmed GP reward
-    const winnerRank = currentWinners.length + 1;
-    const gpAward = Math.max(1, Number(question.gpRewardPerWinner) || 50);
-
-    const isUserVip = Boolean(
+    // MATCH FOUND! Check if user is Premium/VIP or Free Scholar
+    // Only Premium and VIP scholars (and staff/admins) receive cash GP rewards
+    let isUserVip = Boolean(
       user.isVip ||
       (user.membershipTier && (user.membershipTier.toLowerCase().includes('vip') || user.membershipTier.toLowerCase().includes('titan'))) ||
-      user.gusTier === 'Titan'
+      user.gusTier === 'Titan' ||
+      (user.subscriptionTier && (user.subscriptionTier.toLowerCase().includes('vip') || user.subscriptionTier.toLowerCase().includes('titan'))) ||
+      (user.subscriptionPlan && (user.subscriptionPlan.toLowerCase().includes('vip') || user.subscriptionPlan.toLowerCase().includes('titan')))
     );
+    let isUserPremium = Boolean(user.isPremium || isUserVip);
+    let isStaffOrAdmin = Boolean(
+      user.role === 'admin' ||
+      user.role === 'super_admin' ||
+      user.role === 'community_manager' ||
+      user.role === 'staff' ||
+      (user.name && (user.name.toLowerCase().includes('admin') || user.name.toLowerCase().includes('moderator') || user.name.toLowerCase().includes('staff') || user.name.toLowerCase().includes('arbiter')))
+    );
+
+    // Perform deep Firestore database check of user's account for authoritative tier verification
+    try {
+      const userSnap = await getDoc(doc(db, 'users', user.id));
+      if (userSnap.exists()) {
+        const uData = userSnap.data();
+        const role = (uData.role || '').toLowerCase();
+        const email = (uData.email || '').toLowerCase();
+        const membership = ((uData.membershipTier || uData.tierName || '') + '').toLowerCase();
+        const subTier = ((uData.subscriptionTier || '') + '').toLowerCase();
+        const rawPlan = ((uData.activePlanId || uData.planId || uData.tier || '') + '').toLowerCase();
+        const subPlan = ((uData.subscriptionPlan || '') + '').toLowerCase();
+
+        if (
+          role === 'admin' ||
+          role === 'super_admin' ||
+          role === 'community_manager' ||
+          role === 'staff' ||
+          Boolean(uData.managerRole) ||
+          email === 'grobaxycompany@gmail.com' ||
+          user.id === 'aGZBTsB4BBNvlY1A69hwfAb5DCJ3' ||
+          user.id === 'iH02BTcB4B0BV2YLA60WwFAi50CJ3' ||
+          user.id === 'grobax_arbiter'
+        ) {
+          isStaffOrAdmin = true;
+        }
+
+        const isExpired = uData.subscriptionExpiry
+          ? new Date(uData.subscriptionExpiry).getTime() <= Date.now()
+          : false;
+
+        const dbIsVip = isStaffOrAdmin || (!isExpired && Boolean(
+          uData.isVip ||
+          uData.gusTier === 'Titan' ||
+          rawPlan.includes('titan') ||
+          rawPlan.includes('vip') ||
+          rawPlan.includes('annual') ||
+          membership.includes('vip') ||
+          membership.includes('titan') ||
+          membership.includes('annual') ||
+          subTier.includes('vip') ||
+          subTier.includes('titan') ||
+          subTier.includes('annual') ||
+          subPlan.includes('vip') ||
+          subPlan.includes('titan') ||
+          subPlan.includes('annual')
+        ));
+
+        const dbIsPremium = isStaffOrAdmin || (!isExpired && (dbIsVip || Boolean(
+          uData.isPremium ||
+          uData.isSubscribed ||
+          (uData.subscription && uData.subscription.status === 'active') ||
+          (rawPlan && !rawPlan.includes('free') && rawPlan !== 'starter scholar') ||
+          (membership && !membership.includes('free') && membership !== 'starter scholar' && !membership.includes('scholar (starter)') && membership.trim().length > 0) ||
+          (subTier && !subTier.includes('free') && subTier !== 'starter scholar' && !subTier.includes('scholar (starter)') && subTier.trim().length > 0) ||
+          (subPlan && !subPlan.includes('free') && subPlan !== 'starter scholar' && subPlan.trim().length > 0)
+        )));
+
+        if (dbIsVip) {
+          isUserVip = true;
+          isUserPremium = true;
+        } else if (dbIsPremium) {
+          isUserPremium = true;
+        } else if (!isStaffOrAdmin && !user.isVip && !user.isPremium) {
+          isUserVip = false;
+          isUserPremium = false;
+        }
+      }
+    } catch (uErr) {
+      console.warn('Could not read user doc for tier check in live question evaluation:', uErr);
+    }
+
+    const isRewardEligible = isStaffOrAdmin || isUserVip || isUserPremium;
+
+    // SCENARIO 1: FREE SCHOLAR
+    // Free users can participate and the system indicates they are correct, but does NOT reward them GP
+    // Free correct submissions also do NOT consume paid winner slots from Premium & VIP scholars
+    if (!isRewardEligible) {
+      const freeRecord = {
+        userId: user.id,
+        userName: user.name || user.username || 'Grobaax Scholar',
+        userAvatar:
+          user.avatar ||
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        institution: user.institution || 'Grobaax Scholar',
+        submittedAt: now,
+        submittedAnswer: submittedAnswerText.trim(),
+        isCorrect: true,
+        tier: 'free',
+      };
+
+      // 1. Mark user attempt & correct answer on question doc (does not add to selectedWinners or decrement prize slots)
+      await setDoc(
+        qRef,
+        {
+          freeCorrectScholars: arrayUnion(freeRecord),
+          repliedUserIds: arrayUnion(user.id),
+          repliedUsernames: arrayUnion(normalizedUserName),
+          totalSubmissionsCount: increment(1),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      // Sync question message in live feed with updated repliedUserIds
+      try {
+        const qMsgRef = doc(db, 'chatroom_live_messages', `msg_q_${question.id}`);
+        await setDoc(
+          qMsgRef,
+          {
+            'competitionRef.repliedUserIds': arrayUnion(user.id),
+            'competitionRef.repliedUsernames': arrayUnion(normalizedUserName),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.warn('Notice syncing question message in live feed:', e);
+      }
+
+      // 2. Send instant celebration message into live chatroom indicating user answered correctly!
+      try {
+        const freeCorrectMsg: ChatroomLiveMessage = {
+          id: 'msg_correct_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          userId: 'grobax_arbiter',
+          userName: 'Grobaax Arbiter 🎯',
+          userAvatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
+          institution: 'Official Live Q&A Arbiter',
+          isPremium: true,
+          messageText: `🎯 @${user.name || user.username} answered correctly: "${submittedAnswerText.trim()}"! 👏 (Free Scholar — GP prize rewards are exclusive to Premium & VIP scholars)`,
+          timestamp: now,
+          type: 'announcement',
+          replyTo: {
+            id: question.id,
+            userName: 'Community Manager',
+            messageSnippet: question.questionText.slice(0, 70),
+          },
+          reactions: { '🎯': 2, '👏': 2 },
+        };
+        await sendChatroomMessageToFirestore(freeCorrectMsg);
+      } catch (e) {
+        console.warn('Error posting free correct announcement:', e);
+      }
+
+      // 3. Send real-time push notification indicating they are correct
+      try {
+        await sendBroadcastNotificationToFirestore(
+          {
+            title: `🎯 Correct Answer on Challenge #${question.questionNumber}!`,
+            message: `You answered "${submittedAnswerText.trim()}" correctly! Great job! Note: Cash GP prizes are reserved for Premium & VIP scholars. Upgrade to claim GP on live challenges!`,
+            type: 'gus',
+            userId: user.id,
+            targetUserId: user.id,
+            actionUrl: '#upgrade',
+          },
+          'grobax_arbiter',
+          'Grobaax Arbiter 🎯'
+        );
+      } catch (notifErr) {
+        console.warn('Error dispatching notification to free correct user:', notifErr);
+      }
+
+      return {
+        isCorrect: true,
+        isWinner: false,
+        gpAwarded: 0,
+        message: `🎯 Correct answer: "${submittedAnswerText.trim()}"! (Free Scholar: GP prizes are reserved for Premium & VIP scholars)`,
+      };
+    }
+
+    // SCENARIO 2: PREMIUM / VIP SCHOLAR (OR ADMIN/STAFF)
+    // Compute new winner rank and award exact admin-programmed GP reward
+    const winnerRank = currentWinners.length + 1;
+    const gpAward = Math.max(1, Number(question.gpRewardPerWinner) || 50);
 
     const winnerRecord = {
       userId: user.id,
@@ -5878,9 +6064,9 @@ export const evaluateAndProcessLiveAnswer = async (
         user.avatar ||
         'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       institution: user.institution || 'Grobaax Scholar',
-      isPremium: Boolean(user.isPremium || isUserVip),
+      isPremium: Boolean(isUserPremium || isUserVip),
       isVip: isUserVip,
-      membershipTier: user.membershipTier || (isUserVip ? 'VIP SCHOLAR' : user.isPremium ? 'PREMIUM SCHOLAR' : undefined),
+      membershipTier: user.membershipTier || (isUserVip ? 'VIP SCHOLAR' : 'PREMIUM SCHOLAR'),
       submittedAt: now,
       gpAwarded: gpAward,
       submittedAnswer: submittedAnswerText.trim(),
@@ -6102,6 +6288,8 @@ export const evaluateMessageForLiveQuestions = async (message: ChatroomLiveMessa
           avatar: message.userAvatar,
           institution: message.institution,
           isPremium: message.isPremium,
+          isVip: message.isVip,
+          membershipTier: message.membershipTier,
         },
         message.messageText
       );

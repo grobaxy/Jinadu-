@@ -114,7 +114,7 @@ export const ChatroomRulesModal: React.FC<ChatroomRulesModalProps> = ({
                   Your Current Status: {isPremium ? '👑 Grobaax Premium Active' : 'Free Scholar'}
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  {isPremium ? 'Eligible for all cash GP prizes & winner slots' : 'Upgrade to qualify for instant 200 GP rewards upon answering'}
+                  {isPremium ? 'Eligible for all cash GP prizes & winner slots' : 'You can participate and verify correct answers. Upgrade to qualify for instant cash GP prizes!'}
                 </div>
               </div>
             </div>

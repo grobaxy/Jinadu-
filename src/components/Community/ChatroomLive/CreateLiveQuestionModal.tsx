@@ -253,7 +253,7 @@ export const CreateLiveQuestionModal: React.FC<CreateLiveQuestionModalProps> = (
           <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-800 dark:text-blue-300 flex items-start gap-2">
             <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
             <span>
-              <strong>Fair Play Rules:</strong> Only the first <strong>{winnerLimit}</strong> distinct scholars will receive <strong>+{gpReward} GP</strong>. Each scholar is restricted to <strong>1 reply/attempt per question</strong>.
+              <strong>Fair Play Rules:</strong> Only the first <strong>{winnerLimit}</strong> distinct Premium or VIP scholars with the correct answer will receive <strong>+{gpReward} GP</strong>. Free scholars can participate and are verified as correct, but GP prizes are awarded only to Premium & VIP scholars. 1 attempt per scholar.
             </span>
           </div>
 
