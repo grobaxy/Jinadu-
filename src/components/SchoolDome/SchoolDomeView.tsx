@@ -559,26 +559,28 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
             <button
               type="button"
               onClick={() => setActiveTab('arena')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+              className={`p-1.5 rounded-lg transition cursor-pointer flex items-center justify-center ${
                 activeTab === 'arena'
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
+              title="Arena"
+              aria-label="Arena"
             >
-              <Radio className={`w-3 h-3 ${activeTab === 'arena' ? 'animate-pulse text-emerald-500' : ''}`} />
-              <span>Arena</span>
+              <Radio className={`w-3.5 h-3.5 ${activeTab === 'arena' ? 'animate-pulse text-emerald-500' : ''}`} />
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('results')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+              className={`p-1.5 rounded-lg transition cursor-pointer flex items-center justify-center ${
                 activeTab === 'results'
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
+              title="Champions"
+              aria-label="Champions"
             >
-              <Trophy className={`w-3 h-3 ${activeTab === 'results' ? 'text-amber-500' : ''}`} />
-              <span>Champions</span>
+              <Trophy className={`w-3.5 h-3.5 ${activeTab === 'results' ? 'text-amber-500' : ''}`} />
             </button>
           </div>
 
@@ -604,11 +606,11 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
           <button
             type="button"
             onClick={() => setIsRulesModalOpen(true)}
-            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60 font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
-            title="View School Dome Arena Rules set by Admin"
+            className="p-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60 rounded-xl shadow-xs transition flex items-center justify-center cursor-pointer shrink-0"
+            title="View School Dome Arena Rules"
+            aria-label="Rules"
           >
             <ScrollText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span>Rules</span>
           </button>
 
           {/* Admin Launch Live Question Button */}

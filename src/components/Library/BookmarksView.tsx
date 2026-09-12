@@ -9,6 +9,10 @@ interface BookmarksViewProps {
   onView: (question: PastQuestion) => void;
   onToggleBookmark: (questionId: string) => void;
   onBrowseAll: () => void;
+  isViewDisabled?: boolean;
+  viewedQuestionIdsToday?: string[];
+  userTier?: 'free' | 'premium' | 'vip';
+  onUpgradePrompt?: () => void;
 }
 
 export const BookmarksView: React.FC<BookmarksViewProps> = ({
@@ -16,6 +20,10 @@ export const BookmarksView: React.FC<BookmarksViewProps> = ({
   onView,
   onToggleBookmark,
   onBrowseAll,
+  isViewDisabled = false,
+  viewedQuestionIdsToday = [],
+  userTier = 'free',
+  onUpgradePrompt,
 }) => {
   if (bookmarkedQuestions.length === 0) {
     return (
@@ -54,6 +62,10 @@ export const BookmarksView: React.FC<BookmarksViewProps> = ({
             isBookmarked={true}
             onView={onView}
             onToggleBookmark={onToggleBookmark}
+            isViewDisabled={isViewDisabled && !viewedQuestionIdsToday.includes(q.id)}
+            isAlreadyViewedToday={viewedQuestionIdsToday.includes(q.id)}
+            userTier={userTier}
+            onUpgradePrompt={onUpgradePrompt}
           />
         ))}
       </div>

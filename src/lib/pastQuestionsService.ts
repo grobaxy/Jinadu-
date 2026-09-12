@@ -106,7 +106,15 @@ export function subscribeToPastQuestionSettings(callback: (settings: PastQuestio
     docRef,
     (snap) => {
       if (snap.exists()) {
-        const fresh = { ...DEFAULT_PAST_QUESTION_SETTINGS, ...snap.data() } as PastQuestionSettings;
+        const data = snap.data();
+        const fresh: PastQuestionSettings = {
+          ...DEFAULT_PAST_QUESTION_SETTINGS,
+          ...data,
+          uploadGpReward: Math.max(0, Number(data.uploadGpReward !== undefined ? data.uploadGpReward : DEFAULT_PAST_QUESTION_SETTINGS.uploadGpReward)),
+          freeDailyViewLimit: Math.max(1, Number(data.freeDailyViewLimit !== undefined ? data.freeDailyViewLimit : DEFAULT_PAST_QUESTION_SETTINGS.freeDailyViewLimit)),
+          premiumDailyViewLimit: Math.max(1, Number(data.premiumDailyViewLimit !== undefined ? data.premiumDailyViewLimit : DEFAULT_PAST_QUESTION_SETTINGS.premiumDailyViewLimit)),
+          vipDailyViewLimit: data.vipDailyViewLimit === 'unlimited' ? 'unlimited' : (Number(data.vipDailyViewLimit) || 'unlimited'),
+        };
         cachedSettings = fresh;
         try {
           if (typeof window !== 'undefined') {
@@ -147,9 +155,21 @@ export function subscribeToPastQuestionSettings(callback: (settings: PastQuestio
 export async function fetchPastQuestionSettings(): Promise<PastQuestionSettings> {
   try {
     const docRef = doc(db, 'settings', 'past_questions');
-    const snap = await getDoc(docRef);
+    let snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      const altRef = doc(db, 'past_question_settings', 'config');
+      snap = await getDoc(altRef);
+    }
     if (snap.exists()) {
-      const fresh = { ...DEFAULT_PAST_QUESTION_SETTINGS, ...snap.data() } as PastQuestionSettings;
+      const data = snap.data();
+      const fresh: PastQuestionSettings = {
+        ...DEFAULT_PAST_QUESTION_SETTINGS,
+        ...data,
+        uploadGpReward: Math.max(0, Number(data.uploadGpReward !== undefined ? data.uploadGpReward : DEFAULT_PAST_QUESTION_SETTINGS.uploadGpReward)),
+        freeDailyViewLimit: Math.max(1, Number(data.freeDailyViewLimit !== undefined ? data.freeDailyViewLimit : DEFAULT_PAST_QUESTION_SETTINGS.freeDailyViewLimit)),
+        premiumDailyViewLimit: Math.max(1, Number(data.premiumDailyViewLimit !== undefined ? data.premiumDailyViewLimit : DEFAULT_PAST_QUESTION_SETTINGS.premiumDailyViewLimit)),
+        vipDailyViewLimit: data.vipDailyViewLimit === 'unlimited' ? 'unlimited' : (Number(data.vipDailyViewLimit) || 'unlimited'),
+      };
       cachedSettings = fresh;
       try {
         if (typeof window !== 'undefined') {

@@ -797,7 +797,7 @@ export const LibraryTab: React.FC = () => {
                     isBookmarked={bookmarkedIds.includes(question.id)}
                     onView={handleViewQuestion}
                     onToggleBookmark={handleToggleBookmark}
-                    isViewDisabled={dailyViewQuota.remainingViews === 0 && dailyViewQuota.dailyLimit !== 'unlimited'}
+                    isViewDisabled={dailyViewQuota.remainingViews === 0 && dailyViewQuota.dailyLimit !== 'unlimited' && !viewedQuestionIdsToday.includes(question.id)}
                     isAlreadyViewedToday={viewedQuestionIdsToday.includes(question.id)}
                     userTier={userTier}
                     onUpgradePrompt={() => openWalletModal?.('upgrade')}
@@ -828,6 +828,10 @@ export const LibraryTab: React.FC = () => {
             onView={handleViewQuestion}
             onToggleBookmark={handleToggleBookmark}
             onBrowseAll={() => setActiveTab('browse')}
+            isViewDisabled={dailyViewQuota.remainingViews === 0 && dailyViewQuota.dailyLimit !== 'unlimited'}
+            viewedQuestionIdsToday={viewedQuestionIdsToday}
+            userTier={userTier}
+            onUpgradePrompt={() => openWalletModal?.('upgrade')}
           />
         )}
       </div>

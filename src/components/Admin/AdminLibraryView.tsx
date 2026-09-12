@@ -614,9 +614,9 @@ export const AdminLibraryView: React.FC = () => {
                 <input
                   type="number"
                   min="1"
-                  max="20"
-                  value={settings.freeDailyViewLimit}
-                  onChange={(e) => setSettings({ ...settings, freeDailyViewLimit: Number(e.target.value) })}
+                  max="5000"
+                  value={settings.freeDailyViewLimit ?? ''}
+                  onChange={(e) => setSettings({ ...settings, freeDailyViewLimit: e.target.value === '' ? ('' as any) : Math.max(1, Number(e.target.value)) })}
                   className="w-32 px-3 py-2 text-sm font-bold text-slate-800 bg-white rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500"
                   required
                 />
@@ -636,9 +636,9 @@ export const AdminLibraryView: React.FC = () => {
                 <input
                   type="number"
                   min="1"
-                  max="100"
-                  value={settings.premiumDailyViewLimit}
-                  onChange={(e) => setSettings({ ...settings, premiumDailyViewLimit: Number(e.target.value) })}
+                  max="10000"
+                  value={settings.premiumDailyViewLimit ?? ''}
+                  onChange={(e) => setSettings({ ...settings, premiumDailyViewLimit: e.target.value === '' ? ('' as any) : Math.max(1, Number(e.target.value)) })}
                   className="w-32 px-3 py-2 text-sm font-bold text-indigo-600 bg-white rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500"
                   required
                 />
