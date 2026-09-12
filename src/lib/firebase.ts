@@ -5702,7 +5702,7 @@ const SI_UNIT_SYNONYMS: Record<string, string[]> = {
 };
 
 // Normalization helper
-const normalizeAnswerText = (txt: string): string => {
+export const normalizeAnswerText = (txt: string): string => {
   return (txt || '')
     .toLowerCase()
     .replace(/^@\w+[\s:]*/, '') // remove leading reply mention
@@ -5715,7 +5715,7 @@ const normalizeAnswerText = (txt: string): string => {
 };
 
 // Generates expanded set of normalized synonyms & variants
-const getAnswerVariants = (raw: string): string[] => {
+export const getAnswerVariants = (raw: string): string[] => {
   const base = normalizeAnswerText(raw);
   if (!base) return [];
   const variants = new Set<string>([base]);
@@ -5731,6 +5731,32 @@ const getAnswerVariants = (raw: string): string[] => {
     syns.forEach(s => variants.add(normalizeAnswerText(s)));
   }
   return Array.from(variants);
+};
+
+// Compares user submission against official answer and accepted alternatives
+export const isChatroomAnswerCorrect = (
+  submittedText: string,
+  correctAnswer: string,
+  acceptedAlternatives?: string[]
+): boolean => {
+  if (!submittedText || !correctAnswer) return false;
+  const targetVariants = new Set<string>();
+  getAnswerVariants(correctAnswer).forEach(v => targetVariants.add(v));
+  (acceptedAlternatives || []).forEach(alt => {
+    getAnswerVariants(alt).forEach(v => targetVariants.add(v));
+  });
+
+  const submissionVariants = getAnswerVariants(submittedText);
+  return submissionVariants.some(sub => {
+    if (targetVariants.has(sub)) return true;
+    for (const tgt of targetVariants) {
+      if (tgt.length > 1) {
+        const regex = new RegExp(`(^|\\s)${tgt}(\\s|$)`, 'i');
+        if (regex.test(sub)) return true;
+      }
+    }
+    return false;
+  });
 };
 
 // Automatic evaluation and instant GP reward processor for live question responses
@@ -6002,29 +6028,7 @@ export const evaluateAndProcessLiveAnswer = async (
         console.warn('Notice syncing question message in live feed:', e);
       }
 
-      // 2. Send instant celebration message into live chatroom indicating user answered correctly!
-      try {
-        const freeCorrectMsg: ChatroomLiveMessage = {
-          id: 'msg_correct_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-          userId: 'grobax_arbiter',
-          userName: 'Grobaax Arbiter 🎯',
-          userAvatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
-          institution: 'Official Live Q&A Arbiter',
-          isPremium: true,
-          messageText: `🎯 @${user.name || user.username} answered correctly: "${submittedAnswerText.trim()}"! 👏 (Free Scholar — GP prize rewards are exclusive to Premium & VIP scholars)`,
-          timestamp: now,
-          type: 'announcement',
-          replyTo: {
-            id: question.id,
-            userName: 'Community Manager',
-            messageSnippet: question.questionText.slice(0, 70),
-          },
-          reactions: { '🎯': 2, '👏': 2 },
-        };
-        await sendChatroomMessageToFirestore(freeCorrectMsg);
-      } catch (e) {
-        console.warn('Error posting free correct announcement:', e);
-      }
+      // 2. Direct message marking replaces verbose Arbiter chat spam (push notification still sent below)
 
       // 3. Send real-time push notification indicating they are correct
       try {
@@ -6137,46 +6141,7 @@ export const evaluateAndProcessLiveAnswer = async (
       console.warn('Error recording Live Q&A transaction:', e);
     }
 
-    // 4. Send instant celebration message into live chatroom
-    try {
-      const congratsMessage: ChatroomLiveMessage = {
-        id: 'msg_win_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-        userId: 'grobax_arbiter',
-        userName: 'Grobaax Arbiter 🎯',
-        userAvatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
-        institution: 'Official Live Q&A Arbiter',
-        isPremium: true,
-        messageText: `🎉 Congratulations @${user.name || user.username}! You answered correctly: "${submittedAnswerText.trim()}" and won +${gpAward} GP! (Winner #${winnerRank} of ${maxWinners})`,
-        timestamp: now,
-        type: 'announcement',
-        replyTo: {
-          id: question.id,
-          userName: 'Community Manager',
-          messageSnippet: question.questionText.slice(0, 70),
-        },
-        reactions: { '🎉': 2, '🔥': 2, '👏': 1 },
-      };
-      await sendChatroomMessageToFirestore(congratsMessage);
-
-      // If all winner slots are now filled, post completion announcement
-      if (isNowFull) {
-        const fullAnnouncement: ChatroomLiveMessage = {
-          id: 'msg_full_' + Date.now(),
-          userId: 'grobax_arbiter',
-          userName: 'Grobaax Arbiter 🎯',
-          userAvatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
-          institution: 'Official Live Q&A Arbiter',
-          isPremium: true,
-          messageText: `🏆 All ${maxWinners} winner slots for Question #${question.questionNumber} have been claimed!\n\n✅ Official Correct Answer: "${question.correctAnswer}"\n👑 Winners: ${updatedWinners.map(w => `@${w.userName} (+${w.gpAwarded} GP)`).join(', ')}`,
-          timestamp: now + 50,
-          type: 'announcement',
-          reactions: { '🏆': 3, '💯': 2 },
-        };
-        await sendChatroomMessageToFirestore(fullAnnouncement);
-      }
-    } catch (e) {
-      console.warn('Error posting congratulations message:', e);
-    }
+    // 4. Direct marking on scholar answer message replaces verbose Arbiter chat spam (push notification still sent below)
 
     // 5. Send real-time push notification directly to the winner
     try {
@@ -6279,7 +6244,7 @@ export const evaluateMessageForLiveQuestions = async (message: ChatroomLiveMessa
         .replace(/\s*(💎\s*\|\s*Moderator|🛡️|⭐|👑|⚡).*$/, '')
         .trim();
 
-      await evaluateAndProcessLiveAnswer(
+      const evalRes = await evaluateAndProcessLiveAnswer(
         targetQuestionId,
         {
           id: message.userId,
@@ -6293,6 +6258,36 @@ export const evaluateMessageForLiveQuestions = async (message: ChatroomLiveMessa
         },
         message.messageText
       );
+
+      // Persist the evaluation marking directly on the chat message
+      if (evalRes) {
+        try {
+          const msgRef = doc(db, 'chatroom_live_messages', message.id);
+          const evalStatus = evalRes.isCorrect ? 'correct' : 'wrong';
+          await setDoc(
+            msgRef,
+            {
+              evalStatus,
+              isCorrect: Boolean(evalRes.isCorrect),
+              isWinner: Boolean(evalRes.isWinner),
+              gpAwarded: evalRes.gpAwarded || 0,
+              winnerRank: evalRes.rank || null,
+              targetQuestionId,
+              answerEvaluation: {
+                questionId: targetQuestionId,
+                isCorrect: Boolean(evalRes.isCorrect),
+                isPremium: Boolean(message.isPremium || message.isVip),
+                isWinner: Boolean(evalRes.isWinner),
+                gpAwarded: evalRes.gpAwarded || 0,
+              },
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } catch (saveErr) {
+          console.warn('Notice saving evaluation to chatroom message:', saveErr);
+        }
+      }
     }
   } catch (err) {
     console.warn('Error in evaluateMessageForLiveQuestions:', err);

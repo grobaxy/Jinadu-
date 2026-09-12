@@ -2273,6 +2273,12 @@ export interface ChatroomLiveMessage {
     messageSnippet: string;
     institution?: string;
   };
+  evalStatus?: 'correct' | 'wrong' | null;
+  isCorrect?: boolean;
+  isWinner?: boolean;
+  gpAwarded?: number;
+  winnerRank?: number;
+  targetQuestionId?: string;
   competitionRef?: {
     competitionId: string;
     questionId: string;

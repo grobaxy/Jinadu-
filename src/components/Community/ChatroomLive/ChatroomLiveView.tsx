@@ -216,9 +216,28 @@ export const ChatroomLiveView: React.FC = () => {
   const [activePinnedAdIndex, setActivePinnedAdIndex] = useState(0);
   const [isCreateQuestionModalOpen, setIsCreateQuestionModalOpen] = useState(false);
 
-  // Filter messages by search query
+  // Filter messages by search query and hide automated Arbiter evaluation/congratulations spam
   const filteredMessages = useMemo(() => {
     return chatroomMessages.filter(m => {
+      // Suppress automated Arbiter spam messages from live chat feed since outcome is marked directly on scholar answers
+      const isArbiter =
+        m.userId === 'grobax_arbiter' ||
+        (m.userName && m.userName.toLowerCase().includes('arbiter'));
+
+      if (isArbiter) {
+        const text = m.messageText || '';
+        if (
+          text.includes('answered correctly:') ||
+          text.includes('Congratulations @') ||
+          text.includes('winner slots for Question #') ||
+          text.includes('winner slots for Question') ||
+          (text.includes('All') && text.includes('winner slots')) ||
+          text.includes('Official Correct Answer:')
+        ) {
+          return false;
+        }
+      }
+
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       return (

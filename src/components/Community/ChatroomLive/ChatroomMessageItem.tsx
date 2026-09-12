@@ -14,10 +14,12 @@ import {
   Clock,
   Timer,
   CheckCircle2,
+  Check,
+  X,
 } from 'lucide-react';
 import { UserBadgeItem } from '../../ui/UserBadgeItem';
 import { useApp } from '../../../context/AppContext';
-import { getUserProfileDoc } from '../../../lib/firebase';
+import { getUserProfileDoc, isChatroomAnswerCorrect } from '../../../lib/firebase';
 
 interface ChatroomMessageItemProps {
   message: ChatroomLiveMessage;
@@ -43,7 +45,7 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
   onMuteUser,
   onReact,
 }) => {
-  const { currentUser } = useApp();
+  const { currentUser, chatroomMessages } = useApp();
 
   if (message.isDeleted) {
     return (
@@ -186,6 +188,141 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
   })();
 
   const reactions = message.reactions || {};
+
+  // Automated Marking Sign: Green check (✓) with +GP earned if qualified/won, Red cross (✕) if wrong
+  const { answerStatus, gpEarned } = React.useMemo<{
+    answerStatus: 'correct' | 'wrong' | null;
+    gpEarned: number;
+  }>(() => {
+    // Only normal user messages can be evaluated as answers (not system cards or Arbiter)
+    if (message.type !== 'normal' || message.userId === 'grobax_arbiter') {
+      return { answerStatus: null, gpEarned: 0 };
+    }
+
+    // 1. Direct evaluated status saved on message doc
+    if (message.evalStatus === 'correct' || message.isCorrect === true || message.answerEvaluation?.isCorrect === true) {
+      const awarded =
+        typeof message.gpAwarded === 'number'
+          ? message.gpAwarded
+          : typeof message.answerEvaluation?.gpAwarded === 'number'
+          ? message.answerEvaluation.gpAwarded
+          : 0;
+      return {
+        answerStatus: 'correct',
+        gpEarned: (!hasPremium && !isStaffOrAdmin) ? 0 : awarded,
+      };
+    }
+    if (message.evalStatus === 'wrong' || message.isCorrect === false || (message.answerEvaluation && message.answerEvaluation.isCorrect === false)) {
+      return { answerStatus: 'wrong', gpEarned: 0 };
+    }
+
+    // 2. Fallback resolution: identify question if replying to or submitted during active challenge
+    const normMsgUser = (message.userName || '')
+      .replace(/\s*(💎\s*\|\s*Moderator|🛡️|⭐|👑|⚡).*$/, '')
+      .trim()
+      .toLowerCase();
+
+    const questionMessages = (chatroomMessages || []).filter(m => m.type === 'question' && m.competitionRef);
+
+    let targetQuestionMsg: ChatroomLiveMessage | undefined;
+
+    // Check if message explicitly replied to question card
+    if (message.replyTo?.id) {
+      const rawId = message.replyTo.id;
+      const strippedId = rawId.replace(/^msg_q_/, '');
+      targetQuestionMsg = questionMessages.find(
+        qm =>
+          qm.id === rawId ||
+          qm.id === `msg_q_${strippedId}` ||
+          qm.competitionRef?.questionId === strippedId ||
+          qm.competitionRef?.questionId === rawId
+      );
+    }
+
+    // Reply snippet check
+    if (!targetQuestionMsg && message.replyTo?.messageSnippet) {
+      targetQuestionMsg = questionMessages.find(
+        qm =>
+          qm.competitionRef?.questionText &&
+          (message.replyTo!.messageSnippet.includes(qm.competitionRef.questionText.slice(0, 20)) ||
+            qm.competitionRef.questionText.includes(message.replyTo!.messageSnippet.slice(0, 20)))
+      );
+    }
+
+    // Time window check: question posted before message and message submitted within challenge window
+    if (!targetQuestionMsg) {
+      const candidateQuestions = questionMessages.filter(
+        qm =>
+          qm.timestamp <= message.timestamp + 5000 &&
+          message.timestamp <= (qm.competitionRef?.endAt || qm.timestamp + 900000)
+      );
+      if (candidateQuestions.length > 0) {
+        candidateQuestions.sort((a, b) => b.timestamp - a.timestamp);
+        targetQuestionMsg = candidateQuestions[0];
+      }
+    }
+
+    if (!targetQuestionMsg || !targetQuestionMsg.competitionRef) {
+      return { answerStatus: null, gpEarned: 0 };
+    }
+
+    const comp = targetQuestionMsg.competitionRef;
+
+    // Check confirmed winners list on question
+    const winnerRecord = (comp.selectedWinners || []).find(
+      w => w.userId === message.userId || (w.userName && w.userName.toLowerCase().trim() === normMsgUser && normMsgUser.length > 0)
+    );
+    if (winnerRecord) {
+      return {
+        answerStatus: 'correct',
+        gpEarned: (!hasPremium && !isStaffOrAdmin) ? 0 : (winnerRecord.gpAwarded || comp.gpRewardPerWinner || 50),
+      };
+    }
+
+    // Check free correct scholars list on question
+    const freeRecord = ((comp as any).freeCorrectScholars || []).find(
+      (f: any) => f.userId === message.userId || (f.userName && f.userName.toLowerCase().trim() === normMsgUser && normMsgUser.length > 0)
+    );
+    if (freeRecord) {
+      return { answerStatus: 'correct', gpEarned: 0 };
+    }
+
+    // Dynamic answer check against question's correctAnswer and accepted alternatives
+    if (comp.correctAnswer && message.messageText) {
+      const isCorrect = isChatroomAnswerCorrect(
+        message.messageText,
+        comp.correctAnswer,
+        (comp as any).acceptedAlternativeAnswers
+      );
+
+      if (isCorrect) {
+        // Free scholars are correct but do not earn GP
+        const isEligibleForGp = (hasPremium || isStaffOrAdmin);
+        const withinTime = message.timestamp <= (comp.endAt || comp.startAt || message.timestamp + 300000);
+        const currentWinnersCount = (comp.selectedWinners || []).length;
+        const maxWinners = comp.winnerCountLimit || 5;
+        const slotsAvailable = currentWinnersCount < maxWinners;
+
+        const earned = (isEligibleForGp && withinTime && slotsAvailable) ? (comp.gpRewardPerWinner || 50) : 0;
+        return {
+          answerStatus: 'correct',
+          gpEarned: earned,
+        };
+      }
+
+      // If user specifically replied to this question or manager and answer was incorrect
+      if (
+        message.replyTo &&
+        (message.replyTo.id?.includes('msg_q_') ||
+          message.replyTo.userName?.toLowerCase().includes('manager') ||
+          message.replyTo.userName?.toLowerCase().includes('arbiter'))
+      ) {
+        return { answerStatus: 'wrong', gpEarned: 0 };
+      }
+    }
+
+    return { answerStatus: null, gpEarned: 0 };
+  }, [message, chatroomMessages, hasPremium, isStaffOrAdmin]);
 
   return (
     <div
@@ -373,8 +510,41 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
               {message.messageText}
             </div>
           ) : (
-            <div className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed break-words font-normal whitespace-pre-wrap mt-1">
-              {message.messageText}
+            <div className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed break-words font-normal whitespace-pre-wrap mt-1 flex items-center flex-wrap gap-2">
+              <span>{message.messageText}</span>
+
+              {/* Automated Marking Sign: Green check (✓) = Correct with +GP earned, Red cross (✕) = Wrong */}
+              {answerStatus === 'correct' && (
+                <span
+                  id={`chat-mark-correct-${message.id}`}
+                  title={gpEarned > 0 ? `Marked Correct (+${gpEarned} GP Earned)` : 'Marked Correct (Free Scholar — Upgrade for GP prizes)'}
+                  aria-label="Marked Correct"
+                  className="inline-flex items-center gap-1.5 shrink-0 select-none animate-in zoom-in-75 duration-200"
+                >
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 shadow-xs">
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  </span>
+                  {gpEarned > 0 && (
+                    <span
+                      id={`chat-mark-gp-${message.id}`}
+                      className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-black tracking-wide shadow-xs"
+                    >
+                      +{gpEarned} GP
+                    </span>
+                  )}
+                </span>
+              )}
+
+              {answerStatus === 'wrong' && (
+                <span
+                  id={`chat-mark-wrong-${message.id}`}
+                  title="Marked Wrong"
+                  aria-label="Marked Wrong"
+                  className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40 shadow-xs shrink-0 select-none animate-in zoom-in-75 duration-200"
+                >
+                  <X className="w-3.5 h-3.5 stroke-[3]" />
+                </span>
+              )}
             </div>
           )}
 
