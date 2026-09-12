@@ -32,6 +32,7 @@ import {
   fetchApprovedPastQuestions,
   fetchUserPastQuestions,
   fetchPastQuestionSettings,
+  subscribeToPastQuestionSettings,
   checkAndRecordPastQuestionView,
   fetchUserDailyViewQuota,
   togglePastQuestionBookmark,
@@ -209,6 +210,31 @@ export const LibraryTab: React.FC = () => {
   useEffect(() => {
     loadLibraryData();
   }, [currentUser?.uid, userTier]);
+
+  // Real-time synchronization of past question settings (Free & Premium view quotas)
+  useEffect(() => {
+    const unsubscribe = subscribeToPastQuestionSettings((newSettings) => {
+      setSettings(newSettings);
+      let limit: number | 'unlimited' = newSettings.freeDailyViewLimit;
+      if (userTier === 'vip') {
+        limit = newSettings.vipDailyViewLimit;
+      } else if (userTier === 'premium') {
+        limit = newSettings.premiumDailyViewLimit;
+      }
+
+      setDailyViewQuota((prev) => {
+        const isUnlimited = limit === 'unlimited';
+        const remaining = isUnlimited ? 'unlimited' : Math.max(0, (limit as number) - prev.viewsToday);
+        return {
+          viewsToday: prev.viewsToday,
+          dailyLimit: limit,
+          remainingViews: remaining,
+        };
+      });
+    });
+
+    return () => unsubscribe();
+  }, [userTier]);
 
   // Handle My Department quick filter toggle
   const toggleMyDepartmentFilter = () => {
@@ -389,7 +415,7 @@ export const LibraryTab: React.FC = () => {
                 ) : userTier === 'premium' ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-xs">
                     <Zap className="w-3.5 h-3.5 fill-current text-amber-300" />
-                    {planDisplayName} • 10 Views/Day
+                    {planDisplayName} • {settings.premiumDailyViewLimit} Views/Day
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
@@ -492,7 +518,7 @@ export const LibraryTab: React.FC = () => {
                 <div>
                   <p className="text-xs font-bold">Daily Past Questions View Limit Reached ({dailyViewQuota.viewsToday}/{dailyViewQuota.dailyLimit})</p>
                   <p className="text-xs text-amber-700 dark:text-amber-300/90 mt-0.5">
-                    You have reached the maximum daily question views for your {userTier.toUpperCase()} plan. Upgrade to Premium (10/day) or VIP (Unlimited) to unlock all past questions!
+                    You have reached the maximum daily question views for your {userTier.toUpperCase()} plan. Upgrade to Premium ({settings.premiumDailyViewLimit}/day) or VIP (Unlimited) to unlock all past questions!
                   </p>
                 </div>
               </div>
@@ -854,7 +880,7 @@ export const LibraryTab: React.FC = () => {
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Daily Quota Reached</h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed">
                 {quotaExceededModal.message ||
-                  `You have used your daily limit of ${settings.freeDailyViewLimit} past questions for your Free plan. Upgrade to Premium (10 views/day) or VIP (Unlimited) to access unlimited examination records!`}
+                  `You have used your daily limit of ${dailyViewQuota.dailyLimit} past questions for your ${planDisplayName}. Upgrade to ${userTier === 'premium' ? 'VIP (Unlimited)' : `Premium (${settings.premiumDailyViewLimit} views/day) or VIP (Unlimited)`} to access unlimited examination records!`}
               </p>
             </div>
 

@@ -8,6 +8,7 @@ import { ProfilePictureUploader } from './ProfilePictureUploader';
 import { AirtimeDataPurchaseModal } from './AirtimeDataPurchaseModal';
 import { PaystackGatewayModal } from './PaystackGatewayModal';
 import { ContactSupportTab } from './ContactSupportTab';
+import { useDevicePlatform } from '../../hooks/useDevicePlatform';
 import {
   ACADEMIC_STRUCTURE_BY_CATEGORY,
   getFacultiesByCategory,
@@ -101,6 +102,7 @@ const STANDARD_ACADEMIC_LEVELS = [
 ];
 
 export const WalletModal: React.FC = () => {
+  const { isIOS } = useDevicePlatform();
   const {
     isWalletModalOpen,
     setIsWalletModalOpen,
@@ -505,8 +507,15 @@ export const WalletModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col w-full h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 animate-in fade-in duration-200 overflow-hidden">
-      {/* Top Header (Full-Width Sticky Header) */}
-      <div className="sticky top-0 z-30 flex items-center justify-between px-4 sm:px-8 py-3.5 sm:py-4 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shrink-0 shadow-xs">
+      {/* Top Header (Full-Width Sticky Header with iOS Safe Area) */}
+      <div
+        className="sticky top-0 z-30 flex items-center justify-between px-4 sm:px-8 pb-3.5 sm:pb-4 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shrink-0 shadow-xs"
+        style={{
+          paddingTop: isIOS
+            ? 'max(calc(0.875rem + env(safe-area-inset-top, 0px)), calc(0.875rem + 44px))'
+            : 'max(0.875rem, calc(0.875rem + env(safe-area-inset-top, 0px)))',
+        }}
+      >
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-gradient-to-br from-blue-900/30 to-blue-800/30 text-blue-900 dark:text-blue-400 rounded-2xl border border-blue-500/30 shadow-xs">
             <Wallet className="w-5 h-5" />
@@ -556,7 +565,7 @@ export const WalletModal: React.FC = () => {
       </div>
 
       {/* Sticky Tab Navigation */}
-      <div className="sticky top-[57px] sm:top-[65px] z-20 flex items-center gap-1.5 px-4 sm:px-8 py-2.5 bg-slate-100/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar shrink-0">
+      <div className="relative z-20 flex items-center gap-1.5 px-4 sm:px-8 py-2.5 bg-slate-100/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar shrink-0">
         {[
           { id: 'profile', label: 'Profile & Achievements', icon: User },
           { id: 'airtime_data', label: 'Airtime & Data', icon: Smartphone, badge: 'VTU' },

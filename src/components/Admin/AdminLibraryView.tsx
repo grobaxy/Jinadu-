@@ -602,34 +602,6 @@ export const AdminLibraryView: React.FC = () => {
               </div>
             </div>
 
-            {/* Max Uploads Per Student Per Week */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <label className="block text-xs font-bold text-slate-800 mb-1">
-                Weekly Upload Limit Per Contributor
-              </label>
-              <p className="text-[11px] text-slate-500 mb-3">
-                Prevents spam by restricting users to 1 (or configured) past question submissions on a weekly basis.
-              </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="50"
-                  value={settings.maxUploadsPerWeek || settings.maxUploadsPerDay || 1}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      maxUploadsPerWeek: Number(e.target.value),
-                      maxUploadsPerDay: Number(e.target.value),
-                    })
-                  }
-                  className="w-32 px-3 py-2 text-sm font-bold text-slate-800 bg-white rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-                <span className="text-xs font-semibold text-slate-700">upload{Number(settings.maxUploadsPerWeek || 1) === 1 ? '' : 's'} / contributor / week</span>
-              </div>
-            </div>
-
             {/* Free Tier Daily View Limit */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
               <label className="block text-xs font-bold text-slate-800 mb-1">

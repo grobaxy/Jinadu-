@@ -11,8 +11,6 @@ import {
   DEFAULT_NIGERIAN_DATA_BUNDLES,
   NETWORK_METADATA,
   validateNigerianPhone,
-  getAirtimeRedemptionWindowStatus,
-  RedemptionWindowStatus,
 } from '../../lib/vtuTypes';
 import { vtuClient } from '../../lib/vtuClient';
 import {
@@ -53,40 +51,10 @@ interface AirtimeDataPurchaseModalProps {
 }
 
 export function AirtimeDataPurchaseModal({ onClose, onNavigateToTab }: AirtimeDataPurchaseModalProps) {
-  const { currentUser, firebaseUser, setCurrentUser, addNotification, addTransaction, openWalletModal } = useApp();
+  const { currentUser, firebaseUser, setCurrentUser, addNotification, addTransaction } = useApp();
   const baseId = useId();
 
-  // Subscription tier & Static Redemption Schedule status (Free users vs VIP/Premium)
   const subscriptionStatus = resolveUserSubscriptionStatus(currentUser);
-  const isVipOrPremium = subscriptionStatus.isPremium || subscriptionStatus.tierType === 'vip' || subscriptionStatus.tierType === 'premium';
-  const [windowStatus, setWindowStatus] = useState<RedemptionWindowStatus>(() => getAirtimeRedemptionWindowStatus());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const next = getAirtimeRedemptionWindowStatus();
-      setWindowStatus((prev) => {
-        if (
-          prev.isOpen === next.isOpen &&
-          prev.secondsRemainingInWindow === next.secondsRemainingInWindow &&
-          prev.secondsUntilNextWindow === next.secondsUntilNextWindow
-        ) {
-          return prev;
-        }
-        return next;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const isRedemptionAllowed = isVipOrPremium || windowStatus.isOpen;
-
-  const handleUpgradeNow = () => {
-    if (openWalletModal) {
-      openWalletModal('upgrade');
-    } else if (onNavigateToTab) {
-      onNavigateToTab('subscriptions');
-    }
-  };
 
   // Settings & Plans state
   const [settings, setSettings] = useState<AirtimeDataSettings>(DEFAULT_AIRTIME_DATA_SETTINGS);
@@ -292,17 +260,6 @@ export function AirtimeDataPurchaseModal({ onClose, onNavigateToTab }: AirtimeDa
 
   // Execute Purchase
   const handleExecutePurchase = async () => {
-    if (!isRedemptionAllowed) {
-      if (addNotification) {
-        addNotification({
-          title: 'Redemption Window Closed',
-          message: 'Free users can redeem only during the first 15 minutes of each hour. Upgrade to Premium or VIP to redeem anytime.',
-          type: 'wallet',
-        });
-      }
-      return;
-    }
-
     if (!hasEnoughGp || isSubmitting || currentEffectiveAmount <= 0) return;
 
     if (!phoneValidation.isValid) {
@@ -526,55 +483,6 @@ export function AirtimeDataPurchaseModal({ onClose, onNavigateToTab }: AirtimeDa
         <>
           {step === 'form' && (
             <div className="space-y-6">
-              {/* Static Schedule / Tier Privilege Status Header */}
-              {isVipOrPremium ? (
-                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>{subscriptionStatus.effectiveTier} Member</span>
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-500 text-slate-950 uppercase tracking-wider">
-                          24/7 ANYTIME
-                        </span>
-                      </p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Unlimited anytime airtime & data redemption active.
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 font-mono hidden sm:inline-block">
-                    No Schedule Limit
-                  </span>
-                </div>
-              ) : windowStatus.isOpen ? (
-                <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-xs flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                    <div>
-                      <p className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                        <span>Redemption Window is Open</span>
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-                          :00 - :15
-                        </span>
-                      </p>
-                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
-                        Closes in <strong>{Math.floor(windowStatus.secondsRemainingInWindow / 60)}m {String(windowStatus.secondsRemainingInWindow % 60).padStart(2, '0')}s</strong>. Upgrade to Premium for 24/7 unlimited access.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleUpgradeNow}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] transition shrink-0 cursor-pointer hidden sm:inline-block"
-                  >
-                    Go VIP
-                  </button>
-                </div>
-              ) : null}
-
               {/* Service Type Switcher: Airtime vs Data */}
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -935,63 +843,16 @@ export function AirtimeDataPurchaseModal({ onClose, onNavigateToTab }: AirtimeDa
                 </div>
               )}
 
-              {/* Outside Window: Upgrade to Premium Box for Free Users */}
-              {!isRedemptionAllowed ? (
-                <div
-                  id={`${baseId}-box-upgrade-promo`}
-                  className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-950 border border-blue-500/40 text-white shadow-xl shadow-blue-950/40 space-y-3.5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-400/30 flex items-center gap-1">
-                          <Lock className="w-3 h-3 text-rose-400" />
-                          SCHEDULE CLOSED
-                        </span>
-                        <span className="text-[11px] font-mono text-slate-300">
-                          Next window: {windowStatus.formattedNextWindowTime} (in {windowStatus.minutesUntilNextWindow}m)
-                        </span>
-                      </div>
-                      <h4 className="text-sm sm:text-base font-black text-white tracking-tight pt-1">
-                        Redemption window is closed
-                      </h4>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        Free users can redeem only during the first 15 minutes of each hour (:00 - :15).
-                      </p>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-blue-500/20 text-amber-300 border border-blue-400/30 shrink-0">
-                      <Sparkles className="w-5 h-5" />
-                    </div>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-blue-100 flex items-center gap-2 font-medium">
-                    <Zap className="w-4 h-4 text-amber-300 shrink-0" />
-                    <span>Upgrade to Premium or VIP to redeem airtime & data anytime.</span>
-                  </div>
-
-                  <button
-                    id={`${baseId}-btn-upgrade-now`}
-                    type="button"
-                    onClick={handleUpgradeNow}
-                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition cursor-pointer active:scale-98"
-                  >
-                    <Sparkles className="w-4 h-4 text-amber-300" />
-                    <span>Upgrade to Premium</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                /* Review & Proceed Button */
-                <button
-                  id={`${baseId}-btn-proceed-confirm`}
-                  disabled={!hasEnoughGp || !phoneValidation.isValid || currentEffectiveAmount <= 0}
-                  onClick={() => setStep('confirm')}
-                  className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>Review & Confirm Purchase</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              )}
+              {/* Review & Proceed Button */}
+              <button
+                id={`${baseId}-btn-proceed-confirm`}
+                disabled={!hasEnoughGp || !phoneValidation.isValid || currentEffectiveAmount <= 0}
+                onClick={() => setStep('confirm')}
+                className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Review & Confirm Purchase</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           )}
 

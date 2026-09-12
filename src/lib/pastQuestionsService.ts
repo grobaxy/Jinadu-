@@ -78,6 +78,69 @@ export function generateCompositeKey(
   return `${sanitize(institutionId)}_${sanitize(departmentName)}_${sanitize(level)}_${sanitize(courseCode)}_${sanitize(academicSession)}_${sanitize(semester)}`;
 }
 
+// Local cache for past question settings with localStorage persistence
+let cachedSettings: PastQuestionSettings = (() => {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('grobax_past_questions_settings') : null;
+    if (raw) {
+      return { ...DEFAULT_PAST_QUESTION_SETTINGS, ...JSON.parse(raw) };
+    }
+  } catch {}
+  return DEFAULT_PAST_QUESTION_SETTINGS;
+})();
+
+export function getCachedPastQuestionSettings(): PastQuestionSettings {
+  return cachedSettings;
+}
+
+/**
+ * Real-time subscription to Past Question Settings
+ * Automatically informs listeners whenever settings are updated in Firestore or saved locally.
+ */
+export function subscribeToPastQuestionSettings(callback: (settings: PastQuestionSettings) => void): () => void {
+  // Immediately invoke with current cached settings
+  callback(cachedSettings);
+
+  const docRef = doc(db, 'settings', 'past_questions');
+  const unsubscribeFirestore = onSnapshot(
+    docRef,
+    (snap) => {
+      if (snap.exists()) {
+        const fresh = { ...DEFAULT_PAST_QUESTION_SETTINGS, ...snap.data() } as PastQuestionSettings;
+        cachedSettings = fresh;
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('grobax_past_questions_settings', JSON.stringify(fresh));
+          }
+        } catch {}
+        callback(fresh);
+      }
+    },
+    (err) => {
+      console.warn('Past question settings live subscription warning:', err);
+    }
+  );
+
+  // Also listen for same-tab custom event for instant responsiveness
+  const handleLocalUpdate = (e: Event) => {
+    const custom = e as CustomEvent<PastQuestionSettings>;
+    if (custom.detail) {
+      cachedSettings = custom.detail;
+      callback(custom.detail);
+    }
+  };
+  if (typeof window !== 'undefined') {
+    window.addEventListener('grobax_past_question_settings_updated', handleLocalUpdate);
+  }
+
+  return () => {
+    unsubscribeFirestore();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('grobax_past_question_settings_updated', handleLocalUpdate);
+    }
+  };
+}
+
 /**
  * Fetch Past Question Settings
  */
@@ -86,12 +149,19 @@ export async function fetchPastQuestionSettings(): Promise<PastQuestionSettings>
     const docRef = doc(db, 'settings', 'past_questions');
     const snap = await getDoc(docRef);
     if (snap.exists()) {
-      return { ...DEFAULT_PAST_QUESTION_SETTINGS, ...snap.data() } as PastQuestionSettings;
+      const fresh = { ...DEFAULT_PAST_QUESTION_SETTINGS, ...snap.data() } as PastQuestionSettings;
+      cachedSettings = fresh;
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('grobax_past_questions_settings', JSON.stringify(fresh));
+        }
+      } catch {}
+      return fresh;
     }
   } catch (err) {
     console.warn('Could not load past question settings from Firestore, using defaults:', err);
   }
-  return DEFAULT_PAST_QUESTION_SETTINGS;
+  return cachedSettings;
 }
 
 /**
@@ -100,21 +170,36 @@ export async function fetchPastQuestionSettings(): Promise<PastQuestionSettings>
 export async function savePastQuestionSettings(settings: Partial<PastQuestionSettings>): Promise<PastQuestionSettings> {
   const updated: PastQuestionSettings = {
     ...DEFAULT_PAST_QUESTION_SETTINGS,
+    ...cachedSettings,
     ...settings,
-    uploadGpReward: Math.max(0, Number(settings.uploadGpReward) || 50),
-    freeDailyViewLimit: Math.max(1, Number(settings.freeDailyViewLimit) || 2),
-    premiumDailyViewLimit: Math.max(1, Number(settings.premiumDailyViewLimit) || 10),
+    uploadGpReward: Math.max(0, Number(settings.uploadGpReward !== undefined ? settings.uploadGpReward : cachedSettings.uploadGpReward) || 50),
+    freeDailyViewLimit: Math.max(1, Number(settings.freeDailyViewLimit !== undefined ? settings.freeDailyViewLimit : cachedSettings.freeDailyViewLimit) || 2),
+    premiumDailyViewLimit: Math.max(1, Number(settings.premiumDailyViewLimit !== undefined ? settings.premiumDailyViewLimit : cachedSettings.premiumDailyViewLimit) || 10),
     vipDailyViewLimit: settings.vipDailyViewLimit === 'unlimited' ? 'unlimited' : Math.max(1, Number(settings.vipDailyViewLimit) || 20),
-    maxUploadsPerWeek: Math.max(1, Number(settings.maxUploadsPerWeek) || Number(settings.maxUploadsPerDay) || 1),
-    maxUploadsPerDay: Math.max(1, Number(settings.maxUploadsPerWeek) || Number(settings.maxUploadsPerDay) || 1),
+    maxUploadsPerWeek: Math.max(1, Number(settings.maxUploadsPerWeek || settings.maxUploadsPerDay || cachedSettings.maxUploadsPerWeek) || 1),
+    maxUploadsPerDay: Math.max(1, Number(settings.maxUploadsPerWeek || settings.maxUploadsPerDay || cachedSettings.maxUploadsPerDay) || 1),
     freeCanUpload: false, // strictly enforced: free cannot upload
     premiumUploadCooldownDays: 30, // Premium: 1 upload every 30 days
     vipUploadCooldownDays: 15, // VIP: 1 upload every 15 days
   };
 
+  // Update in-memory cache and localStorage immediately
+  cachedSettings = updated;
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('grobax_past_questions_settings', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('grobax_past_question_settings_updated', { detail: updated }));
+    }
+  } catch {}
+
   try {
     const docRef = doc(db, 'settings', 'past_questions');
     await setDoc(docRef, updated, { merge: true });
+
+    // Also mirror to past_question_settings/config for dual-path compatibility
+    const configDocRef = doc(db, 'past_question_settings', 'config');
+    setDoc(configDocRef, updated, { merge: true }).catch(() => {});
+
     // Also notify server endpoint if running
     fetch('/api/library/settings', {
       method: 'POST',
@@ -973,26 +1058,27 @@ export async function checkAndRecordPastQuestionView(
     };
   }
 
-  // If user is guest/no ID, let them view up to 2 previews locally
+  // If user is guest/no ID, let them view up to dailyLimit previews locally
   if (!userId) {
     const localGuestKey = `grobax_guest_views_${todayKey}`;
     const guestViews = Number(localStorage.getItem(localGuestKey) || '0');
-    if (guestViews >= 2) {
+    const numericLimit = typeof dailyLimit === 'number' ? dailyLimit : 2;
+    if (guestViews >= numericLimit) {
       return {
         allowed: false,
         viewsToday: guestViews,
-        dailyLimit: 2,
+        dailyLimit,
         remainingViews: 0,
         reason: 'LOGIN_REQUIRED',
-        message: 'You have viewed 2 free preview past questions today. Sign in to access your full daily quota!',
+        message: `You have viewed ${numericLimit} free preview past questions today. Sign in to access your full daily quota!`,
       };
     }
     localStorage.setItem(localGuestKey, String(guestViews + 1));
     return {
       allowed: true,
       viewsToday: guestViews + 1,
-      dailyLimit: 2,
-      remainingViews: Math.max(0, 2 - (guestViews + 1)),
+      dailyLimit,
+      remainingViews: Math.max(0, numericLimit - (guestViews + 1)),
     };
   }
 
@@ -1109,12 +1195,14 @@ export async function fetchUserDailyViewQuota(
   if (!userId) {
     const localGuestKey = `grobax_guest_views_${todayKey}`;
     const guestViews = Number(localStorage.getItem(localGuestKey) || '0');
+    const numericLimit = typeof dailyLimit === 'number' ? dailyLimit : 2;
+    const isLimitReached = !isUnlimited && guestViews >= numericLimit;
     return {
       viewsToday: guestViews,
-      dailyLimit: 2,
-      remainingViews: Math.max(0, 2 - guestViews),
+      dailyLimit,
+      remainingViews: isUnlimited ? 'unlimited' : Math.max(0, numericLimit - guestViews),
       viewedQuestionIdsToday: [],
-      isLimitReached: guestViews >= 2,
+      isLimitReached,
     };
   }
 
