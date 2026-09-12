@@ -9,6 +9,7 @@ import { normalizeDestinationUrl, safeOpenDestinationUrl } from '../../../lib/ur
 import { ChatroomMessageItem } from './ChatroomMessageItem';
 import { ChatroomComposer } from './ChatroomComposer';
 import { CreateLiveQuestionModal } from './CreateLiveQuestionModal';
+import { ChatroomRulesModal } from './ChatroomRulesModal';
 import {
   sendChatroomMessageToFirestore,
   deleteChatroomMessageFromFirestore,
@@ -35,6 +36,7 @@ import {
   ArrowUpRight,
   HelpCircle,
   Crown,
+  ScrollText,
 } from 'lucide-react';
 
 // Web Audio API synthesizer for message chimes
@@ -215,6 +217,7 @@ export const ChatroomLiveView: React.FC = () => {
   const [isPinnedAdExpanded, setIsPinnedAdExpanded] = useState(true);
   const [activePinnedAdIndex, setActivePinnedAdIndex] = useState(0);
   const [isCreateQuestionModalOpen, setIsCreateQuestionModalOpen] = useState(false);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
   // Filter messages by search query and hide automated Arbiter evaluation/congratulations spam
   const filteredMessages = useMemo(() => {
@@ -522,6 +525,18 @@ export const ChatroomLiveView: React.FC = () => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Rules Button */}
+          <button
+            type="button"
+            id="chatroom-rules-btn"
+            onClick={() => setIsRulesModalOpen(true)}
+            className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition shrink-0"
+            title="Daily Ultimate Search Rules"
+          >
+            <ScrollText className="w-3.5 h-3.5 text-amber-500" />
+            <span className="hidden sm:inline">Rules</span>
+          </button>
+
           {/* Admin Launch Live Question Button */}
           {isStaffOrAdmin && (
             <button
@@ -674,6 +689,7 @@ export const ChatroomLiveView: React.FC = () => {
                 onDelete={handleDeleteMessage}
                 onMuteUser={handleMuteUser}
                 onReact={handleReactMessage}
+                onOpenUpgradeModal={handleOpenUpgrade}
               />
 
               {/* Embedded Live Feed Ad Cards */}
@@ -800,6 +816,19 @@ export const ChatroomLiveView: React.FC = () => {
           onClose={() => setIsCreateQuestionModalOpen(false)}
           adminUid={currentUser.id}
           adminName={currentUser.name}
+        />
+      )}
+
+      {/* Daily Ultimate Search Rules & Settings Modal */}
+      {isRulesModalOpen && (
+        <ChatroomRulesModal
+          isOpen={isRulesModalOpen}
+          onClose={() => setIsRulesModalOpen(false)}
+          onOpenUpgradeModal={handleOpenUpgrade}
+          isPremium={isPremium || isVIP}
+          isManagerOrAdmin={isStaffOrAdmin || isManagerOrAdmin}
+          adminUid={currentUser?.id}
+          adminName={currentUser?.name}
         />
       )}
     </div>

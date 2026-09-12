@@ -16,7 +16,9 @@ import {
   AlertCircle,
   Square,
   PlusCircle,
+  ScrollText,
 } from 'lucide-react';
+import { ChatroomRulesModal } from './ChatroomRulesModal';
 
 interface ChatroomLiveQuestionCardProps {
   question: ChatroomLiveQuestion;
@@ -42,6 +44,7 @@ export const ChatroomLiveQuestionCard: React.FC<ChatroomLiveQuestionCardProps> =
   onReplyToAnswer,
 }) => {
   const [secondsRemaining, setSecondsRemaining] = useState<number>(0);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
   useEffect(() => {
     if (question.status !== 'active') {
@@ -133,6 +136,17 @@ export const ChatroomLiveQuestionCard: React.FC<ChatroomLiveQuestionCardProps> =
               {isActive ? `${secondsRemaining}s Left` : 'Time Expired'}
             </span>
           </div>
+
+          {/* Daily Ultimate Search Rules Icon Button */}
+          <button
+            type="button"
+            onClick={() => setIsRulesModalOpen(true)}
+            className="px-2.5 py-1 rounded-full bg-indigo-500/20 hover:bg-indigo-500/40 border border-indigo-400/40 text-indigo-200 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            title="View Daily Ultimate Search Rules"
+          >
+            <ScrollText className="w-3.5 h-3.5 text-amber-300" />
+            <span>Rules</span>
+          </button>
         </div>
       </div>
 
@@ -335,6 +349,17 @@ export const ChatroomLiveQuestionCard: React.FC<ChatroomLiveQuestionCardProps> =
           </div>
         )}
       </div>
+
+      {/* Rules Modal */}
+      {isRulesModalOpen && (
+        <ChatroomRulesModal
+          isOpen={isRulesModalOpen}
+          onClose={() => setIsRulesModalOpen(false)}
+          onOpenUpgradeModal={onOpenUpgradeModal}
+          isPremium={isUserPremium}
+          isManagerOrAdmin={isManagerOrAdmin}
+        />
+      )}
     </div>
   );
 };

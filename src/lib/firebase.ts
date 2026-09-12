@@ -98,6 +98,8 @@ import {
   ChatroomLiveMessage,
   ChatroomLiveQuestion,
   ChatroomLiveSettings,
+  UltimateSearchRulesData,
+  UltimateSearchRuleItem,
   ChatroomLiveAnswerSubmission,
   DailyChatAllowanceInfo,
   DailyChatResponseRecord,
@@ -5375,6 +5377,126 @@ export const saveChatroomLiveSettingsToFirestore = async (
     console.error('Error saving chatroom live settings to Firestore:', err);
     throw err;
   }
+};
+
+export const DEFAULT_ULTIMATE_SEARCH_RULES: UltimateSearchRulesData = {
+  title: 'Daily Ultimate Search — Official Rules & Fair Play Guidelines',
+  scheduleNotice: 'Competitions are hosted live in this chatroom every Monday through Friday at 7:00 PM (WAT). Questions are published directly by Community Management.',
+  generalGuidelines: 'Fast-paced academic typed-answer speed rounds with instant GP wallet rewards. Answer with the exact word, name, or number in the chatbox below as soon as each challenge appears.',
+  freeScholarPolicy: 'Free scholars are fully eligible to answer and earn verified correct status (✓). However, instant cash GP reward prizes are exclusive to registered Premium & VIP scholars. Free scholars can upgrade at any time to claim GP rewards.',
+  rules: [
+    {
+      id: 'rule_1',
+      title: 'Typed Answers Only',
+      description: 'No multiple-choice guess buttons. Type the exact word, name, or number in the chatbox as soon as the question appears. Answers are case-insensitive and alias-tolerant.',
+      icon: 'Zap',
+    },
+    {
+      id: 'rule_2',
+      title: 'First Eligible Scholars Win GP',
+      description: 'The automated Grobaax Arbiter evaluates incoming answers chronologically down to the millisecond. The first eligible Premium or VIP scholars with the correct answer win the set GP bounty.',
+      icon: 'Trophy',
+    },
+    {
+      id: 'rule_3',
+      title: 'Admin-Configured GP Rewards',
+      description: 'Each confirmed winner receives an instant GP reward credited directly to their wallet balance (e.g., +50 GP, +100 GP, +350 GP) as configured by the Admin.',
+      icon: 'Crown',
+    },
+    {
+      id: 'rule_4',
+      title: '1 Reply Per Question (Strict Anti-Spam)',
+      description: 'Scholars cannot spam multiple guesses or post consecutive answers. Each scholar is permitted exactly 1 answer attempt per live question challenge.',
+      icon: 'ShieldCheck',
+    },
+    {
+      id: 'rule_5',
+      title: 'Countdown Timer & Speed Window',
+      description: 'Each challenge has an active countdown timer set by the Admin. Once the timer expires or all winner slots are filled, submissions are locked and the round concludes.',
+      icon: 'Clock',
+    },
+  ],
+};
+
+export const fetchUltimateSearchRulesFromFirestore = async (): Promise<UltimateSearchRulesData> => {
+  try {
+    const docSnap = await getDoc(doc(db, 'system_settings', 'ultimate_search_rules'));
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        ...DEFAULT_ULTIMATE_SEARCH_RULES,
+        ...data,
+        rules: Array.isArray(data.rules) && data.rules.length > 0 ? data.rules : DEFAULT_ULTIMATE_SEARCH_RULES.rules,
+      } as UltimateSearchRulesData;
+    }
+  } catch (err) {
+    console.warn('Ultimate search rules fetch notice:', err);
+  }
+  return DEFAULT_ULTIMATE_SEARCH_RULES;
+};
+
+export const saveUltimateSearchRulesToFirestore = async (
+  rulesData: Partial<UltimateSearchRulesData>,
+  adminUid?: string,
+  adminName?: string
+): Promise<void> => {
+  try {
+    const payload = {
+      ...rulesData,
+      updatedAt: new Date().toISOString(),
+      updatedByUid: adminUid || PRIMARY_SUPER_ADMIN_UID,
+      updatedByName: adminName || 'Admin',
+    };
+
+    await setDoc(doc(db, 'system_settings', 'ultimate_search_rules'), payload, { merge: true });
+
+    // Also sync into chatroom_live settings for backward compatibility
+    await setDoc(
+      doc(db, 'system_settings', 'chatroom_live'),
+      {
+        ultimateSearchRules: payload,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    if (adminUid) {
+      await logAdminAuditAction(
+        adminUid,
+        adminName || 'Admin',
+        'UPDATE_ULTIMATE_SEARCH_RULES',
+        'ultimate_search_rules',
+        payload
+      );
+    }
+  } catch (err) {
+    console.error('Error saving ultimate search rules to Firestore:', err);
+    throw err;
+  }
+};
+
+export const subscribeToUltimateSearchRules = (
+  callback: (rules: UltimateSearchRulesData) => void
+) => {
+  return onSnapshot(
+    doc(db, 'system_settings', 'ultimate_search_rules'),
+    snapshot => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        callback({
+          ...DEFAULT_ULTIMATE_SEARCH_RULES,
+          ...data,
+          rules: Array.isArray(data.rules) && data.rules.length > 0 ? data.rules : DEFAULT_ULTIMATE_SEARCH_RULES.rules,
+        });
+      } else {
+        callback(DEFAULT_ULTIMATE_SEARCH_RULES);
+      }
+    },
+    error => {
+      console.warn('Ultimate search rules subscription notice:', error);
+      callback(DEFAULT_ULTIMATE_SEARCH_RULES);
+    }
+  );
 };
 
 export const createChatroomLiveQuestionInFirestore = async (

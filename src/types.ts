@@ -2387,6 +2387,24 @@ export interface ChatroomLiveAnswerSubmission {
   gpAwarded: number;
 }
 
+export interface UltimateSearchRuleItem {
+  id: string;
+  title: string;
+  description: string;
+  icon?: string;
+}
+
+export interface UltimateSearchRulesData {
+  title: string;
+  scheduleNotice: string;
+  generalGuidelines?: string;
+  rules: UltimateSearchRuleItem[];
+  freeScholarPolicy?: string;
+  updatedAt?: string;
+  updatedByUid?: string;
+  updatedByName?: string;
+}
+
 export interface ChatroomLiveSettings {
   allowFreeUsersToParticipate: boolean;
   premiumRequiredForRewards: boolean;
@@ -2396,6 +2414,7 @@ export interface ChatroomLiveSettings {
   competitionScheduleNotice: string;
   isChatMuted: boolean;
   mutedUserIds: string[];
+  ultimateSearchRules?: UltimateSearchRulesData;
 }
 
 export interface DailyChatAllowanceInfo {
