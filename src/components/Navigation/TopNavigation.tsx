@@ -242,8 +242,8 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
                     className="fixed inset-0 z-[998] bg-black/40 backdrop-blur-xs"
                     onClick={() => setIsNotificationsOpen(false)}
                   />
-                  <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-24px)] rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-[999] p-4 space-y-3">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-24px)] rounded-2xl bg-white dark:bg-[#021024] border border-slate-200 dark:border-blue-900/60 shadow-2xl z-[999] p-4 space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-blue-900/50">
                       <div className="flex items-center gap-2">
                         <Bell className="w-4 h-4 text-blue-500" />
                         <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
@@ -284,13 +284,13 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
                               setSelectedNotification(notif);
                               setIsNotificationsOpen(false);
                             }}
-                            className={`p-3 rounded-xl border transition cursor-pointer flex items-start gap-3 hover:border-blue-400 dark:hover:border-blue-600 ${
+                            className={`p-3 rounded-xl border transition cursor-pointer flex items-start gap-3 hover:border-blue-400 dark:hover:border-blue-500 ${
                               !notif.isRead
-                                ? 'bg-blue-50/60 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/40'
-                                : 'bg-slate-50/60 dark:bg-slate-950/40 border-slate-100 dark:border-slate-800/50 opacity-80 hover:opacity-100'
+                                ? 'bg-blue-50/60 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800/60'
+                                : 'bg-slate-50/60 dark:bg-[#011429]/60 border-slate-100 dark:border-blue-950/60 opacity-85 hover:opacity-100'
                             }`}
                           >
-                            <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shrink-0">
+                            <div className="p-2 rounded-xl bg-white dark:bg-[#031b3b] border border-slate-200 dark:border-blue-900/50 shrink-0">
                               {getNotifIcon(notif.type)}
                             </div>
 
