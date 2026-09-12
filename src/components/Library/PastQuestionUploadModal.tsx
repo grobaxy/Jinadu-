@@ -36,8 +36,10 @@ import {
   checkDuplicatePastQuestion,
   generateCompositeKey,
   fetchPastQuestionSettings,
+  subscribeToPastQuestionSettings,
+  DEFAULT_PAST_QUESTION_SETTINGS,
 } from '../../lib/pastQuestionsService';
-import { UserUploadCooldownStatus } from '../../types';
+import { UserUploadCooldownStatus, PastQuestionSettings } from '../../types';
 
 interface PastQuestionUploadModalProps {
   isOpen: boolean;
@@ -91,6 +93,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [settings, setSettings] = useState<PastQuestionSettings>(DEFAULT_PAST_QUESTION_SETTINGS);
   const [gpRewardAmount, setGpRewardAmount] = useState<number>(50);
   const [uploadCooldown, setUploadCooldown] = useState<UserUploadCooldownStatus>({
     canUpload: userTier !== 'free',
@@ -144,8 +147,9 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
       setSuccessMessage(null);
       setDuplicateWarning(null);
 
-      // Fetch settings
-      fetchPastQuestionSettings().then((s) => {
+      // Fetch and subscribe to real-time past question settings
+      const unsubSettings = subscribeToPastQuestionSettings((s) => {
+        setSettings(s);
         setGpRewardAmount(s.uploadGpReward || 50);
       });
 
@@ -219,6 +223,10 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
       } else if (activeCategoryMeta.levels.length > 0) {
         setLevel(activeCategoryMeta.levels[0]);
       }
+
+      return () => {
+        unsubSettings();
+      };
     }
   }, [isOpen, currentUser?.uid]);
 
@@ -522,7 +530,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
                   Upgrade to Upload Past Questions
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Free scholars can view up to 2 past examination questions daily. To upload past questions, contribute to our national repository, and earn <strong className="text-amber-500 font-bold">+{gpRewardAmount} GP</strong> bounty rewards per approved paper, an active Premium or VIP subscription is required.
+                  Free scholars can view up to {settings.freeDailyViewLimit} past examination questions daily. To upload past questions, contribute to our national repository, and earn <strong className="text-amber-500 font-bold">+{settings.uploadGpReward || gpRewardAmount} GP</strong> bounty rewards per approved paper, an active Premium or VIP subscription is required.
                 </p>
               </div>
 
@@ -533,9 +541,9 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
                   <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Current Plan</div>
                   <div className="text-sm font-bold text-slate-900 dark:text-slate-100">Free Scholar</div>
                   <ul className="text-[11px] text-slate-600 dark:text-slate-400 space-y-1 pt-1">
-                    <li className="flex items-center gap-1.5">
+                    <li className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-300">
                       <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                      2 views/day
+                      {settings.freeDailyViewLimit} views/day
                     </li>
                     <li className="flex items-center gap-1.5 text-rose-500 font-semibold">
                       <X className="w-3 h-3" />
@@ -549,9 +557,9 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
                   <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Popular</div>
                   <div className="text-sm font-bold text-blue-950 dark:text-blue-200">Premium</div>
                   <ul className="text-[11px] text-slate-600 dark:text-blue-300 space-y-1 pt-1">
-                    <li className="flex items-center gap-1.5">
+                    <li className="flex items-center gap-1.5 font-bold text-blue-900 dark:text-blue-200">
                       <CheckCircle2 className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                      10 views/day
+                      {settings.premiumDailyViewLimit} views/day
                     </li>
                     <li className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold">
                       <CheckCircle2 className="w-3 h-3 text-emerald-500" />
@@ -559,7 +567,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
                     </li>
                     <li className="flex items-center gap-1.5 text-amber-600 font-bold">
                       <Sparkles className="w-3 h-3" />
-                      +{gpRewardAmount} GP bounty
+                      +{settings.uploadGpReward || gpRewardAmount} GP bounty
                     </li>
                   </ul>
                 </div>
@@ -572,9 +580,9 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
                     VIP Scholar
                   </div>
                   <ul className="text-[11px] text-slate-600 dark:text-amber-200 space-y-1 pt-1">
-                    <li className="flex items-center gap-1.5">
+                    <li className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200">
                       <CheckCircle2 className="w-3 h-3 text-amber-600" />
-                      Unlimited views
+                      {settings.vipDailyViewLimit === 'unlimited' ? 'Unlimited views' : `${settings.vipDailyViewLimit} views/day`}
                     </li>
                     <li className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-bold">
                       <CheckCircle2 className="w-3 h-3 text-emerald-500" />
@@ -582,7 +590,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
                     </li>
                     <li className="flex items-center gap-1.5 text-amber-600 font-bold">
                       <Sparkles className="w-3 h-3" />
-                      +{gpRewardAmount} GP bounty
+                      +{settings.uploadGpReward || gpRewardAmount} GP bounty
                     </li>
                   </ul>
                 </div>

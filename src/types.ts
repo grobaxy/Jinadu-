@@ -2850,6 +2850,11 @@ export interface SchoolDomeMessage extends ChatroomLiveMessage {
   targetTier?: 'free' | 'premium' | 'vip' | 'all';
   targetPlanName?: string;
   allowedPlanIds?: string[];
+  isAnswer?: boolean;
+  isCorrect?: boolean;
+  evalStatus?: 'correct' | 'wrong';
+  questionId?: string;
+  questionNumber?: number;
 }
 
 

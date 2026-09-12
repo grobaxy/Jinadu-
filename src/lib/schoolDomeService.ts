@@ -378,22 +378,6 @@ export const DEFAULT_INITIAL_MESSAGES: SchoolDomeMessage[] = [
     reactions: { '⚡': 1, '🎯': 1 },
   },
   {
-    id: 'dome_msg_claim_13',
-    seasonId: 'season_dome_1',
-    userId: 'grobax_arbiter',
-    userName: 'School Dome Arbiter 🛡️',
-    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    institution: 'Grobaax Arena HQ',
-    department: 'Chief Arbiter',
-    level: 'Master',
-    isPremium: true,
-    isVip: true,
-    messageText: '🏆 All 1 winner slots for Question #13 have been claimed! ✅ Official Correct Answer: "91" 👑 Winners: @Lawal Faizah (+500 GP)',
-    timestamp: Date.now() - 1000 * 60 * 10,
-    type: 'announcement',
-    reactions: { '👏': 4, '🏆': 3 },
-  },
-  {
     id: 'dome_msg_user_1',
     seasonId: 'season_dome_1',
     userId: 'user_abdul_1',
@@ -787,25 +771,6 @@ export async function registerUserForSchoolDome(
     const updatedRegistered = [...regList, user.id];
     const updatedActive = [...(seasonData.activeUserIds || []), user.id];
 
-    // Post celebratory registration announcement
-    const msgRef = doc(db, 'school_dome_messages', `reg_${Date.now()}_${user.id.slice(-4)}`);
-    const regMsg: SchoolDomeMessage = {
-      id: msgRef.id,
-      seasonId,
-      userId: 'grobax_arbiter',
-      userName: 'School Dome Arbiter 🛡️',
-      userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      institution: 'School Dome Arena Official',
-      isPremium: true,
-      isVip: true,
-      membershipTier: 'OFFICIAL ARBITER',
-      subscriptionPlan: 'Official Arbiter',
-      messageText: `🎟️ ${user.name} (${user.institution || 'Scholar'}) [${planEligibility.userPlanName}] has entered the Arena for ${seasonData.title}! Total Contenders: ${updatedRegistered.length}.`,
-      timestamp: Date.now(),
-      type: 'system',
-      reactions: { '🔥': 1 },
-    };
-
     await Promise.all([
       setDoc(partRef, participant),
       updateDoc(seasonRef, {
@@ -813,7 +778,6 @@ export async function registerUserForSchoolDome(
         activeUserIds: updatedActive,
         updatedAt: serverTimestamp(),
       }),
-      setDoc(msgRef, regMsg),
     ]);
 
     return { success: true, message: 'Registered successfully! Good luck in the Arena.' };
@@ -887,9 +851,8 @@ export async function sendSchoolDomeMessage(
       if (isCorrect) {
         // User SURVIVED!
         const partRef = doc(db, 'school_dome_registrations', `${currentSeason.id}_${userId}`);
-        const celebRef = doc(db, 'school_dome_messages', `celeb_${Date.now()}_${userId.slice(-4)}`);
 
-        // Fast parallel execution
+        // Fast parallel execution without Arbiter spam writes
         await Promise.all([
           updateDoc(qRef, {
             survivorUserIds: [...(activeQuestion.survivorUserIds || []), userId],
@@ -902,18 +865,14 @@ export async function sendSchoolDomeMessage(
             correctAnswersCount: increment(1),
             updatedAt: serverTimestamp(),
           }).catch(() => {}),
-          setDoc(celebRef, {
-            id: celebRef.id,
-            seasonId: currentSeason.id,
-            userId: 'grobax_arbiter',
-            userName: 'School Dome Arbiter 🛡️',
-            userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-            institution: 'School Dome Arena Official',
-            messageText: `⚡ CORRECT! ${message.userName} solved Question #${activeQuestion.questionNumber} and advances to the next battle!`,
-            timestamp: Date.now(),
-            type: 'system',
-            reactions: { '🎯': 2, '⚡': 2 },
-          })
+          updateDoc(msgRef, {
+            isAnswer: true,
+            isCorrect: true,
+            evalStatus: 'correct',
+            questionId: activeQuestion.id,
+            questionNumber: activeQuestion.questionNumber,
+            updatedAt: serverTimestamp(),
+          }).catch(() => {}),
         ]);
 
         return { outcome: 'survived' };
@@ -923,9 +882,8 @@ export async function sendSchoolDomeMessage(
         const newActive = (currentSeason.activeUserIds || []).filter(id => id !== userId);
         const newEliminated = [...(currentSeason.eliminatedUserIds || []), userId];
         const partRef = doc(db, 'school_dome_registrations', `${currentSeason.id}_${userId}`);
-        const elimRef = doc(db, 'school_dome_messages', `elim_${Date.now()}_${userId.slice(-4)}`);
 
-        // Fast parallel execution
+        // Fast parallel execution without Arbiter spam writes
         await Promise.all([
           updateDoc(qRef, {
             eliminatedUserIds: [...(activeQuestion.eliminatedUserIds || []), userId],
@@ -945,18 +903,14 @@ export async function sendSchoolDomeMessage(
             eliminatedAt: Date.now(),
             updatedAt: serverTimestamp(),
           }).catch(() => {}),
-          setDoc(elimRef, {
-            id: elimRef.id,
-            seasonId: currentSeason.id,
-            userId: 'grobax_arbiter',
-            userName: 'School Dome Arbiter 🛡️',
-            userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-            institution: 'School Dome Arena Official',
-            messageText: `❌ KNOCKED OUT: ${message.userName} submitted an incorrect answer on Question #${activeQuestion.questionNumber} and has been eliminated. (${newActive.length} contenders still standing!)`,
-            timestamp: Date.now(),
-            type: 'system',
-            reactions: { '💔': 1 },
-          })
+          updateDoc(msgRef, {
+            isAnswer: true,
+            isCorrect: false,
+            evalStatus: 'wrong',
+            questionId: activeQuestion.id,
+            questionNumber: activeQuestion.questionNumber,
+            updatedAt: serverTimestamp(),
+          }).catch(() => {}),
         ]);
 
         return { outcome: 'eliminated' };
@@ -1250,30 +1204,17 @@ export async function closeSchoolDomeQuestion(
       const newlyEliminated = currentActive.filter(id => !survivors.includes(id));
       const updatedActive = currentActive.filter(id => survivors.includes(id));
       const updatedEliminated = Array.from(new Set([...(sData.eliminatedUserIds || []), ...newlyEliminated]));
+      const allQEliminated = Array.from(new Set([...(qData.eliminatedUserIds || []), ...newlyEliminated]));
 
-      // Update season active standing
+      // Update question eliminated user list and season active standing
       closeOps.push(
+        updateDoc(qRef, {
+          eliminatedUserIds: allQEliminated,
+        }),
         updateDoc(seasonRef, {
           activeUserIds: updatedActive,
           eliminatedUserIds: updatedEliminated,
           updatedAt: serverTimestamp(),
-        })
-      );
-
-      // Post question conclusion message from Arbiter
-      const sumRef = doc(db, 'school_dome_messages', `round_end_${Date.now()}`);
-      closeOps.push(
-        setDoc(sumRef, {
-          id: sumRef.id,
-          seasonId,
-          userId: 'grobax_arbiter',
-          userName: 'School Dome Arbiter 🛡️',
-          userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-          institution: 'School Dome Arena Official',
-          messageText: `🏁 QUESTION #${qData.questionNumber} CONCLUDED!\nOfficial Answer: « ${qData.correctAnswer} »\n\n⚡ ${survivors.length} scholars answered correctly and survived!\n❌ ${newlyEliminated.length} contenders eliminated (time expired / unverified answer).\n👥 ${updatedActive.length} contenders remain standing for the grand prize pool.`,
-          timestamp: Date.now(),
-          type: 'announcement',
-          reactions: { '👏': 3, '🔥': 2 },
         })
       );
 

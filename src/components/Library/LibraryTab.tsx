@@ -449,7 +449,7 @@ export const LibraryTab: React.FC = () => {
                     {userTier === 'vip' ? (
                       <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1">
                         <Crown className="w-3.5 h-3.5 text-amber-500" />
-                        Unlimited (VIP)
+                        {dailyViewQuota.dailyLimit === 'unlimited' ? 'Unlimited (VIP)' : `${dailyViewQuota.viewsToday} / ${dailyViewQuota.dailyLimit} Used (VIP)`}
                       </span>
                     ) : (
                       <span className={dailyViewQuota.remainingViews === 0 ? 'text-amber-600 dark:text-amber-400' : ''}>
@@ -518,7 +518,7 @@ export const LibraryTab: React.FC = () => {
                 <div>
                   <p className="text-xs font-bold">Daily Past Questions View Limit Reached ({dailyViewQuota.viewsToday}/{dailyViewQuota.dailyLimit})</p>
                   <p className="text-xs text-amber-700 dark:text-amber-300/90 mt-0.5">
-                    You have reached the maximum daily question views for your {userTier.toUpperCase()} plan. Upgrade to Premium ({settings.premiumDailyViewLimit}/day) or VIP (Unlimited) to unlock all past questions!
+                    You have reached the maximum daily question views for your {userTier.toUpperCase()} plan. Upgrade to Premium ({settings.premiumDailyViewLimit}/day) or VIP ({settings.vipDailyViewLimit === 'unlimited' ? 'Unlimited' : `${settings.vipDailyViewLimit}/day`}) to unlock all past questions!
                   </p>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   SchoolDomeMessage,
+  SchoolDomeQuestion,
 } from '../../types';
 import {
   Reply,
@@ -13,10 +14,13 @@ import {
   CheckCircle2,
   Eye,
   ShieldAlert,
+  Check,
+  X,
 } from 'lucide-react';
 import { UserBadgeItem } from '../ui/UserBadgeItem';
 import { useApp } from '../../context/AppContext';
 import { getUserProfileDoc } from '../../lib/firebase';
+import { isAnswerCorrect } from '../../lib/schoolDomeService';
 
 interface SchoolDomeMessageItemProps {
   message: SchoolDomeMessage;
@@ -24,6 +28,8 @@ interface SchoolDomeMessageItemProps {
   isManagerOrAdmin?: boolean;
   hasRepliedToQuestion?: boolean;
   isSpectator?: boolean;
+  activeQuestion?: SchoolDomeQuestion | null;
+  questions?: SchoolDomeQuestion[];
   onReply?: (message: SchoolDomeMessage) => void;
   onDelete?: (messageId: string) => void;
   onMuteUser?: (userId: string, userName: string) => void;
@@ -123,6 +129,8 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
   isManagerOrAdmin,
   hasRepliedToQuestion,
   isSpectator = false,
+  activeQuestion,
+  questions,
   onReply,
   onDelete,
   onMuteUser,
@@ -245,6 +253,78 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
   })();
 
   const reactions = message.reactions || {};
+
+  // Automated Marking Sign: Green check (✓) = Correct (Qualified/Survived), Red cross (✕) = Wrong (Eliminated)
+  const answerStatus = React.useMemo<'correct' | 'wrong' | null>(() => {
+    // 1. Direct evaluated status saved on message
+    if (message.evalStatus === 'correct' || message.isCorrect === true) {
+      return 'correct';
+    }
+    if (message.evalStatus === 'wrong' || message.isCorrect === false) {
+      return 'wrong';
+    }
+
+    // 2. Identify target question if message references or replies to a question
+    const qId =
+      message.questionId ||
+      (message.replyTo?.messageId &&
+        (message.replyTo.messageId.startsWith('msg_sdq_')
+          ? message.replyTo.messageId.replace('msg_sdq_', '')
+          : message.replyTo.messageId.startsWith('dome_msg_q_')
+          ? message.replyTo.messageId.replace('dome_msg_q_', '')
+          : null));
+
+    const isReplyToQuestion = Boolean(
+      message.replyTo &&
+        (message.replyTo.messageSnippet?.includes('?') ||
+          message.replyTo.userName?.toLowerCase().includes('arbiter') ||
+          message.replyTo.userName?.toLowerCase().includes('moderator') ||
+          message.replyTo.userName?.toLowerCase().includes('grobax') ||
+          message.replyTo.messageSnippet?.toLowerCase().includes('challenge') ||
+          qId)
+    );
+
+    let targetQuestion: SchoolDomeQuestion | null | undefined = null;
+    if (qId) {
+      targetQuestion = questions?.find((q) => q.id === qId) || (activeQuestion?.id === qId ? activeQuestion : null);
+    }
+    if (!targetQuestion && isReplyToQuestion) {
+      targetQuestion =
+        questions?.find(
+          (q) =>
+            message.replyTo?.messageSnippet &&
+            q.questionText &&
+            (message.replyTo.messageSnippet.includes(q.questionText.slice(0, 15)) ||
+              q.questionText.includes(message.replyTo.messageSnippet.slice(0, 15)))
+        ) || activeQuestion;
+    }
+    if (!targetQuestion && activeQuestion && activeQuestion.status === 'active') {
+      if (message.type === 'normal' && message.timestamp >= activeQuestion.startAt && message.timestamp <= activeQuestion.endAt + 5000) {
+        targetQuestion = activeQuestion;
+      }
+    }
+
+    if (targetQuestion) {
+      // Check if user is recorded as survivor or eliminated
+      if (targetQuestion.survivorUserIds?.includes(message.userId)) {
+        return 'correct';
+      }
+      if (targetQuestion.eliminatedUserIds?.includes(message.userId)) {
+        return 'wrong';
+      }
+      // Or evaluate content against correct answer
+      if (targetQuestion.correctAnswer && message.messageText) {
+        const isCorr = isAnswerCorrect(
+          message.messageText,
+          targetQuestion.correctAnswer,
+          targetQuestion.acceptedAlternativeAnswers
+        );
+        return isCorr ? 'correct' : 'wrong';
+      }
+    }
+
+    return null;
+  }, [message, questions, activeQuestion]);
 
   return (
     <div
@@ -467,8 +547,29 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
               {message.messageText}
             </div>
           ) : (
-            <div className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed break-words font-normal whitespace-pre-wrap mt-1">
-              {message.messageText}
+            <div className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed break-words font-normal whitespace-pre-wrap mt-1 flex items-center flex-wrap gap-2">
+              <span>{message.messageText}</span>
+              {/* Automated Marking Sign: Green check (✓) = Qualified/Survived, Red cross (✕) = Eliminated */}
+              {answerStatus === 'correct' && (
+                <span
+                  id={`dome-mark-correct-${message.id}`}
+                  title="Marked Correct (Qualified & Survived)"
+                  aria-label="Marked Correct"
+                  className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 shadow-xs shrink-0 select-none animate-in zoom-in-75 duration-200"
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                </span>
+              )}
+              {answerStatus === 'wrong' && (
+                <span
+                  id={`dome-mark-wrong-${message.id}`}
+                  title="Marked Wrong (Eliminated)"
+                  aria-label="Marked Wrong"
+                  className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40 shadow-xs shrink-0 select-none animate-in zoom-in-75 duration-200"
+                >
+                  <X className="w-3.5 h-3.5 stroke-[3]" />
+                </span>
+              )}
             </div>
           )}
 
