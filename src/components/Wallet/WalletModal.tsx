@@ -506,15 +506,26 @@ export const WalletModal: React.FC = () => {
   if (!isWalletModalOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col w-full h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 animate-in fade-in duration-200 overflow-hidden">
-      {/* Top Header (Full-Width Sticky Header with iOS Safe Area) */}
+    <div
+      id="profile-account-hub-modal"
+      className="fixed inset-0 z-50 flex flex-col w-full h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 animate-in fade-in duration-200 overflow-hidden"
+    >
+      {/* Dedicated iPhone/iOS Status Bar & Notch/Dynamic Island Safe-Area Guard */}
+      {isIOS && (
+        <div
+          id="profile-hub-ios-status-guard"
+          aria-hidden="true"
+          className="w-full shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md select-none pointer-events-none transition-colors"
+          style={{
+            height: 'max(env(safe-area-inset-top, 0px), 48px)',
+          }}
+        />
+      )}
+
+      {/* Top Header (Full-Width Sticky Header - positioned cleanly below iOS system safe area) */}
       <div
-        className="sticky top-0 z-30 flex items-center justify-between px-4 sm:px-8 pb-3.5 sm:pb-4 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shrink-0 shadow-xs"
-        style={{
-          paddingTop: isIOS
-            ? 'max(calc(0.875rem + env(safe-area-inset-top, 0px)), calc(0.875rem + 44px))'
-            : 'max(0.875rem, calc(0.875rem + env(safe-area-inset-top, 0px)))',
-        }}
+        id="profile-hub-header"
+        className="sticky top-0 z-30 flex items-center justify-between px-4 sm:px-8 py-3.5 sm:py-4 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shrink-0 shadow-xs"
       >
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-gradient-to-br from-blue-900/30 to-blue-800/30 text-blue-900 dark:text-blue-400 rounded-2xl border border-blue-500/30 shadow-xs">
@@ -1087,8 +1098,11 @@ export const WalletModal: React.FC = () => {
                       <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
                         <span>Scholar Achievements, Honours & Trophy Cabinet</span>
                         {currentUser.equippedBadge && (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-xs font-black shadow-xs flex items-center justify-center" title={`Equipped Badge: ${currentUser.equippedBadge.name}`}>
-                            <span>{currentUser.equippedBadge.icon}</span>
+                          <span
+                            className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-xs font-black shadow-xs flex items-center justify-center"
+                            title={`Equipped Badge: ${typeof currentUser.equippedBadge === 'object' ? (currentUser.equippedBadge as any).name || 'Honour' : currentUser.equippedBadge}`}
+                          >
+                            <span>{typeof currentUser.equippedBadge === 'object' ? (currentUser.equippedBadge as any).icon || '🏆' : '🏆'}</span>
                           </span>
                         )}
                       </h3>

@@ -586,7 +586,7 @@ export function subscribeSchoolDomeSeasons(
     const q = query(
       collection(db, 'school_dome_seasons'),
       orderBy('seasonNumber', 'desc'),
-      limit(100)
+      limit(20)
     );
 
     const unsubscribe = onSnapshot(
@@ -625,8 +625,8 @@ export function subscribeSchoolDomeMessages(
   try {
     const q = query(
       collection(db, 'school_dome_messages'),
-      orderBy('timestamp', 'asc'),
-      limit(200)
+      orderBy('timestamp', 'desc'),
+      limit(40)
     );
 
     const unsubscribe = onSnapshot(
@@ -635,15 +635,10 @@ export function subscribeSchoolDomeMessages(
         if (!snapshot.empty) {
           const msgs = snapshot.docs
             .map(d => ({ ...(d.data() as SchoolDomeMessage), id: d.id }))
-            .filter(m => !m.isDeleted);
+            .filter(m => !m.isDeleted)
+            .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
           callback(msgs);
         } else {
-          // Seed default messages if empty
-          const batch = writeBatch(db);
-          DEFAULT_INITIAL_MESSAGES.forEach((m) => {
-            batch.set(doc(db, 'school_dome_messages', m.id), m);
-          });
-          batch.commit().catch(() => {});
           callback(DEFAULT_INITIAL_MESSAGES);
         }
       },

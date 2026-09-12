@@ -265,7 +265,7 @@ export async function testConnection() {
     console.warn('Firestore connection initialized (offline or pending network connection).');
   }
 }
-testConnection();
+// Note: testConnection is preserved as a utility function, but not auto-run at module evaluation to conserve read quota.
 
 // Seed Firestore with Institutions, Departments, and Academic Levels if empty
 export const seedFirestoreInstitutionsIfEmpty = async () => {

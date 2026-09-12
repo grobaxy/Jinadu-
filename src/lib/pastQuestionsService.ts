@@ -733,7 +733,7 @@ export function subscribeToAdminPastQuestions(
 
 let _approvedQuestionsCache: PastQuestion[] | null = null;
 let _approvedQuestionsCacheTimestamp = 0;
-const CACHE_TTL_MS = 60 * 1000; // 1 minute fresh cache
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes fresh cache to conserve quota
 
 export function clearApprovedQuestionsCache(): void {
   _approvedQuestionsCache = null;
@@ -789,7 +789,8 @@ export async function fetchApprovedPastQuestions(filters?: {
     try {
       const q = query(
         collection(db, PAST_QUESTIONS_COLLECTION),
-        where('status', '==', 'approved')
+        where('status', '==', 'approved'),
+        limit(60)
       );
       const snap = await getDocs(q);
       baseList = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PastQuestion));
@@ -1504,6 +1505,9 @@ export async function seedSamplePastQuestionsIfEmpty(): Promise<void> {
   _hasSeededThisSession = true;
 
   try {
+    if (typeof window !== 'undefined' && localStorage.getItem('grobax_pq_checked')) {
+      return;
+    }
     const q = query(collection(db, PAST_QUESTIONS_COLLECTION), limit(1));
     const snap = await getDocs(q);
     if (snap.empty) {
@@ -1512,6 +1516,9 @@ export async function seedSamplePastQuestionsIfEmpty(): Promise<void> {
         await setDoc(doc(db, PAST_QUESTIONS_COLLECTION, id), { id, ...sample });
       }
       clearApprovedQuestionsCache();
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('grobax_pq_checked', 'true');
     }
   } catch (err) {
     console.warn('Could not seed initial past questions:', err);

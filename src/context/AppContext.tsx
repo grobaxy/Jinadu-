@@ -1102,24 +1102,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     dailyQaUsage: data.dailyQaUsage || prev.dailyQaUsage || undefined,
                   };
 
-                  if (isSuper && (data.membershipTier !== 'Grobaax Titan Annual VIP' || data.activePlanId !== 'plan_titan_naira' || !data.isVip || !data.isSubscribed)) {
-                    updateDoc(doc(db, 'users', user.uid), {
-                      role: 'admin',
-                      membershipTier: 'Grobaax Titan Annual VIP',
-                      subscriptionTier: 'Grobaax Titan Annual VIP',
-                      subscriptionPlan: 'Grobaax Titan Annual VIP',
-                      activePlanId: 'plan_titan_naira',
-                      planId: 'plan_titan_naira',
-                      tier: 'Grobaax Titan Annual VIP',
-                      plan: 'Grobaax Titan Annual VIP',
-                      isSubscribed: true,
-                      isPremium: true,
-                      isVip: true,
-                      verified: true,
-                      subscriptionExpiry: '2099-12-31T23:59:59.999Z',
-                    }).catch(() => {});
-                  }
-
                   return nextUser;
                 });
 
@@ -2190,8 +2172,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Firestore Real-Time Listener for Community Posts, Announcements & Chatroom (Optimized Quota Limits)
   useEffect(() => {
     try {
-      // Community Posts (Limit 100 for comprehensive live feed)
-      const postsQuery = query(collection(db, 'posts'), limit(100));
+      // Community Posts (Quota-optimized limit 30 for high performance live feed)
+      const postsQuery = query(collection(db, 'posts'), limit(30));
       const unsubPosts = onSnapshot(
         postsQuery,
         (snapshot) => {
@@ -2331,11 +2313,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       );
 
-      // Chatroom Live Messages (Order by timestamp desc, limit 250 for robust real-time feed without dropped posts)
+      // Chatroom Live Messages (Order by timestamp desc, quota-optimized limit 35 for live chat preview)
       const chatQuery = query(
         collection(db, 'chatroom_live_messages'),
         orderBy('timestamp', 'desc'),
-        limit(250)
+        limit(35)
       );
       const unsubChat = onSnapshot(
         chatQuery,
@@ -2420,11 +2402,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-Time Listeners for Grobaax Minimart & Wallet Engine (Quota-Optimized & Scoped)
   useEffect(() => {
-    seedInitialMinimartDataToFirestore();
-
     const currentUid = firebaseUser?.uid || currentUser.id;
     const currentRole = currentUser.role || 'student';
     const isUserAdmin = currentRole === 'admin' || currentRole === 'super_admin' || Boolean((currentUser as any)?.managerRole);
+
+    // Only run initial seeding check once per session and only for admins
+    if (isUserAdmin && typeof window !== 'undefined' && !sessionStorage.getItem('grobax_minimart_seed_checked')) {
+      sessionStorage.setItem('grobax_minimart_seed_checked', 'true');
+      seedInitialMinimartDataToFirestore();
+    }
 
     // 1. Minimart Config Listener
     const unsubConfig = minimartRepo.subscribeConfig((config) => {
@@ -2660,8 +2646,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('One-time sponsors getDocs notice:', err);
       });
 
-    // 8b. Real-time GP Store Badges catalog synchronization
-    const gpStoreQuery = query(collection(db, 'gpStore'), limit(50));
+    // 8b. Real-time GP Store Badges catalog synchronization (Quota-optimized limit 20)
+    const gpStoreQuery = query(collection(db, 'gpStore'), limit(20));
     const unsubGpStore = onSnapshot(
       gpStoreQuery,
       (snap) => {
@@ -2746,22 +2732,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     );
 
-    // Live Snapshot for Pending Past Questions (Admin moderation and notification count)
-    const pqQuery = query(
-      collection(db, 'past_questions'),
-      where('status', '==', 'pending'),
-      limit(50)
-    );
-    const unsubPastQuestions = onSnapshot(
-      pqQuery,
-      (snap) => {
-        const loaded = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setPendingPastQuestions(loaded);
-      },
-      (err) => {
-        console.warn('Pending past questions live snapshot notice:', err);
-      }
-    );
+    // Live Snapshot for Pending Past Questions (Admin moderation only - strictly skipped for regular students to conserve quota)
+    let unsubPastQuestions = () => {};
+    if (isUserAdmin) {
+      const pqQuery = query(
+        collection(db, 'past_questions'),
+        where('status', '==', 'pending'),
+        limit(20)
+      );
+      unsubPastQuestions = onSnapshot(
+        pqQuery,
+        (snap) => {
+          const loaded = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setPendingPastQuestions(loaded);
+        },
+        (err) => {
+          console.warn('Pending past questions live snapshot notice:', err);
+        }
+      );
+    }
 
     return () => {
       unsubConfig();
@@ -5065,26 +5054,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await runSubscriptionSensorCheck();
   }, [runSubscriptionSensorCheck]);
 
-  // Automatic Continuous Sensor Polling Loop
+  // Automatic Sensor Polling Loop (Only active when an in-flight payment transaction exists)
   useEffect(() => {
     if (!isAuthReady) return;
 
     let isMounted = true;
-    runSubscriptionSensorCheck();
 
-    // Poll every 3.5 seconds while pending payments exist
-    const interval = setInterval(() => {
-      if (isMounted) {
+    const hasPendingPayment = () => {
+      try {
+        if (typeof window === 'undefined') return false;
+        const search = window.location.search;
+        if (search.includes('trxref=') || search.includes('reference=')) return true;
+        if (localStorage.getItem('grobax_pending_paystack_sub')) return true;
+        const rawPending = localStorage.getItem('grobax_pending_references');
+        if (rawPending) {
+          const parsed = JSON.parse(rawPending);
+          if (Array.isArray(parsed) && parsed.length > 0) return true;
+        }
+      } catch {}
+      return false;
+    };
+
+    // Run initial check once on load/auth ready
+    if (hasPendingPayment()) {
+      runSubscriptionSensorCheck();
+    }
+
+    // Only set an interval if an active payment reference is actually in-flight
+    let interval: NodeJS.Timeout | null = null;
+    let pollCount = 0;
+    const maxPolls = 15; // Auto-terminate polling after ~50 seconds to save quota
+
+    if (hasPendingPayment()) {
+      interval = setInterval(() => {
+        if (!isMounted) return;
+        pollCount++;
+        if (pollCount > maxPolls || !hasPendingPayment()) {
+          if (interval) clearInterval(interval);
+          return;
+        }
         runSubscriptionSensorCheck();
-      }
-    }, 3500);
+      }, 3500);
+    }
 
     const handleFocus = () => {
-      if (isMounted) runSubscriptionSensorCheck();
+      if (isMounted && hasPendingPayment()) runSubscriptionSensorCheck();
     };
 
     const handleVisibility = () => {
-      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible' && hasPendingPayment()) {
         runSubscriptionSensorCheck();
       }
     };
@@ -5094,7 +5112,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };

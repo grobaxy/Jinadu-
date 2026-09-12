@@ -7,6 +7,7 @@ import {
   onSnapshot,
   query,
   orderBy,
+  limit,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
@@ -89,7 +90,7 @@ export function subscribeToCompetitionHints(
 ): () => void {
   try {
     const hintsRef = collection(db, HINTS_COLLECTION);
-    const q = query(hintsRef, orderBy('createdAt', 'desc'));
+    const q = query(hintsRef, orderBy('createdAt', 'desc'), limit(20));
 
     const unsubscribe = onSnapshot(
       q,

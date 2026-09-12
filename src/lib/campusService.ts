@@ -14,6 +14,7 @@ import {
   collection,
   query,
   where,
+  limit,
   getDocs,
   onSnapshot,
   addDoc,
@@ -335,6 +336,9 @@ export async function updateCampusWhatsAppNumber(
   }
 }
 
+// In-memory short TTL cache to prevent duplicate Firestore queries on rapid filtering
+const _campusStudentsCache = new Map<string, { timestamp: number; data: CampusStudentCard[] }>();
+
 /**
  * 4. Get Students for User's Institution & Department with Real-Time Requests Status
  */
@@ -348,14 +352,21 @@ export async function fetchCampusStudents(params: {
   const { institution, faculty, department, search, currentUserId } = params;
   if (!institution) return [];
 
+  const cacheKey = `${institution.trim().toLowerCase()}_${faculty || ''}_${department || ''}_${search || ''}_${currentUserId || ''}`;
+  const now = Date.now();
+  const cached = _campusStudentsCache.get(cacheKey);
+  if (cached && now - cached.timestamp < 60000) {
+    return [...cached.data];
+  }
+
   const targetInst = institution.trim().toLowerCase();
   const studentsMap = new Map<string, CampusStudentCard>();
 
-  // 1. Direct Firestore fetch from users collection
+  // 1. Direct Firestore fetch from users collection (Quota-optimized limit 50)
   const rawUsersMap = new Map<string, any>();
   try {
     const usersRef = collection(db, 'users');
-    const usersSnap = await getDocs(usersRef);
+    const usersSnap = await getDocs(query(usersRef, limit(50)));
 
     usersSnap.forEach((d) => {
       const data = d.data();
@@ -420,10 +431,10 @@ export async function fetchCampusStudents(params: {
     console.warn('Direct Firestore users read notice:', err);
   }
 
-  // 2. Also check campus_memberships collection to include members who joined
+  // 2. Also check campus_memberships collection to include members who joined (Quota-optimized limit 50)
   try {
     const memRef = collection(db, CAMPUS_MEMBERSHIPS_COLLECTION);
-    const memSnap = await getDocs(memRef);
+    const memSnap = await getDocs(query(memRef, limit(50)));
     memSnap.forEach((d) => {
       const data = d.data() as CampusMembership;
       const mInst = (data.institution || '').trim().toLowerCase();
@@ -485,14 +496,17 @@ export async function fetchCampusStudents(params: {
     console.warn('Direct Firestore campus_memberships read notice:', memErr);
   }
 
-  // 3. Direct Firestore match for connection requests with current user
+  // 3. Direct Firestore match for connection requests with current user (Scoped queries)
   if (currentUserId) {
     try {
-      const reqRef = collection(db, CAMPUS_REQUESTS_COLLECTION);
-      const reqSnap = await getDocs(reqRef);
-      reqSnap.forEach((docSnap) => {
+      const [sentSnap, receivedSnap] = await Promise.all([
+        getDocs(query(collection(db, CAMPUS_REQUESTS_COLLECTION), where('senderId', '==', currentUserId), limit(30))),
+        getDocs(query(collection(db, CAMPUS_REQUESTS_COLLECTION), where('recipientId', '==', currentUserId), limit(30))),
+      ]);
+
+      sentSnap.forEach((docSnap) => {
         const reqData = docSnap.data() as CampusConnectionRequest;
-        if (reqData.senderId === currentUserId && studentsMap.has(reqData.recipientId)) {
+        if (studentsMap.has(reqData.recipientId)) {
           const student = studentsMap.get(reqData.recipientId)!;
           if (reqData.status === 'PENDING') {
             student.connectionStatus = 'pending_sent';
@@ -502,7 +516,12 @@ export async function fetchCampusStudents(params: {
             student.connectionStatus = 'rejected';
           }
           student.requestId = docSnap.id;
-        } else if (reqData.recipientId === currentUserId && studentsMap.has(reqData.senderId)) {
+        }
+      });
+
+      receivedSnap.forEach((docSnap) => {
+        const reqData = docSnap.data() as CampusConnectionRequest;
+        if (studentsMap.has(reqData.senderId)) {
           const student = studentsMap.get(reqData.senderId)!;
           if (reqData.status === 'PENDING') {
             student.connectionStatus = 'pending_received';
@@ -519,7 +538,9 @@ export async function fetchCampusStudents(params: {
     }
   }
 
-  return Array.from(studentsMap.values());
+  const results = Array.from(studentsMap.values());
+  _campusStudentsCache.set(cacheKey, { timestamp: now, data: results });
+  return results;
 }
 
 /**
