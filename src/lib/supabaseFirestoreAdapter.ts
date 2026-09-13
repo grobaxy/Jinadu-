@@ -612,10 +612,82 @@ export const EmailAuthProvider = {
 export async function sendEmailVerification(_user: any): Promise<void> {}
 
 export const signInWithGoogle = async (): Promise<any> => {
+  if (typeof window === 'undefined') {
+    throw new Error('Google sign-in is only available in browser environments.');
+  }
+
+  const origin = window.location.origin;
+  const redirectUrl = `${origin}/auth/callback`;
+
+  // 1. Try Google Identity Services (GSI) One-Tap / ID token if client library is loaded
+  const googleClientId = '730355558575-mhk1q5bao6mndkqao7me5iu3rhvk8tk7.apps.googleusercontent.com';
+  const hasGsi = !!(window as any).google?.accounts?.id;
+
+  if (hasGsi) {
+    try {
+      const idTokenUser = await new Promise<any>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('GSI_FALLBACK'));
+        }, 3500);
+
+        try {
+          (window as any).google.accounts.id.initialize({
+            client_id: googleClientId,
+            auto_select: false,
+            callback: async (response: any) => {
+              clearTimeout(timeout);
+              if (response?.credential) {
+                try {
+                  const { data: sData, error: sErr } = await supabase.auth.signInWithIdToken({
+                    provider: 'google',
+                    token: response.credential,
+                  });
+                  if (!sErr && sData.user) {
+                    handleSupabaseUser(sData.user);
+                    resolve(cachedCurrentUser);
+                    return;
+                  }
+                } catch (e) {
+                  console.warn('IdToken sign-in fallback to OAuth:', e);
+                }
+              }
+              reject(new Error('GSI_FALLBACK'));
+            },
+          });
+
+          // Trigger prompt (non-blocking)
+          (window as any).google.accounts.id.prompt((notification: any) => {
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+              clearTimeout(timeout);
+              reject(new Error('GSI_FALLBACK'));
+            }
+          });
+        } catch (e) {
+          clearTimeout(timeout);
+          reject(e);
+        }
+      });
+
+      if (idTokenUser) {
+        return idTokenUser;
+      }
+    } catch {
+      // Gracefully continue to standard OAuth popup flow
+    }
+  }
+
+  // 2. Standard Supabase OAuth popup / tab flow
+  // Always use skipBrowserRedirect: true so the iframe is NEVER redirected to Google
+  // (Google strictly returns HTTP 403 Forbidden when rendered inside an iframe)
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+      redirectTo: redirectUrl,
+      skipBrowserRedirect: true,
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'select_account',
+      },
     },
   });
 
@@ -623,5 +695,194 @@ export const signInWithGoogle = async (): Promise<any> => {
     throw new Error(error.message);
   }
 
-  return cachedCurrentUser;
+  if (!data?.url) {
+    throw new Error('Supabase did not return an authorization URL. Please verify Google provider configuration in Supabase.');
+  }
+
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    const startTime = Date.now();
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    const cleanup = () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', handleStorage);
+      if (bc) {
+        try { bc.close(); } catch (_) {}
+      }
+      if (pollTimer) clearInterval(pollTimer);
+    };
+
+    const finishWithSession = async (hash?: string, search?: string) => {
+      if (resolved) return;
+      try {
+        if (hash) {
+          const params = new URLSearchParams(hash.replace(/^#/, ''));
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+          if (accessToken && refreshToken) {
+            const { data: sData, error: sErr } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (!sErr && sData.user) {
+              handleSupabaseUser(sData.user);
+              resolved = true;
+              cleanup();
+              resolve(cachedCurrentUser);
+              return;
+            }
+          }
+        }
+
+        if (search) {
+          const params = new URLSearchParams(search.replace(/^\?/, ''));
+          const code = params.get('code');
+          if (code) {
+            const { data: sData, error: sErr } = await supabase.auth.exchangeCodeForSession(code);
+            if (!sErr && sData.user) {
+              handleSupabaseUser(sData.user);
+              resolved = true;
+              cleanup();
+              resolve(cachedCurrentUser);
+              return;
+            }
+          }
+        }
+
+        // Check active Supabase session
+        const { data: curr } = await supabase.auth.getSession();
+        if (curr?.session?.user) {
+          handleSupabaseUser(curr.session.user);
+          resolved = true;
+          cleanup();
+          resolve(cachedCurrentUser);
+          return;
+        }
+
+        // Check localStorage direct token
+        try {
+          const localToken = localStorage.getItem('sb-rsnmxdyqrmkjsfxwypek-auth-token');
+          if (localToken) {
+            const parsed = JSON.parse(localToken);
+            if (parsed?.access_token && parsed?.refresh_token) {
+              const { data: sData, error: sErr } = await supabase.auth.setSession({
+                access_token: parsed.access_token,
+                refresh_token: parsed.refresh_token,
+              });
+              if (!sErr && sData.user) {
+                handleSupabaseUser(sData.user);
+                resolved = true;
+                cleanup();
+                resolve(cachedCurrentUser);
+                return;
+              }
+            }
+          }
+        } catch (_) {}
+      } catch (err) {
+        console.warn('[Supabase OAuth] Session extraction warning:', err);
+      }
+    };
+
+    // 1. PostMessage handler from popup
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'SUPABASE_AUTH_SUCCESS') {
+        finishWithSession(event.data.hash, event.data.search);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+
+    // 2. Storage event listener (fires across tabs / windows on the same origin)
+    const handleStorage = (event: StorageEvent) => {
+      if ((event.key === 'grobaax_oauth_event' || event.key === 'sb-rsnmxdyqrmkjsfxwypek-auth-token') && event.newValue) {
+        try {
+          const parsed = JSON.parse(event.newValue);
+          if (parsed?.type === 'SUPABASE_AUTH_SUCCESS') {
+            finishWithSession(parsed.hash, parsed.search);
+          } else if (parsed?.access_token) {
+            finishWithSession();
+          }
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // 3. BroadcastChannel listener
+    let bc: any = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bc = new BroadcastChannel('grobaax_oauth_channel');
+        bc.onmessage = (event: MessageEvent) => {
+          if (event.data?.type === 'SUPABASE_AUTH_SUCCESS') {
+            finishWithSession(event.data.hash, event.data.search);
+          }
+        };
+      }
+    } catch (_) {}
+
+    // Open OAuth popup window
+    const width = 520;
+    const height = 650;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    const popup = window.open(
+      data.url,
+      'grobaax_google_oauth',
+      `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`
+    );
+
+    if (!popup) {
+      // If popup was blocked by browser (e.g. mobile Safari/Chrome without gesture), fallback to new tab
+      const fallback = window.open(data.url, '_blank');
+      if (!fallback) {
+        cleanup();
+        const popupErr: any = new Error('Please allow popups for this site to complete Google sign in.');
+        popupErr.code = 'auth/popup-blocked';
+        reject(popupErr);
+        return;
+      }
+    }
+
+    // Monitor session state and popup closed state
+    // On mobile devices, popup.closed is often true immediately because the OS handles it as a separate tab/intent.
+    // Therefore, we only treat popup.closed as cancellation after a generous 40s grace period.
+    const pollTimer = setInterval(async () => {
+      if (resolved) return;
+
+      // Always check if session exists first
+      const { data: curr } = await supabase.auth.getSession();
+      if (curr?.session?.user) {
+        handleSupabaseUser(curr.session.user);
+        resolved = true;
+        cleanup();
+        resolve(cachedCurrentUser);
+        return;
+      }
+
+      // Check popup closed state only after grace period
+      const elapsed = Date.now() - startTime;
+      const gracePeriod = isMobile ? 60000 : 35000;
+
+      if (popup && popup.closed && elapsed > gracePeriod) {
+        if (!resolved) {
+          cleanup();
+          const cancelErr: any = new Error('Google sign-in was cancelled before completion.');
+          cancelErr.code = 'auth/popup-closed-by-user';
+          reject(cancelErr);
+        }
+      }
+    }, 1200);
+
+    // Safety timeout: 4 minutes
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup();
+        const timeoutErr: any = new Error('Google sign-in timed out. Please try again.');
+        timeoutErr.code = 'auth/timeout';
+        reject(timeoutErr);
+      }
+    }, 240000);
+  });
 };

@@ -191,10 +191,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         err?.code === 'auth/popup-closed-by-user' ||
         err?.message?.includes('cancelled-popup-request') ||
         err?.message?.includes('Pending promise was never set') ||
-        err?.message?.includes('popup-closed-by-user');
+        err?.message?.includes('popup-closed-by-user') ||
+        err?.message?.includes('closed or cancelled') ||
+        err?.message?.includes('cancelled') ||
+        err?.message?.includes('closed');
 
       if (isCancelledOrClosed) {
-        console.warn('Google sign-in popup was cancelled or closed.');
+        console.log('Google sign-in was cancelled or closed.');
       } else {
         console.error('Google Sign-In Error:', err);
         setErrorMessage(formatAuthError(err.code || err.message || ''));
