@@ -4,8 +4,6 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   updateProfile,
-} from 'firebase/auth';
-import {
   auth,
   signInWithGoogle,
   createUserProfileDoc,

@@ -1,5 +1,4 @@
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, doc, getDoc, setDoc, onSnapshot } from './firebase';
 
 export interface ContactSupportConfig {
   whatsappNumber: string;

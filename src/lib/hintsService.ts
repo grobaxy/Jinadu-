@@ -1,4 +1,6 @@
 import {
+  db,
+  auth,
   collection,
   doc,
   setDoc,
@@ -9,8 +11,7 @@ import {
   orderBy,
   limit,
   serverTimestamp,
-} from 'firebase/firestore';
-import { db, auth } from './firebase';
+} from './firebase';
 import { CompetitionHint, CompetitionHintType, HintSubscriptionTier, HintStatus } from '../types';
 import { grobaxNotificationService } from './notificationService';
 

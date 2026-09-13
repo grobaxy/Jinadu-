@@ -11,8 +11,7 @@ import {
   OFFICIAL_EVENT_HOST,
 } from '../../types';
 import { resolveEventChannel } from '../../utils/eventNavigation';
-import { db } from '../../lib/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db, collection, onSnapshot, query, orderBy } from '../../lib/firebase';
 import {
   Trophy,
   ShieldCheck,

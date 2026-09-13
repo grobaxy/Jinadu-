@@ -1,4 +1,5 @@
 import {
+  db,
   collection,
   doc,
   getDoc,
@@ -15,8 +16,7 @@ import {
   increment,
   runTransaction,
   onSnapshot,
-} from 'firebase/firestore';
-import { db } from './firebase';
+} from './firebase';
 import {
   PastQuestion,
   PastQuestionSettings,

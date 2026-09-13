@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { WithdrawalRecord, PRIMARY_SUPER_ADMIN_UID } from '../../types';
-import { db } from '../../lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, increment, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db, collection, onSnapshot, doc, updateDoc, increment, addDoc, serverTimestamp } from '../../lib/firebase';
 import { logManagerActivity } from '../../lib/adminPermissions';
 import { useApp } from '../../context/AppContext';
 import { Wallet, CheckCircle2, XCircle, AlertCircle, RefreshCw, DollarSign, Clock, ArrowUpRight, CheckCheck } from 'lucide-react';

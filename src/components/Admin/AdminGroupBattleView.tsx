@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GroupBattleSeason, GroupBattleTeam, PRIMARY_SUPER_ADMIN_UID } from '../../types';
-import { db } from '../../lib/firebase';
-import { collection, getDocs, doc, setDoc, query, limit } from 'firebase/firestore';
+import { db, collection, getDocs, doc, setDoc, query, limit } from '../../lib/firebase';
 import { Layers, Shield, Users, Plus, Edit3 } from 'lucide-react';
 
 export function AdminGroupBattleView() {

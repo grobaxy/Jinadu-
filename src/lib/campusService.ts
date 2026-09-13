@@ -5,8 +5,8 @@ import {
   UserProfile,
   InstitutionCategory,
 } from '../types';
-import { db } from './firebase';
 import {
+  db,
   doc,
   getDoc,
   setDoc,
@@ -19,7 +19,7 @@ import {
   onSnapshot,
   addDoc,
   serverTimestamp,
-} from 'firebase/firestore';
+} from './firebase';
 
 /**
  * ============================================================================

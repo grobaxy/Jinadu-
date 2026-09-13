@@ -1,21 +1,6 @@
-import { initializeApp } from 'firebase/app';
 import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut,
-  onAuthStateChanged,
-  User as FirebaseUser,
-} from 'firebase/auth';
-import {
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
-  getFirestore,
-  setLogLevel,
+  db,
+  auth,
   doc,
   getDoc,
   setDoc,
@@ -34,16 +19,95 @@ import {
   limit,
   orderBy,
   runTransaction,
-} from 'firebase/firestore';
-import {
-  getStorage,
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from 'firebase/storage';
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signOut,
+  onAuthStateChanged,
+  signInWithGoogle,
+  updateProfile,
+  deleteUser,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  sendEmailVerification,
+  supabase,
+  supabaseAdmin,
+  PRIMARY_SUPER_ADMIN_UID,
+  SUPER_ADMIN_EMAIL,
+  isSuperAdmin,
+  getDocFromSupabase,
+  setDocToSupabase,
+  updateDocInSupabase,
+  deleteDocFromSupabase,
+  queryDocsFromSupabase,
+  subscribeToSupabase,
+} from './supabaseFirestoreAdapter';
+
+export {
+  db,
+  auth,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  addDoc,
+  onSnapshot,
+  collection,
+  query,
+  where,
+  getDocs,
+  serverTimestamp,
+  writeBatch,
+  arrayUnion,
+  increment,
+  limit,
+  orderBy,
+  runTransaction,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signOut,
+  onAuthStateChanged,
+  signInWithGoogle,
+  updateProfile,
+  deleteUser,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  sendEmailVerification,
+  supabase,
+  supabaseAdmin,
+  PRIMARY_SUPER_ADMIN_UID,
+  SUPER_ADMIN_EMAIL,
+  isSuperAdmin,
+  getDocFromSupabase,
+  setDocToSupabase,
+  updateDocInSupabase,
+  deleteDocFromSupabase,
+  queryDocsFromSupabase,
+  subscribeToSupabase,
+};
+
+export type FirebaseUser = any;
+export const googleProvider = {
+  addScope: () => {},
+  setCustomParameters: () => {},
+};
+
+export const storage = {
+  app: {},
+};
+
+export const storageRef = (_storage: any, ...pathSegments: string[]) => ({ path: pathSegments.join('/') });
+export const uploadBytes = async (ref: any, _file: any, _metadata?: any) => ({ ref });
+export const getDownloadURL = async (_ref: any) => '';
+export const deleteObject = async (_ref: any) => {};
+
 import { compressAvatarImage } from '../utils/imageCompressor';
-import baseFirebaseConfig from '../../firebase-applet-config.json';
+
+const baseFirebaseConfig: any = {};
 
 // Safely resolve environment variables in both Vite client and Node/CJS environments without esbuild warnings
 const safeGetEnv = (key: string): string => {
@@ -103,7 +167,6 @@ import {
   ChatroomLiveAnswerSubmission,
   DailyChatAllowanceInfo,
   DailyChatResponseRecord,
-  PRIMARY_SUPER_ADMIN_UID,
   PlatformEventItem,
   PlatformEventCategory,
   PlatformEventStatus,
@@ -147,50 +210,6 @@ import {
   MOCK_REPRESENTATIVE_RECORDS,
 } from '../data/mockData';
 import { MOCK_CHATROOM_MESSAGES } from '../data/mockChatroomData';
-
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.addScope('email');
-googleProvider.addScope('profile');
-googleProvider.setCustomParameters({
-  prompt: 'select_account',
-});
-
-export const signInWithGoogle = async (): Promise<FirebaseUser> => {
-  const result = await signInWithPopup(auth, googleProvider);
-  return result.user;
-};
-
-const targetDatabaseId =
-  firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
-    ? firebaseConfig.firestoreDatabaseId
-    : undefined;
-
-let firestoreDb;
-try {
-  firestoreDb = initializeFirestore(
-    app,
-    {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
-      experimentalAutoDetectLongPolling: true,
-      ignoreUndefinedProperties: true,
-    },
-    targetDatabaseId
-  );
-  setLogLevel('silent');
-} catch (err) {
-  firestoreDb = targetDatabaseId ? getFirestore(app, targetDatabaseId) : getFirestore(app);
-  try {
-    setLogLevel('silent');
-  } catch (_) {}
-}
-
-export const db = firestoreDb;
-
-export const storage = getStorage(app);
 
 export enum OperationType {
   CREATE = 'create',

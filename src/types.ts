@@ -16,7 +16,9 @@ export type ManagerRole =
   | 'NOTIFICATION_MANAGER'
   | 'USER_MANAGER';
 
-export const PRIMARY_SUPER_ADMIN_UID = 'iH02BTcB4B0BV2YLA60WwFAi50CJ3';
+export const PRIMARY_SUPER_ADMIN_UID = '4403bd2b-e385-479b-af16-058582fa4ee3';
+export const LEGACY_SUPER_ADMIN_UID = 'iH02BTcB4B0BV2YLA60WwFAi50CJ3';
+export const SUPER_ADMIN_EMAIL = 'grobaxycompany@gmail.com';
 
 export interface ManagerAssignment {
   id: string;

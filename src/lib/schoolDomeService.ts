@@ -1,4 +1,5 @@
 import {
+  db,
   collection,
   doc,
   getDoc,
@@ -14,8 +15,7 @@ import {
   increment,
   writeBatch,
   deleteDoc,
-} from 'firebase/firestore';
-import { db } from './firebase';
+} from './firebase';
 import {
   SchoolDomeSeason,
   SchoolDomeSeasonStatus,

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ManagerAssignment, ManagerRole, ManagerActivityLog, UserProfile, PRIMARY_SUPER_ADMIN_UID } from '../../types';
-import { db } from '../../lib/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, query, orderBy, limit } from 'firebase/firestore';
+import { db, collection, getDocs, doc, setDoc, deleteDoc, updateDoc, query, orderBy, limit } from '../../lib/firebase';
 import {
   ALL_MANAGER_ROLES,
   ROLE_LABELS,

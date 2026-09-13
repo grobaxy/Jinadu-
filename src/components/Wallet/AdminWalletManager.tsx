@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { BadgeStoreItem, SponsorshipCampaign, UserProfile } from '../../types';
 import { normalizeDestinationUrl } from '../../lib/urlUtils';
-import { db, adjustUserGpInFirestore } from '../../lib/firebase';
-import { collection, getDocs, query, limit } from 'firebase/firestore';
+import { db, adjustUserGpInFirestore, collection, getDocs, query, limit } from '../../lib/firebase';
 import { AdminTransactionsView } from '../Admin/AdminTransactionsView';
 import {
   Wallet,

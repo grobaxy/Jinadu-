@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { QuestionItem, InstitutionCategory, PRIMARY_SUPER_ADMIN_UID } from '../../types';
-import { db } from '../../lib/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc, query, limit } from 'firebase/firestore';
+import { db, collection, getDocs, doc, setDoc, deleteDoc, query, limit } from '../../lib/firebase';
 import { logManagerActivity } from '../../lib/adminPermissions';
 import { useApp } from '../../context/AppContext';
 import { HelpCircle, Plus, Search, Edit3, Trash2 } from 'lucide-react';

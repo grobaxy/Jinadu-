@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../../lib/firebase';
-import { collection, getDocs, query, limit } from 'firebase/firestore';
+import { db, collection, getDocs, query, limit } from '../../lib/firebase';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';

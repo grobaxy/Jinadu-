@@ -1,6 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { onAuthStateChanged, signOut as firebaseSignOut, User as FirebaseUser } from 'firebase/auth';
-import { collection, doc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, onSnapshot, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
 import {
   grobaxDataService,
   institutionRepo,
@@ -9,6 +7,22 @@ import {
   financeRepo,
 } from '../lib/dataAccess';
 import {
+  onAuthStateChanged,
+  signOut as firebaseSignOut,
+  FirebaseUser,
+  collection,
+  doc,
+  setDoc,
+  updateDoc,
+  addDoc,
+  deleteDoc,
+  serverTimestamp,
+  onSnapshot,
+  getDocs,
+  query,
+  orderBy,
+  limit,
+  where,
   auth,
   db,
   getUserProfileDoc,
@@ -220,7 +234,7 @@ interface AppContextType {
   toggleLikePost: (id: string) => void;
   claimReward: (amount: number, unit: 'GRBX' | 'GP', reason: string) => void;
   badgeStore: BadgeStoreItem[];
-  buyBadge: (badge: BadgeStoreItem) => boolean;
+  buyBadge: (badge: BadgeStoreItem) => Promise<boolean> | boolean;
   withdrawals: WithdrawalRecord[];
   requestGpWithdrawal: (gpAmount: number, bankName: string, accountNumber: string) => boolean;
   updatePrivacy: (newPrivacy: Partial<PrivacySettings>) => void;
@@ -1439,7 +1453,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...s,
         rounds: s.rounds.map(r => {
           if (r.id !== roundId) return r;
-          return { ...r, questions: [...r.questions, newQ] };
+          return { ...r, questions: [...r.questions, newQ as any] };
         }),
       };
     }));
@@ -1878,10 +1892,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentRole = currentUser.role || 'student';
       const isUserRep = Boolean(currentUser.isRepresentative);
       const isUserAdmin =
-        currentRole === 'admin' ||
-        currentRole === 'super_admin' ||
-        currentRole === 'SUPER_ADMIN' ||
-        currentRole === 'ADMIN' ||
+        (currentRole as string) === 'admin' ||
+        (currentRole as string) === 'super_admin' ||
+        (currentRole as string) === 'SUPER_ADMIN' ||
+        (currentRole as string) === 'ADMIN' ||
         Boolean((currentUser as any)?.managerRole) ||
         currentUid === PRIMARY_SUPER_ADMIN_UID ||
         firebaseUser?.email === 'grobaxycompany@gmail.com' ||
@@ -3232,7 +3246,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
 
       if (currentUser?.id === studentData.studentId || currentUser?.name === studentData.studentName) {
-        setCurrentUser((prev) => ({ ...prev, isRepresentative: true, role: prev.role === 'student' ? 'representative' : prev.role }));
+        setCurrentUser((prev) => ({ ...prev, isRepresentative: true, role: (prev.role === 'student' ? 'representative' : prev.role) as any }));
       }
     } catch (err) {
       console.error('Failed to assign central representative in AppContext:', err);
@@ -3331,7 +3345,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         name: inst.name,
         shortName: inst.shortName,
         logo: inst.logo,
-        type: inst.type,
+        type: inst.type as any,
         played: st.played,
         won: st.won,
         lost: st.lost,
@@ -3902,7 +3916,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             content,
             tags,
             image: image !== undefined ? image : p.image,
-            attachments: image ? { type: 'image', data: image } : p.attachments,
+            attachments: image ? ({ type: 'image', data: image } as any) : p.attachments,
           };
         }
         return p;
@@ -4570,7 +4584,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       withdrawals: withdrawals as any,
       transactions: transactions as any,
       studentVerifications: representativeRecords as any,
-      reportedPosts: posts.filter(p => p.status === 'Reported'),
+      reportedPosts: posts.filter(p => (p.status as string) === 'Reported'),
       liveFixtures: fixtures as any,
       libraryMaterials: pendingPastQuestions as any,
       hints: competitionHints,
@@ -5004,7 +5018,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 featured: true,
                 benefits: ['Unlimited Quiz Access', 'Priority Support', 'Full Verification'],
                 features: ['Active Scholar Pro', 'Ad-Free Experience'],
-              };
+              } as any;
             }
 
             // Immediately activate the subscription in state and Firestore

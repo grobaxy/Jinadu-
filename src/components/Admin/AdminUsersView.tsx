@@ -1,7 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, UserRole, PRIMARY_SUPER_ADMIN_UID } from '../../types';
-import { db, approveStudentVerificationRequest, rejectStudentVerificationRequest, adjustUserGpInFirestore, deleteUserFromFirestore, isEmailAvailable } from '../../lib/firebase';
-import { collection, getDocs, doc, setDoc, updateDoc, increment, addDoc, serverTimestamp, query, limit } from 'firebase/firestore';
+import {
+  db,
+  approveStudentVerificationRequest,
+  rejectStudentVerificationRequest,
+  adjustUserGpInFirestore,
+  deleteUserFromFirestore,
+  isEmailAvailable,
+  collection,
+  getDocs,
+  doc,
+  setDoc,
+  updateDoc,
+  increment,
+  addDoc,
+  serverTimestamp,
+  query,
+  limit,
+} from '../../lib/firebase';
 import { logManagerActivity, isPrimarySuperAdmin } from '../../lib/adminPermissions';
 import { useApp } from '../../context/AppContext';
 import {

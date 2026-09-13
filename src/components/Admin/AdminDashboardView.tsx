@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../../lib/firebase';
-import { collection, getDocs, query, where, limit } from 'firebase/firestore';
+import { db, collection, getDocs, query, where, limit } from '../../lib/firebase';
 import { PRIMARY_SUPER_ADMIN_UID } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { NotificationBadge } from '../ui/NotificationBadge';

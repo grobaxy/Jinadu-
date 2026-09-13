@@ -1,6 +1,5 @@
 import { ManagerRole, AdminTabType, PRIMARY_SUPER_ADMIN_UID, ManagerActivityLog } from '../types';
-import { db, cleanFirestoreData } from './firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db, cleanFirestoreData, collection, addDoc, serverTimestamp } from './firebase';
 
 export const ALL_MANAGER_ROLES: ManagerRole[] = [
   'SUPER_ADMIN',
@@ -55,14 +54,18 @@ export const ROLE_DESCRIPTIONS: Record<ManagerRole, string> = {
 
 export function isPrimarySuperAdmin(uid?: string | null, email?: string | null): boolean {
   if (!uid && !email) return false;
+  const cleanUid = (uid || '').trim();
+  const cleanEmail = (email || '').toLowerCase().trim();
+
   return (
-    uid === PRIMARY_SUPER_ADMIN_UID ||
-    uid === 'iH02BTcB4B0BV2YLA60WwFAi50CJ3' ||
-    uid === 'aGZBTsB4BBNvlY1A69hwfAb5DCJ3' ||
-    email === 'grobaxycompany@gmail.com' ||
-    uid === 'grobaxycompany@gmail.com' ||
-    email === 'basmock@gmail.com' ||
-    uid === 'basmock@gmail.com'
+    cleanUid === '4403bd2b-e385-479b-af16-058582fa4ee3' ||
+    cleanUid === PRIMARY_SUPER_ADMIN_UID ||
+    cleanEmail === 'grobaxycompany@gmail.com' ||
+    cleanUid.toLowerCase() === 'grobaxycompany@gmail.com' ||
+    cleanUid === 'iH02BTcB4B0BV2YLA60WwFAi50CJ3' ||
+    cleanUid === 'aGZBTsB4BBNvlY1A69hwfAb5DCJ3' ||
+    cleanEmail === 'basmock@gmail.com' ||
+    cleanUid.toLowerCase() === 'basmock@gmail.com'
   );
 }
 

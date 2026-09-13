@@ -16,11 +16,13 @@ import {
   runTransaction,
   WhereFilterOp,
   Unsubscribe,
-  Transaction,
-  DocumentData,
   QueryConstraint,
-} from 'firebase/firestore';
-import { db, auth } from './firebase';
+  db,
+  auth,
+} from './supabaseFirestoreAdapter';
+
+export type Transaction = any;
+export type DocumentData = any;
 
 /**
  * ============================================================================

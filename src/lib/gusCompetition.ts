@@ -1,5 +1,5 @@
-import { db } from './firebase';
 import {
+  db,
   doc,
   setDoc,
   getDoc,
@@ -14,7 +14,7 @@ import {
   onSnapshot,
   serverTimestamp,
   writeBatch,
-} from 'firebase/firestore';
+} from './firebase';
 import {
   GusCompetition,
   GusSeason,

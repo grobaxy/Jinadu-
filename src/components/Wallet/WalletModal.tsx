@@ -15,16 +15,18 @@ import {
   getDepartmentsByFaculty,
   getAllDepartmentsByCategory,
 } from '../../data/academicStructureData';
-import { db, auth } from '../../lib/firebase';
-import { doc, deleteDoc } from 'firebase/firestore';
 import {
+  db,
+  auth,
+  doc,
+  deleteDoc,
   deleteUser,
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
   sendPasswordResetEmail,
   sendEmailVerification,
-} from 'firebase/auth';
+} from '../../lib/firebase';
 import {
   Wallet,
   Coins,
@@ -852,13 +854,13 @@ export const WalletModal: React.FC = () => {
                           </h3>
                           <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 mt-1.5 flex-wrap font-medium">
                             <span className="px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-slate-200 dark:border-slate-700">
-                              {matchedInstitution?.category || currentUser.academicProfile?.category || 'Higher Education Institution'}
+                              {matchedInstitution?.category || (currentUser.academicProfile as any)?.category || currentUser.academicProfile?.institutionCategory || 'Higher Education Institution'}
                             </span>
                             {matchedInstitution?.state && (
                               <span className="font-semibold">• {matchedInstitution.state} State</span>
                             )}
-                            {matchedInstitution?.motto && (
-                              <span className="italic text-slate-500 dark:text-slate-400">"{matchedInstitution.motto}"</span>
+                            {(matchedInstitution as any)?.motto && (
+                              <span className="italic text-slate-500 dark:text-slate-400">"{(matchedInstitution as any).motto}"</span>
                             )}
                           </div>
                         </div>

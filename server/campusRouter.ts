@@ -1,8 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { CampusMembership, CampusConnectionRequest, CampusStudentCard } from '../src/types';
-import { initializeApp, getApps } from 'firebase/app';
 import {
-  getFirestore,
+  db,
   doc,
   getDoc,
   setDoc,
@@ -13,12 +12,7 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
-} from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
-
-// Initialize Firebase client instance on server
-const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+} from '../src/lib/supabaseFirestoreAdapter';
 
 export const campusRouter = Router();
 
