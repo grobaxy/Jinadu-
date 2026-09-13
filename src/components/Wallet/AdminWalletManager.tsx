@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { BadgeStoreItem, SponsorshipCampaign, UserProfile } from '../../types';
 import { normalizeDestinationUrl } from '../../lib/urlUtils';
-import { db, adjustUserGpInFirestore, collection, getDocs, query, limit } from '../../lib/firebase';
+import { db, adjustUserGpInFirestore, collection, getDocs, query, limit, isMockSponsorshipCampaign } from '../../lib/firebase';
 import { AdminTransactionsView } from '../Admin/AdminTransactionsView';
 import {
   Wallet,
@@ -564,50 +564,59 @@ export const AdminWalletManager: React.FC = () => {
       )}
 
       {/* SUBTAB 4: SPONSORSHIPS & ADS */}
-      {activeAdminSubTab === 'sponsorships' && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800">
-            <h3 className="font-bold text-xs text-slate-200">
-              Active Sponsorship Campaigns ({sponsorshipCampaigns.length})
-            </h3>
-            <button
-              onClick={() => setIsSponsorModalOpen(true)}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Sponsor Campaign</span>
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {sponsorshipCampaigns.map(sp => (
-              <div
-                key={sp.id}
-                className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-3"
+      {activeAdminSubTab === 'sponsorships' && (() => {
+        const realSponsorships = (sponsorshipCampaigns || []).filter(sp => !isMockSponsorshipCampaign(sp));
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <h3 className="font-bold text-xs text-slate-200">
+                Active Sponsorship Campaigns ({realSponsorships.length})
+              </h3>
+              <button
+                onClick={() => setIsSponsorModalOpen(true)}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
               >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{sp.logo}</span>
-                    <span className="font-bold text-xs text-slate-100">{sp.title}</span>
-                    <span className="px-2 py-0.5 text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded">
-                      {sp.placement}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">{sp.text}</p>
-                </div>
+                <Plus className="w-4 h-4" />
+                <span>New Sponsor Campaign</span>
+              </button>
+            </div>
 
-                <button
-                  onClick={() => deleteSponsorshipCampaign(sp.id)}
-                  className="p-1.5 text-slate-400 hover:text-rose-400 transition-colors"
-                  title="Delete Campaign"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+            {realSponsorships.length === 0 ? (
+              <div className="p-8 text-center bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-slate-400">
+                No active sponsorship campaigns created yet. Click "New Sponsor Campaign" to launch a campaign.
               </div>
-            ))}
+            ) : (
+              <div className="space-y-3">
+                {realSponsorships.map(sp => (
+                  <div
+                    key={sp.id}
+                    className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-3"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{sp.logo}</span>
+                        <span className="font-bold text-xs text-slate-100">{sp.title}</span>
+                        <span className="px-2 py-0.5 text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded">
+                          {sp.placement}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">{sp.text}</p>
+                    </div>
+
+                    <button
+                      onClick={() => deleteSponsorshipCampaign(sp.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-400 transition-colors"
+                      title="Delete Campaign"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* SUBTAB 5: MANUAL BALANCE ADJUSTMENT & USER ACCOUNT WALLETS */}
       {activeAdminSubTab === 'adjust' && (

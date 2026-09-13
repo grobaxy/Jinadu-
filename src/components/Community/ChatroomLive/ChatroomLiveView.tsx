@@ -20,6 +20,7 @@ import {
   getUserDailyChatUsage,
   recordUserDailyChatResponse,
   getDailyChatLimitForTier,
+  isMockSponsorshipCampaign,
 } from '../../../lib/firebase';
 import {
   MessageSquare,
@@ -196,6 +197,7 @@ export const ChatroomLiveView: React.FC = () => {
 
   const activeFeedAds = useMemo(() => {
     return (sponsorshipCampaigns || [])
+      .filter(c => !isMockSponsorshipCampaign(c))
       .filter(c => {
         const isAct = c.status === 'Active' || (c.status as string)?.toLowerCase() === 'active';
         const pl = (c.placement || '').toLowerCase().replace(/[\s_-]/g, '');

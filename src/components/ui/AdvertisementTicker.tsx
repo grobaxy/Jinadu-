@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Sparkles, ArrowUpRight, X } from 'lucide-react';
 import { normalizeDestinationUrl, safeOpenDestinationUrl } from '../../lib/urlUtils';
+import { isMockSponsorshipCampaign } from '../../lib/firebase';
 
 export { normalizeDestinationUrl, safeOpenDestinationUrl };
 
@@ -44,43 +45,15 @@ export const AdvertisementTicker: React.FC = () => {
   // Hide sponsored ticker on Community tab and Daily Ultimate Search (daily_qa / gus tab)
   if (!isVisible || activeTab === 'community' || activeTab === 'daily_qa' || activeTab === 'gus') return null;
 
-  // Active ticker campaigns
-  const activeTickerItems = sponsorshipCampaigns.filter(
-    c => c.status === 'Active' && c.placement === 'Ticker'
+  // Active ticker campaigns created by admin
+  const activeTickerItems = (sponsorshipCampaigns || []).filter(
+    c => c.status === 'Active' && c.placement === 'Ticker' && !isMockSponsorshipCampaign(c)
   );
 
-  const tickerList = activeTickerItems.length > 0 ? activeTickerItems : [
-    {
-      id: 'default_0',
-      title: 'Grobaax Academic Network',
-      sponsorName: 'Grobaax',
-      logo: '🎓',
-      text: 'Grobaax - Represent your school title, conquer academic arenas, and connect with scholars nationwide.',
-      status: 'Active',
-      priority: 'Top',
-      destinationUrl: '#home',
-    },
-    {
-      id: 'default_1',
-      title: 'GUS Season 1 Registration Open',
-      sponsorName: 'Grobaax Official',
-      logo: '🏆',
-      text: 'MTN presents Grobaax GUS Season 1 • GUS registration is open • Institutional League begins Friday',
-      status: 'Active',
-      priority: 'Top',
-      destinationUrl: '#league',
-    },
-    {
-      id: 'default_2',
-      title: 'Airtel STEM Rewards',
-      sponsorName: 'Airtel STEM',
-      logo: '⚡',
-      text: 'Earn double GP rewards in all Dome speed duels this weekend!',
-      status: 'Active',
-      priority: 'High',
-      destinationUrl: '#arena',
-    },
-  ];
+  // If no ticker campaigns uploaded by admin yet, do not display ticker
+  if (activeTickerItems.length === 0) return null;
+
+  const tickerList = activeTickerItems;
 
   // Repeat items to ensure smooth continuous 50% translation loop
   const repeatedItems = [

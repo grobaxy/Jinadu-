@@ -52,6 +52,8 @@ import {
   deleteAnnouncementFromFirestore,
   saveSponsorshipCampaignToFirestore,
   deleteSponsorshipCampaignFromFirestore,
+  isMockSponsorshipCampaign,
+  cleanupMockSponsorshipCampaignsFromFirestore,
   assignRepresentativeInFirestore,
   removeRepresentativeInFirestore,
 } from '../lib/firebase';
@@ -1221,11 +1223,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.filter((c: any) => !isMockSponsorshipCampaign(c));
         }
       }
     } catch {}
-    return MOCK_SPONSORSHIP_CAMPAIGNS;
+    return [];
   });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [gpConversionConfig, setGpConversionConfig] = useState<GpConversionConfig>(() => {
@@ -2435,8 +2437,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cleanupMockMinimartProductsFromFirestore();
     }
 
-    // Clean up any mock past questions in background
+    // Clean up any mock past questions and sponsorships in background
     cleanupMockPastQuestionsFromFirestore().catch(() => {});
+    cleanupMockSponsorshipCampaignsFromFirestore().catch(() => {});
 
     // 1. Minimart Config Listener
     const unsubConfig = minimartRepo.subscribeConfig((config) => {
@@ -2650,11 +2653,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     // 8. One-time Sponsor Ticker Fetch (getDocs exactly once on component load, preventing Firebase read leaks)
-    const spQuery = query(collection(db, 'sponsors'), limit(10));
+    const spQuery = query(collection(db, 'sponsors'), limit(20));
     getDocs(spQuery)
       .then((snap) => {
-        if (!snap.empty) {
-          const loadedSponsors: SponsorshipCampaign[] = snap.docs.map((docSnap) => {
+        const loadedSponsors: SponsorshipCampaign[] = snap.docs
+          .map((docSnap) => {
             const data = docSnap.data();
             return {
               id: docSnap.id,
@@ -2678,12 +2681,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt,
               createdBy: data.createdBy || 'Admin',
             } as SponsorshipCampaign;
-          });
-          setSponsorshipCampaigns(loadedSponsors);
-          try {
-            localStorage.setItem('grobax_saved_sponsorships', JSON.stringify(loadedSponsors));
-          } catch {}
-        }
+          })
+          .filter((c) => !isMockSponsorshipCampaign(c));
+
+        setSponsorshipCampaigns(loadedSponsors);
+        try {
+          localStorage.setItem('grobax_saved_sponsorships', JSON.stringify(loadedSponsors));
+        } catch {}
       })
       .catch((err) => {
         console.warn('One-time sponsors getDocs notice:', err);

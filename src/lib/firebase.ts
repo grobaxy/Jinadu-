@@ -8644,6 +8644,70 @@ export const deleteSponsorshipCampaignFromFirestore = async (
   }
 };
 
+export const isMockSponsorshipCampaign = (c: any): boolean => {
+  if (!c) return false;
+  const id = String(c.id || '');
+  if (['sp_1', 'sp_2', 'sp_3', 'sp_feed_1', 'sp_feed_2'].includes(id)) return true;
+  if (id.startsWith('mock_sp_')) return true;
+  const title = String(c.title || '');
+  if (
+    title.includes('MTN Scholar Data & Device Grant') ||
+    title.includes('Airtel STEM Leadership Challenge') ||
+    title.includes('FirstBank Academic Excellence Endowment') ||
+    title.includes('MTN Tech Scholars') ||
+    title.includes('Google Cloud AI Research Credits')
+  ) {
+    return true;
+  }
+  const sponsor = String(c.sponsorName || '');
+  if (
+    (sponsor.includes('MTN') && title.includes('Scholars')) ||
+    (sponsor.includes('Airtel') && title.includes('STEM')) ||
+    (sponsor.includes('FirstBank') && title.includes('Endowment')) ||
+    (sponsor.includes('Google') && title.includes('Research Credits'))
+  ) {
+    return true;
+  }
+  return false;
+};
+
+export const cleanupMockSponsorshipCampaignsFromFirestore = async (): Promise<void> => {
+  try {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('grobax_saved_sponsorships');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const clean = parsed.filter((c: any) => !isMockSponsorshipCampaign(c));
+            localStorage.setItem('grobax_saved_sponsorships', JSON.stringify(clean));
+          }
+        }
+      } catch {}
+    }
+
+    const mockIds = ['sp_1', 'sp_2', 'sp_3', 'sp_feed_1', 'sp_feed_2'];
+    for (const id of mockIds) {
+      try {
+        await deleteDoc(doc(db, 'sponsors', id));
+      } catch {}
+    }
+
+    try {
+      const snap = await getDocs(collection(db, 'sponsors'));
+      for (const d of snap.docs) {
+        if (isMockSponsorshipCampaign({ id: d.id, ...d.data() })) {
+          try {
+            await deleteDoc(d.ref);
+          } catch {}
+        }
+      }
+    } catch {}
+  } catch (err) {
+    console.warn('Notice during mock sponsorships cleanup:', err);
+  }
+};
+
 export const deleteUserFromFirestore = async (
   targetUserId: string,
   adminUid?: string,

@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { SponsorshipCampaign } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { normalizeDestinationUrl, safeOpenDestinationUrl } from '../../lib/urlUtils';
+import { isMockSponsorshipCampaign } from '../../lib/firebase';
 import {
   Tag,
   Plus,
@@ -200,8 +201,11 @@ export function AdminSponsorshipView() {
     }
   };
 
+  // Real campaigns excluding any legacy mock data
+  const realCampaigns = (sponsorshipCampaigns || []).filter(c => !isMockSponsorshipCampaign(c));
+
   // Filtered campaigns
-  const filteredCampaigns = (sponsorshipCampaigns || []).filter((camp) => {
+  const filteredCampaigns = realCampaigns.filter((camp) => {
     // Tab filter
     if (activeTab === 'ticker' && camp.placement !== 'Ticker') return false;
     if (activeTab === 'feed' && camp.placement !== 'CommunityFeed') return false;
@@ -221,11 +225,11 @@ export function AdminSponsorshipView() {
     return true;
   });
 
-  const totalCampaigns = sponsorshipCampaigns?.length || 0;
-  const activeTickerCount = sponsorshipCampaigns?.filter(c => c.status === 'Active' && c.placement === 'Ticker').length || 0;
-  const activeFeedCount = sponsorshipCampaigns?.filter(c => c.status === 'Active' && c.placement === 'CommunityFeed').length || 0;
-  const totalImpressions = sponsorshipCampaigns?.reduce((acc, c) => acc + (c.impressions || 0), 0) || 0;
-  const totalClicks = sponsorshipCampaigns?.reduce((acc, c) => acc + (c.clicks || 0), 0) || 0;
+  const totalCampaigns = realCampaigns.length;
+  const activeTickerCount = realCampaigns.filter(c => c.status === 'Active' && c.placement === 'Ticker').length;
+  const activeFeedCount = realCampaigns.filter(c => c.status === 'Active' && c.placement === 'CommunityFeed').length;
+  const totalImpressions = realCampaigns.reduce((acc, c) => acc + (c.impressions || 0), 0);
+  const totalClicks = realCampaigns.reduce((acc, c) => acc + (c.clicks || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -412,33 +416,39 @@ export function AdminSponsorshipView() {
                 </div>
 
                 <div className="relative overflow-hidden flex-1 select-none">
-                  <div className="flex whitespace-nowrap animate-marquee-reverse gap-12 font-medium text-xs text-slate-200">
-                    {sponsorshipCampaigns
-                      ?.filter(c => c.status === 'Active' && c.placement === 'Ticker')
-                      .map((camp) => (
-                        <div key={camp.id} className="flex items-center gap-2 shrink-0">
-                          <span>{camp.logo || '📢'}</span>
-                          <span className="font-bold text-amber-300">{camp.sponsorName}:</span>
-                          <span>{camp.text}</span>
-                          {camp.destinationUrl && (
-                            <a
-                              href={normalizeDestinationUrl(camp.destinationUrl)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                safeOpenDestinationUrl(camp.destinationUrl);
-                              }}
-                              className="text-[10px] text-blue-400 hover:text-blue-300 underline font-bold cursor-pointer transition-colors"
-                              title={`Visit: ${normalizeDestinationUrl(camp.destinationUrl)}`}
-                            >
-                              [{camp.ctaText || 'Learn More'}]
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                  </div>
+                  {realCampaigns.filter(c => c.status === 'Active' && c.placement === 'Ticker').length === 0 ? (
+                    <span className="text-xs text-slate-400 italic">
+                      No active ticker campaigns live. Create a ticker campaign above to preview here.
+                    </span>
+                  ) : (
+                    <div className="flex whitespace-nowrap animate-marquee-reverse gap-12 font-medium text-xs text-slate-200">
+                      {realCampaigns
+                        .filter(c => c.status === 'Active' && c.placement === 'Ticker')
+                        .map((camp) => (
+                          <div key={camp.id} className="flex items-center gap-2 shrink-0">
+                            <span>{camp.logo || '📢'}</span>
+                            <span className="font-bold text-amber-300">{camp.sponsorName}:</span>
+                            <span>{camp.text}</span>
+                            {camp.destinationUrl && (
+                              <a
+                                href={normalizeDestinationUrl(camp.destinationUrl)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  safeOpenDestinationUrl(camp.destinationUrl);
+                                }}
+                                className="text-[10px] text-blue-400 hover:text-blue-300 underline font-bold cursor-pointer transition-colors"
+                                title={`Visit: ${normalizeDestinationUrl(camp.destinationUrl)}`}
+                              >
+                                [{camp.ctaText || 'Learn More'}]
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -455,9 +465,22 @@ export function AdminSponsorshipView() {
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              {sponsorshipCampaigns
-                ?.filter(c => c.status === 'Active' && c.placement === 'CommunityFeed')
-                .map((camp) => (
+              {realCampaigns.filter(c => c.status === 'Active' && c.placement === 'CommunityFeed').length === 0 ? (
+                <div className="col-span-full py-12 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-6 space-y-2">
+                  <div className="w-10 h-10 mx-auto rounded-full bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    No active community feed ad cards live
+                  </p>
+                  <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                    Create a new feed ad card above to preview how it renders in the student social feed.
+                  </p>
+                </div>
+              ) : (
+                realCampaigns
+                  .filter(c => c.status === 'Active' && c.placement === 'CommunityFeed')
+                  .map((camp) => (
                   <div
                     key={camp.id}
                     className="p-5 rounded-2xl bg-gradient-to-br from-blue-950/20 via-white dark:via-slate-900 to-indigo-950/20 border-2 border-blue-500/30 dark:border-blue-500/30 shadow-md space-y-3"
@@ -529,7 +552,8 @@ export function AdminSponsorshipView() {
                       )}
                     </div>
                   </div>
-                ))}
+                ))
+              )}
             </div>
           </div>
         </div>
