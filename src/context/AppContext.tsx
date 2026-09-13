@@ -171,7 +171,66 @@ import {
   saveMinimartConfigToFirestore,
   seedInitialMinimartDataToFirestore,
   cleanupMockMinimartProductsFromFirestore,
+  cleanupDuplicateWalletTransactionsInFirestore,
+  cleanupDuplicateUserSubscriptionsInFirestore,
 } from '../lib/firebase';
+import { isMockFeedPost } from '../data/initialFeedPosts';
+import { isMockAnnouncement } from '../data/mockData';
+import { isMockMinimartProduct } from '../data/mockMinimartData';
+import { isMockChatroomMessage } from '../data/mockChatroomData';
+
+export function extractTxPaymentReference(tx: { description?: string; meta?: any } | null | undefined): string | null {
+  if (!tx) return null;
+  const metaRef = tx.meta?.paymentReference || tx.meta?.reference;
+  if (metaRef) return String(metaRef).trim();
+  const desc = String(tx.description || '');
+  const match = desc.match(/\((GRBX_[A-Z0-9_-]+|GP_SUB_[A-Z0-9_-]+|trx_[A-Z0-9_-]+)\)/i);
+  if (match) return match[1].trim();
+  return null;
+}
+
+export function deduplicateTransactionList(txList: Transaction[]): Transaction[] {
+  if (!Array.isArray(txList)) return [];
+  const seenPaymentRefs = new Set<string>();
+  const seenTxIds = new Set<string>();
+  const seenSignatures = new Set<string>();
+  const deduped: Transaction[] = [];
+
+  for (const t of txList) {
+    if (t.id) {
+      if (seenTxIds.has(t.id)) continue;
+      seenTxIds.add(t.id);
+    }
+    if (t.transactionId) {
+      if (seenTxIds.has(t.transactionId)) continue;
+      seenTxIds.add(t.transactionId);
+    }
+
+    const payRef = extractTxPaymentReference(t);
+    const uId = String(t.userId || '');
+    if (payRef) {
+      const pKey = `${uId}_${payRef.toLowerCase()}`;
+      if (seenPaymentRefs.has(pKey)) continue;
+      seenPaymentRefs.add(pKey);
+    }
+
+    const time = t.createdAt?.toMillis
+      ? t.createdAt.toMillis()
+      : t.createdAt?.seconds
+      ? t.createdAt.seconds * 1000
+      : 0;
+    const timeBucket = time ? Math.floor(time / (2 * 60 * 1000)) : 0;
+    const sigKey = `${uId}_${t.type}_${t.amount}_${t.isCredit}_${timeBucket}_${t.title}`;
+    if (timeBucket > 0) {
+      if (seenSignatures.has(sigKey)) continue;
+      seenSignatures.add(sigKey);
+    }
+
+    deduped.push(t);
+  }
+
+  return deduped;
+}
 
 interface AppContextType {
   isAuthReady: boolean;
@@ -1166,32 +1225,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('grobax_saved_community_posts');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const filtered = parsed.filter(p => !isMockFeedPost(p));
+          if (filtered.length > 0) return filtered;
+        }
       }
     } catch {}
-    return INITIAL_FEED_POSTS;
+    return [];
   });
   const [chatroomMessages, setChatroomMessages] = useState<ChatroomLiveMessage[]>(() => {
     try {
       const saved = localStorage.getItem('grobax_chatroom_messages');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const filtered = parsed.filter(m => !isMockChatroomMessage(m));
+          if (filtered.length > 0) return filtered;
+        }
       }
     } catch {}
-    return MOCK_CHATROOM_MESSAGES;
+    return [];
   });
   const [events, setEvents] = useState<EventItem[]>(() => {
     try {
       const saved = localStorage.getItem('grobax_saved_platform_events');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const filtered = parsed.filter(e => !e.id?.startsWith('ev'));
+          if (filtered.length > 0) return filtered;
+        }
       }
     } catch {}
-    return MOCK_EVENTS;
+    return [];
   });
-  const [announcements, setAnnouncements] = useState<Announcement[]>(MOCK_ANNOUNCEMENTS);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [badgeStore, setBadgeStore] = useState<BadgeStoreItem[]>(MOCK_BADGES_STORE);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
   const [masterInstitutions, setMasterInstitutions] = useState<MasterInstitution[]>([]);
@@ -1205,13 +1273,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Grobaax Minimart State
   const [minimartProducts, setMinimartProducts] = useState<MinimartProduct[]>(() => {
     try {
-      const deletedIds = new Set(JSON.parse(localStorage.getItem('grobax_deleted_minimart_products') || '[]'));
-      return INITIAL_MINIMART_PRODUCTS.filter(
-        p => p.status !== 'removed' && !deletedIds.has(p.id) && !deletedIds.has(p.productId)
-      );
-    } catch {
-      return INITIAL_MINIMART_PRODUCTS;
-    }
+      const saved = localStorage.getItem('grobax_saved_minimart_products');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const filtered = parsed.filter(p => !isMockMinimartProduct(p));
+          if (filtered.length > 0) return filtered;
+        }
+      }
+    } catch {}
+    return [];
   });
   const [minimartCategories, setMinimartCategories] = useState<MinimartCategory[]>(INITIAL_MINIMART_CATEGORIES);
   const [minimartConfig, setMinimartConfig] = useState<MinimartConfig>(DEFAULT_MINIMART_CONFIG);
@@ -2634,9 +2705,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return 0;
           });
 
-          setTransactions(loadedTxs);
+          const dedupedTxs = deduplicateTransactionList(loadedTxs);
+          setTransactions(dedupedTxs);
           try {
-            localStorage.setItem('grobax_saved_wallet_txs', JSON.stringify(loadedTxs));
+            localStorage.setItem('grobax_saved_wallet_txs', JSON.stringify(dedupedTxs));
           } catch {}
         }
       },
@@ -2646,7 +2718,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const cached = localStorage.getItem('grobax_saved_wallet_txs');
           if (cached) {
             const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) setTransactions(parsed);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setTransactions(deduplicateTransactionList(parsed));
+            }
           }
         } catch {}
       }
@@ -4198,6 +4272,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'date' | 'status' | 'transactionId'> & Partial<Transaction>) => {
+    const payRef = extractTxPaymentReference(tx);
+    if (payRef) {
+      const isDuplicate = transactions.some((existing) => {
+        const existingRef = extractTxPaymentReference(existing);
+        return (
+          (existingRef && existingRef.toLowerCase() === payRef.toLowerCase()) ||
+          existing.transactionId === payRef ||
+          (existing.meta?.paymentReference && String(existing.meta.paymentReference).toLowerCase() === payRef.toLowerCase())
+        );
+      });
+      if (isDuplicate) {
+        console.log(`[Transactions] Deduplication prevented duplicate transaction log for reference: ${payRef}`);
+        return;
+      }
+    }
+
     const txId = tx.transactionId || 'TX-GRBX-' + Math.floor(100000 + Math.random() * 900000);
     const dateStr = tx.date || new Date().toLocaleDateString('en-US', {
       month: 'short',
@@ -4711,10 +4801,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? `GP_SUB_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`
           : `GRBX_PAY_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`);
 
+      if (finalReference) {
+        const dedupeKey = `grobax_sub_processed_${finalReference}`;
+        if (typeof window !== 'undefined' && sessionStorage.getItem(dedupeKey)) {
+          console.log(`[Subscription] Reference ${finalReference} already processed. Skipping duplicate execution.`);
+          return {
+            success: true,
+            message: `You have successfully subscribed to ${plan.name}!`,
+          };
+        }
+        try {
+          sessionStorage.setItem(dedupeKey, 'true');
+        } catch {}
+      }
+
       // If GP payment, verify and deduct balance
       let newGp = typeof curUser.gpBalance === 'number' ? curUser.gpBalance : Number(curUser.gpBalance || 0);
+      const gpPrice = plan.priceNaira; // 1 GP = 1 Naira standard equivalent
       if (paymentMethod === 'GP') {
-        const gpPrice = plan.priceNaira; // 1 GP = 1 Naira standard equivalent
         if (newGp < gpPrice) {
           return {
             success: false,
@@ -4723,24 +4827,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         newGp = Math.max(0, newGp - gpPrice);
         setCurrentUser(prev => ({ ...prev, gpBalance: newGp }));
-        addTransactionRef.current({
-          type: 'subscription_purchase',
-          title: `Subscription: ${plan.name}`,
-          description: `${plan.durationValue} ${plan.durationUnit} Academic Upgrade (GP Wallet)`,
-          amount: gpPrice,
-          unit: 'GP',
-          isCredit: false,
-        });
-      } else {
-        // Card or Transfer payment via Paystack Gateway
-        addTransactionRef.current({
-          type: 'subscription_purchase',
-          title: `Subscription: ${plan.name}`,
-          description: `${plan.durationValue} ${plan.durationUnit} Upgrade via Paystack (${finalReference})`,
-          amount: plan.priceNaira,
-          unit: 'NGN',
-          isCredit: false,
-        });
+      }
+
+      // Check if a transaction with this reference already exists before adding
+      const alreadyHasTx = transactions.some((existing) => {
+        const ref = extractTxPaymentReference(existing);
+        return (
+          (ref && ref.toLowerCase() === finalReference.toLowerCase()) ||
+          (existing.meta?.paymentReference && String(existing.meta.paymentReference).toLowerCase() === finalReference.toLowerCase())
+        );
+      });
+
+      if (!alreadyHasTx) {
+        if (paymentMethod === 'GP') {
+          addTransactionRef.current({
+            type: 'subscription_purchase',
+            title: `Subscription: ${plan.name}`,
+            description: `${plan.durationValue} ${plan.durationUnit} Academic Upgrade (GP Wallet) (${finalReference})`,
+            amount: gpPrice,
+            unit: 'GP',
+            isCredit: false,
+            meta: { paymentReference: finalReference },
+          });
+        } else {
+          // Card or Transfer payment via Paystack Gateway
+          addTransactionRef.current({
+            type: 'subscription_purchase',
+            title: `Subscription: ${plan.name}`,
+            description: `${plan.durationValue} ${plan.durationUnit} Upgrade via Paystack (${finalReference})`,
+            amount: plan.priceNaira,
+            unit: 'NGN',
+            isCredit: false,
+            meta: { paymentReference: finalReference },
+          });
+        }
       }
 
       const subRecord: Omit<UserSubscriptionRecord, 'id'> = {
@@ -4761,9 +4881,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: new Date().toISOString(),
       };
 
-      // Save to Firestore userSubscriptions
+      // Save to Firestore userSubscriptions (checking for duplicate first)
       try {
-        await addDoc(collection(db, 'userSubscriptions'), subRecord);
+        const existingSubQuery = query(
+          collection(db, 'userSubscriptions'),
+          where('paymentReference', '==', finalReference),
+          limit(1)
+        );
+        const existingSubSnap = await getDocs(existingSubQuery);
+        if (existingSubSnap.empty) {
+          await addDoc(collection(db, 'userSubscriptions'), subRecord);
+        }
       } catch (dbErr) {
         console.warn('Saving subscription record notice:', dbErr);
       }

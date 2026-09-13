@@ -14,6 +14,10 @@ import {
   CompetitionHint,
 } from '../types';
 import { grobaxDataService } from './dataAccess';
+import { isMockFeedPost } from '../data/initialFeedPosts';
+import { isMockAnnouncement } from '../data/mockData';
+import { isMockMinimartProduct } from '../data/mockMinimartData';
+import { isMockChatroomMessage } from '../data/mockChatroomData';
 
 /**
  * ============================================================================
@@ -128,9 +132,9 @@ class GrobaaxNotificationService {
       if (raw) {
         this.lastReadState = JSON.parse(raw);
       } else {
-        // If brand new user, initialize default read timestamp as 24h ago
-        // so recent activity displays naturally
-        const defaultTime = Date.now() - 24 * 60 * 60 * 1000;
+        // If brand new user, initialize default read timestamp as now
+        // so that existing history does not falsely show unread notifications
+        const defaultTime = Date.now();
         this.lastReadState = {
           home: defaultTime,
           league: defaultTime,
@@ -233,7 +237,20 @@ class GrobaaxNotificationService {
     const now = Date.now();
     this.lastReadState[sectionKey] = now;
 
-    if (sectionKey.startsWith('admin_')) {
+    if (sectionKey === 'community' || sectionKey === 'admin_community') {
+      this.lastReadState['community'] = now;
+      this.lastReadState['user'] = now;
+      this.lastReadState['minimart'] = now;
+      this.lastReadState['announcements'] = now;
+      this.lastReadState['campus'] = now;
+      this.lastReadState['admin_community'] = now;
+      this.eventCounts['community'] = 0;
+      this.eventCounts['user'] = 0;
+      this.eventCounts['minimart'] = 0;
+      this.eventCounts['announcements'] = 0;
+      this.eventCounts['campus'] = 0;
+      this.eventCounts['admin_community'] = 0;
+    } else if (sectionKey.startsWith('admin_')) {
       const stripped = sectionKey.replace(/^admin_/, '');
       this.lastReadState[stripped] = now;
       if (this.eventCounts[stripped]) {
@@ -299,6 +316,7 @@ class GrobaaxNotificationService {
     let chatCount = this.eventCounts['chatroom'] || 0;
     if (ds.chatMessages && ds.chatMessages.length > 0) {
       const unreadChat = ds.chatMessages.filter((m) => {
+        if (isMockChatroomMessage(m)) return false;
         if (m.userId && (m.userId === uid || m.userId === `@${uid}`)) return false;
         const time = this.parseTimestamp((m as any).updatedAt || (m as any).createdAt || (m as any).createdAtMillis || m.timestamp);
         return time > chatReadTime;
@@ -311,6 +329,7 @@ class GrobaaxNotificationService {
     let userFeedCount = this.eventCounts['user'] || 0;
     if (ds.posts && ds.posts.length > 0) {
       const unreadPosts = ds.posts.filter((p) => {
+        if (isMockFeedPost(p)) return false;
         const authorId = (p.author as any)?.id || p.author?.username;
         if (authorId && (authorId === uid || authorId === `@${uid}`)) return false;
         if (p.status === 'Hidden' || p.status === 'Deleted') return false;
@@ -325,6 +344,7 @@ class GrobaaxNotificationService {
     let minimartCount = this.eventCounts['minimart'] || 0;
     if (ds.minimartProducts && ds.minimartProducts.length > 0) {
       const unreadProducts = ds.minimartProducts.filter((p) => {
+        if (isMockMinimartProduct(p)) return false;
         if (p.sellerId && (p.sellerId === uid || p.sellerId === `@${uid}`)) return false;
         const time = this.parseTimestamp((p as any).updatedAt || p.createdAt);
         return time > minimartReadTime;
@@ -337,6 +357,7 @@ class GrobaaxNotificationService {
     let annCount = this.eventCounts['announcements'] || 0;
     if (ds.announcements && ds.announcements.length > 0) {
       const unreadAnn = ds.announcements.filter((a) => {
+        if (isMockAnnouncement(a)) return false;
         const time = this.parseTimestamp((a as any).updatedAt || (a as any).createdAt || (a as any).date);
         return time > annReadTime;
       }).length;
@@ -388,13 +409,13 @@ class GrobaaxNotificationService {
     const schoolDomeResultsCount = this.eventCounts['school_dome_results'] || 0;
 
     // 11. Hints Section (Strategic Preparation Hints)
-    const hintsReadTime = lastRead['hints'] || (Date.now() - 48 * 60 * 60 * 1000);
+    const hintsReadTime = lastRead['hints'] || Date.now();
     let hintsCount = this.eventCounts['hints'] || 0;
     if (ds.hints && ds.hints.length > 0) {
       const unreadHints = ds.hints.filter((h) => {
         if (h.status !== 'published') return false;
         const time = this.parseTimestamp((h as any).updatedAt || (h as any).createdAt);
-        return hintsReadTime > 0 ? time > hintsReadTime : true;
+        return hintsReadTime > 0 ? time > hintsReadTime : false;
       }).length;
       hintsCount = Math.max(hintsCount, unreadHints);
     }

@@ -8977,6 +8977,108 @@ export const activateUserSubscriptionInFirestore = async (
   }
 };
 
+export const cleanupDuplicateWalletTransactionsInFirestore = async (): Promise<number> => {
+  try {
+    const q = query(
+      collection(db, 'walletTransactions'),
+      orderBy('createdAt', 'desc'),
+      limit(200)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return 0;
+
+    const seenPaymentRefs = new Set<string>();
+    const seenSignatures = new Set<string>();
+    const docsToDelete: string[] = [];
+
+    snap.docs.forEach((docSnap) => {
+      const data = docSnap.data();
+      const desc = String(data.description || '');
+      const metaRef = data.meta?.paymentReference || data.meta?.reference;
+      let ref = metaRef ? String(metaRef).trim() : null;
+      if (!ref && desc) {
+        const match = desc.match(/\((GRBX_[A-Z0-9_-]+|GP_SUB_[A-Z0-9_-]+|trx_[A-Z0-9_-]+)\)/i);
+        if (match) ref = match[1].trim();
+      }
+      const userId = String(data.userId || '');
+
+      if (ref) {
+        const refKey = `${userId}_${ref.toLowerCase()}`;
+        if (seenPaymentRefs.has(refKey)) {
+          docsToDelete.push(docSnap.id);
+          return;
+        }
+        seenPaymentRefs.add(refKey);
+      }
+
+      const time = data.createdAt?.toMillis
+        ? data.createdAt.toMillis()
+        : data.createdAt?.seconds
+        ? data.createdAt.seconds * 1000
+        : 0;
+      const timeBucket = time ? Math.floor(time / (2 * 60 * 1000)) : 0;
+      const sigKey = `${userId}_${data.type}_${data.amount}_${data.isCredit}_${timeBucket}_${data.title}`;
+      if (timeBucket > 0) {
+        if (seenSignatures.has(sigKey)) {
+          docsToDelete.push(docSnap.id);
+          return;
+        }
+        seenSignatures.add(sigKey);
+      }
+    });
+
+    if (docsToDelete.length > 0) {
+      const batch = writeBatch(db);
+      docsToDelete.slice(0, 450).forEach((id) => {
+        batch.delete(doc(db, 'walletTransactions', id));
+      });
+      await batch.commit();
+      console.log(`Cleaned up ${docsToDelete.length} duplicate wallet transactions from Firestore.`);
+    }
+
+    return docsToDelete.length;
+  } catch (err) {
+    console.warn('Notice: Duplicate transactions cleanup:', err);
+    return 0;
+  }
+};
+
+export const cleanupDuplicateUserSubscriptionsInFirestore = async (): Promise<number> => {
+  try {
+    const snap = await getDocs(query(collection(db, 'userSubscriptions'), limit(100)));
+    if (snap.empty) return 0;
+
+    const seenRefs = new Set<string>();
+    const toDelete: string[] = [];
+
+    snap.docs.forEach((d) => {
+      const data = d.data();
+      const ref = (data.paymentReference || '').trim();
+      const userId = data.userId || '';
+      if (ref) {
+        const key = `${userId}_${ref.toLowerCase()}`;
+        if (seenRefs.has(key)) {
+          toDelete.push(d.id);
+          return;
+        }
+        seenRefs.add(key);
+      }
+    });
+
+    if (toDelete.length > 0) {
+      const batch = writeBatch(db);
+      toDelete.forEach((id) => batch.delete(doc(db, 'userSubscriptions', id)));
+      await batch.commit();
+      console.log(`Cleaned up ${toDelete.length} duplicate user subscriptions.`);
+    }
+    return toDelete.length;
+  } catch (err) {
+    console.warn('Notice: Subscriptions cleanup:', err);
+    return 0;
+  }
+};
+
+
 
 
 
