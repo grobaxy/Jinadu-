@@ -158,7 +158,7 @@ export const LibraryTab: React.FC = () => {
   const loadLibraryData = async () => {
     setIsLoading(true);
     try {
-      // Seed sample data if empty
+      // Ensure any legacy sample past questions are cleaned up
       await seedSamplePastQuestionsIfEmpty();
 
       // Load settings
@@ -776,16 +776,20 @@ export const LibraryTab: React.FC = () => {
             ) : filteredQuestions.length === 0 ? (
               <div className="text-center py-16 px-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
                 <FileQuestion className="w-12 h-12 mx-auto text-slate-400 dark:text-slate-500 mb-3" />
-                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">No Past Questions Found</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
-                  We could not find examination questions matching your current filters. Be the first to upload and earn +{settings.uploadGpReward} GP!
+                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
+                  {approvedQuestions.length === 0 ? 'No Past Questions in Vault Yet' : 'No Past Questions Found'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">
+                  {approvedQuestions.length === 0
+                    ? `Users haven't uploaded any past examination questions yet. Be the first scholar to upload and earn +${settings.uploadGpReward} GP!`
+                    : `We could not find examination questions matching your current filters. Be the first to upload for this course and earn +${settings.uploadGpReward} GP!`}
                 </p>
                 <button
                   onClick={() => setIsUploadModalOpen(true)}
-                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs"
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
                 >
                   <UploadCloud className="w-4 h-4" />
-                  Upload This Past Question (+{settings.uploadGpReward} GP)
+                  Upload Past Question (+{settings.uploadGpReward} GP)
                 </button>
               </div>
             ) : (

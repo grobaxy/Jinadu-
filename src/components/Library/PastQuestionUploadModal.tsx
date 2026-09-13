@@ -189,9 +189,9 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
             } else if (lower.includes('college of education') || lower.includes('education')) {
               setSelectedCategory('College of Education');
             } else if (lower.includes('health') || lower.includes('nursing')) {
-              setSelectedCategory('Health Tech & Nursing');
+              setSelectedCategory('College of Health & Nursing');
             } else if (lower.includes('monotechnic') || lower.includes('institute') || lower.includes('academy')) {
-              setSelectedCategory('Specialized Institutes');
+              setSelectedCategory('Specialized Institute');
             } else {
               setSelectedCategory('University');
             }

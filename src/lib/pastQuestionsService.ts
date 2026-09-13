@@ -717,7 +717,9 @@ export function subscribeToAdminPastQuestions(
     return onSnapshot(
       q,
       (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PastQuestion));
+        const list = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as PastQuestion))
+          .filter((item) => !isMockPastQuestion(item));
         list.sort((a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
         callback(list);
       },
@@ -745,15 +747,16 @@ export function clearApprovedQuestionsCache(): void {
 
 export function getCachedApprovedPastQuestions(): PastQuestion[] {
   if (_approvedQuestionsCache && _approvedQuestionsCache.length > 0) {
-    return _approvedQuestionsCache;
+    return _approvedQuestionsCache.filter((item) => !isMockPastQuestion(item));
   }
   try {
     const raw = localStorage.getItem('grobax_pq_approved_cache');
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        _approvedQuestionsCache = parsed;
-        return parsed;
+        const clean = parsed.filter((item) => !isMockPastQuestion(item));
+        _approvedQuestionsCache = clean;
+        return clean;
       }
     }
   } catch {}
@@ -780,7 +783,6 @@ export async function fetchApprovedPastQuestions(filters?: {
   const isCacheValid =
     !filters?.bypassCache &&
     _approvedQuestionsCache &&
-    _approvedQuestionsCache.length > 0 &&
     now - _approvedQuestionsCacheTimestamp < CACHE_TTL_MS;
 
   if (isCacheValid && _approvedQuestionsCache) {
@@ -793,17 +795,17 @@ export async function fetchApprovedPastQuestions(filters?: {
         limit(60)
       );
       const snap = await getDocs(q);
-      baseList = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PastQuestion));
+      baseList = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as PastQuestion))
+        .filter((item) => !isMockPastQuestion(item));
 
       // Sort by upload date desc
       baseList.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 
-      // If empty in Firestore, fallback to sample starter questions
-      if (baseList.length === 0 && SAMPLE_VERIFIED_PAST_QUESTIONS.length > 0) {
-        baseList = SAMPLE_VERIFIED_PAST_QUESTIONS.map((s, idx) => ({
-          ...s,
-          id: `pq-sample-${idx + 1}`,
-        })) as PastQuestion[];
+      // If mock documents exist in Firestore, trigger background cleanup
+      const hasMockInDocs = snap.docs.some((d) => isMockPastQuestion({ id: d.id, ...d.data() }));
+      if (hasMockInDocs) {
+        cleanupMockPastQuestionsFromFirestore().catch(() => {});
       }
 
       // Update in-memory & local caches
@@ -814,13 +816,7 @@ export async function fetchApprovedPastQuestions(filters?: {
       } catch {}
     } catch (err) {
       console.warn('Error fetching approved past questions from Firestore, checking cache:', err);
-      baseList = getCachedApprovedPastQuestions();
-      if (baseList.length === 0) {
-        baseList = SAMPLE_VERIFIED_PAST_QUESTIONS.map((s, idx) => ({
-          ...s,
-          id: `pq-sample-${idx + 1}`,
-        })) as PastQuestion[];
-      }
+      baseList = getCachedApprovedPastQuestions().filter((item) => !isMockPastQuestion(item));
     }
   }
 
@@ -875,7 +871,9 @@ export async function fetchUserPastQuestions(userId: string): Promise<PastQuesti
       where('uploadedBy', '==', userId)
     );
     const snap = await getDocs(q);
-    const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PastQuestion));
+    const list = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() } as PastQuestion))
+      .filter((item) => !isMockPastQuestion(item));
     return list.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
   } catch (err) {
     console.warn('Error fetching user past questions:', err);
@@ -893,7 +891,9 @@ export async function fetchAllPastQuestionsForAdmin(statusFilter?: PastQuestionS
       q = query(collection(db, PAST_QUESTIONS_COLLECTION), where('status', '==', statusFilter));
     }
     const snap = await getDocs(q);
-    const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PastQuestion));
+    const list = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() } as PastQuestion))
+      .filter((item) => !isMockPastQuestion(item));
     return list.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
   } catch (err) {
     console.warn('Error fetching admin past questions:', err);
@@ -1318,209 +1318,77 @@ export async function fetchUserBookmarkedQuestionIds(userId: string): Promise<st
 
 /**
  * Sample Verified Starter Past Questions
- * Populated automatically if database is empty so students have immediate verified content
+ * Note: Initialized to empty array - all mock data removed so only genuine student submissions appear.
  */
-export const SAMPLE_VERIFIED_PAST_QUESTIONS: Omit<PastQuestion, 'id'>[] = [
-  {
-    institutionId: 'unilag',
-    institutionName: 'University of Lagos (UNILAG)',
-    institutionCategory: 'University',
-    facultyName: 'Faculty of Science & Computing',
-    departmentName: 'Computer Science',
-    level: '200 Level (Sophomore)',
-    courseCode: 'CSC 201',
-    courseTitle: 'Computer Programming I (Structured C & Data Rep)',
-    academicSession: '2023/2024',
-    semester: '1st Semester',
-    examType: 'Main Examination',
-    fileUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1200&auto=format&fit=crop',
-    fileUrls: [
-      'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1200&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=1200&auto=format&fit=crop',
-    ],
-    fileName: 'UNILAG_CSC201_2023_2024_1st_Semester.pdf',
-    fileType: 'image',
-    pagesCount: 2,
-    description: 'Official UNILAG Degree Examination with Question 1 (Pointers & Memory Allocation), Question 2 (Binary Search Trees), and Section B algorithmic logic questions.',
-    lecturerName: 'Dr. O. A. Adebayo',
-    uploadedBy: 'system_curator',
-    uploadedByName: 'GROBAAX Academic Curator',
-    uploadedByEmail: 'curator@grobaax.ng',
-    uploadedAt: '2025-01-15T10:00:00.000Z',
-    status: 'approved',
-    reviewedBy: 'system_admin',
-    reviewedByName: 'Chief Academic Moderator',
-    reviewedAt: '2025-01-15T11:00:00.000Z',
-    gpAwarded: 50,
-    viewsCount: 142,
-    bookmarksCount: 38,
-    compositeKey: 'unilag_computerscience_200levelsophomore_csc201_20232024_1stsemester',
-  },
-  {
-    institutionId: 'ui',
-    institutionName: 'University of Ibadan (UI)',
-    institutionCategory: 'University',
-    facultyName: 'Faculty of Science & Computing',
-    departmentName: 'Mathematics & Statistics',
-    level: '100 Level (Freshman)',
-    courseCode: 'MTH 101',
-    courseTitle: 'Elementary Mathematics I (Algebra & Trigonometry)',
-    academicSession: '2023/2024',
-    semester: '1st Semester',
-    examType: 'Main Examination',
-    fileUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=1200&auto=format&fit=crop',
-    fileUrls: [
-      'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=1200&auto=format&fit=crop',
-    ],
-    fileName: 'UI_MTH101_2023_2024.pdf',
-    fileType: 'image',
-    pagesCount: 1,
-    description: 'University of Ibadan General Faculty of Science & Engineering 100L Math Exam. Covers De Moivre Theorem, Binomial expansions, Partial fractions, and Determinants.',
-    lecturerName: 'Prof. G. K. Babalola',
-    uploadedBy: 'system_curator',
-    uploadedByName: 'GROBAAX Academic Curator',
-    uploadedByEmail: 'curator@grobaax.ng',
-    uploadedAt: '2025-01-18T14:30:00.000Z',
-    status: 'approved',
-    reviewedBy: 'system_admin',
-    reviewedByName: 'Chief Academic Moderator',
-    reviewedAt: '2025-01-18T15:00:00.000Z',
-    gpAwarded: 50,
-    viewsCount: 215,
-    bookmarksCount: 54,
-    compositeKey: 'ui_mathematicsstatistics_100levelfreshman_mth101_20232024_1stsemester',
-  },
-  {
-    institutionId: 'futa',
-    institutionName: 'Federal University of Technology, Akure (FUTA)',
-    institutionCategory: 'University',
-    facultyName: 'Faculty of Engineering & Technology',
-    departmentName: 'Mechanical Engineering',
-    level: '300 Level (Junior)',
-    courseCode: 'MEE 311',
-    courseTitle: 'Applied Engineering Thermodynamics I',
-    academicSession: '2022/2023',
-    semester: '1st Semester',
-    examType: 'Main Examination',
-    fileUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=1200&auto=format&fit=crop',
-    fileUrls: [
-      'https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=1200&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1581092335397-9583fe92d232?q=80&w=1200&auto=format&fit=crop',
-    ],
-    fileName: 'FUTA_MEE311_2022_2023.pdf',
-    fileType: 'image',
-    pagesCount: 2,
-    description: 'FUTA School of Engineering & Engineering Technology Degree Exam. Comprehensive questions on Rankine Cycle with Reheat, Steam Tables entropy computation, and Gas Turbines.',
-    lecturerName: 'Engr. Dr. S. I. Falana',
-    uploadedBy: 'system_curator',
-    uploadedByName: 'GROBAAX Academic Curator',
-    uploadedByEmail: 'curator@grobaax.ng',
-    uploadedAt: '2025-01-20T09:15:00.000Z',
-    status: 'approved',
-    reviewedBy: 'system_admin',
-    reviewedByName: 'Chief Academic Moderator',
-    reviewedAt: '2025-01-20T10:00:00.000Z',
-    gpAwarded: 50,
-    viewsCount: 98,
-    bookmarksCount: 27,
-    compositeKey: 'futa_mechanicalengineering_300leveljunior_mee311_20222023_1stsemester',
-  },
-  {
-    institutionId: 'yabatech',
-    institutionName: 'Yaba College of Technology (YABATECH)',
-    institutionCategory: 'Polytechnic',
-    facultyName: 'School of Engineering Technology',
-    departmentName: 'Electrical & Electronic Engineering Tech',
-    level: 'ND II (National Diploma Year 2)',
-    courseCode: 'EEC 232',
-    courseTitle: 'Electrical Machines & Transformers I',
-    academicSession: '2023/2024',
-    semester: '1st Semester',
-    examType: 'Main Examination',
-    fileUrl: 'https://images.unsplash.com/photo-1517420704952-d9f39e95b43e?q=80&w=1200&auto=format&fit=crop',
-    fileUrls: [
-      'https://images.unsplash.com/photo-1517420704952-d9f39e95b43e?q=80&w=1200&auto=format&fit=crop',
-    ],
-    fileName: 'YABATECH_EEC232_2023_2024.pdf',
-    fileType: 'image',
-    pagesCount: 1,
-    description: 'YABATECH National Diploma II Examination on Single Phase Transformers, Open-Circuit and Short-Circuit test analysis, equivalent circuit parameter derivation, and cooling methods.',
-    lecturerName: 'Engr. M. B. Sanusi',
-    uploadedBy: 'system_curator',
-    uploadedByName: 'GROBAAX Academic Curator',
-    uploadedByEmail: 'curator@grobaax.ng',
-    uploadedAt: '2025-01-25T11:45:00.000Z',
-    status: 'approved',
-    reviewedBy: 'system_admin',
-    reviewedByName: 'Chief Academic Moderator',
-    reviewedAt: '2025-01-25T12:30:00.000Z',
-    gpAwarded: 50,
-    viewsCount: 112,
-    bookmarksCount: 31,
-    compositeKey: 'yabatech_electricalelectronicengineeringtech_ndiinationaldiplomayear2_eec232_20232024_1stsemester',
-  },
-  {
-    institutionId: 'lasu',
-    institutionName: 'Lagos State University (LASU)',
-    institutionCategory: 'University',
-    facultyName: 'Faculty of Law & Jurisprudence',
-    departmentName: 'Public & Private Law',
-    level: '200 Level (Sophomore)',
-    courseCode: 'LAW 201',
-    courseTitle: 'Law of Contract I (Offer, Acceptance & Consideration)',
-    academicSession: '2023/2024',
-    semester: '1st Semester',
-    examType: 'Main Examination',
-    fileUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=1200&auto=format&fit=crop',
-    fileUrls: [
-      'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=1200&auto=format&fit=crop',
-    ],
-    fileName: 'LASU_LAW201_2023_2024.pdf',
-    fileType: 'image',
-    pagesCount: 1,
-    description: 'LASU Faculty of Law Degree Examination. Case study problems examining Carlill v Carbolic Smoke Ball Co, Central London Property Trust v High Trees House, and doctrine of privity.',
-    lecturerName: 'Barr. Dr. F. K. Alimi',
-    uploadedBy: 'system_curator',
-    uploadedByName: 'GROBAAX Academic Curator',
-    uploadedByEmail: 'curator@grobaax.ng',
-    uploadedAt: '2025-02-01T16:20:00.000Z',
-    status: 'approved',
-    reviewedBy: 'system_admin',
-    reviewedByName: 'Chief Academic Moderator',
-    reviewedAt: '2025-02-01T17:00:00.000Z',
-    gpAwarded: 50,
-    viewsCount: 178,
-    bookmarksCount: 46,
-    compositeKey: 'lasu_publicprivatelaw_200levelsophomore_law201_20232024_1stsemester',
-  },
-];
-
-let _hasSeededThisSession = false;
+export const SAMPLE_VERIFIED_PAST_QUESTIONS: Omit<PastQuestion, 'id'>[] = [];
 
 /**
- * Ensures initial starter past questions exist if collection is empty (Non-blocking / cached check)
+ * Checks whether a past question item is a legacy mock/sample item
  */
-export async function seedSamplePastQuestionsIfEmpty(): Promise<void> {
-  if (_hasSeededThisSession) return;
-  _hasSeededThisSession = true;
+export function isMockPastQuestion(q: any): boolean {
+  if (!q) return false;
+  const id = String(q.id || '');
+  if (id.startsWith('pq-sample-') || id.startsWith('PQ-INIT-')) return true;
+  if (q.uploadedBy === 'system_curator') return true;
+  if (q.uploadedByName === 'GROBAAX Academic Curator' || q.uploadedByName === 'Chief Academic Moderator') return true;
+  if (q.uploadedByEmail === 'curator@grobaax.ng') return true;
+  if (['CSC 201', 'MTH 101', 'MEE 311', 'EEC 232', 'LAW 201'].includes(q.courseCode) && (q.uploadedBy === 'system_curator' || q.reviewedBy === 'system_admin')) {
+    return true;
+  }
+  return false;
+}
+
+let _hasCleanedMockData = false;
+
+/**
+ * Automatically purges any legacy mock past questions from Firestore and resets caches
+ */
+export async function cleanupMockPastQuestionsFromFirestore(): Promise<void> {
+  if (_hasCleanedMockData) return;
+  _hasCleanedMockData = true;
 
   try {
-    if (typeof window !== 'undefined' && localStorage.getItem('grobax_pq_checked')) {
-      return;
-    }
-    const q = query(collection(db, PAST_QUESTIONS_COLLECTION), limit(1));
-    const snap = await getDocs(q);
-    if (snap.empty) {
-      for (const sample of SAMPLE_VERIFIED_PAST_QUESTIONS) {
-        const id = `PQ-INIT-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
-        await setDoc(doc(db, PAST_QUESTIONS_COLLECTION, id), { id, ...sample });
-      }
-      clearApprovedQuestionsCache();
-    }
+    // Clear local caches immediately
+    clearApprovedQuestionsCache();
     if (typeof window !== 'undefined') {
-      localStorage.setItem('grobax_pq_checked', 'true');
+      localStorage.removeItem('grobax_pq_checked');
+      localStorage.removeItem('grobax_pq_approved_cache');
     }
+
+    // 1. Delete by system_curator
+    try {
+      const qCurator = query(
+        collection(db, PAST_QUESTIONS_COLLECTION),
+        where('uploadedBy', '==', 'system_curator')
+      );
+      const snapCurator = await getDocs(qCurator);
+      for (const d of snapCurator.docs) {
+        try {
+          await deleteDoc(d.ref);
+        } catch {}
+      }
+    } catch {}
+
+    // 2. Scan and remove any other mock docs
+    try {
+      const qAll = query(collection(db, PAST_QUESTIONS_COLLECTION), limit(100));
+      const snapAll = await getDocs(qAll);
+      for (const d of snapAll.docs) {
+        if (isMockPastQuestion({ id: d.id, ...d.data() })) {
+          try {
+            await deleteDoc(d.ref);
+          } catch {}
+        }
+      }
+    } catch {}
   } catch (err) {
-    console.warn('Could not seed initial past questions:', err);
+    console.warn('Could not cleanup mock past questions:', err);
   }
+}
+
+/**
+ * Ensures initial starter past questions are not seeded, and purges any legacy mock records.
+ */
+export async function seedSamplePastQuestionsIfEmpty(): Promise<void> {
+  await cleanupMockPastQuestionsFromFirestore();
 }

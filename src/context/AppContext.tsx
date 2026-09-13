@@ -57,6 +57,10 @@ import {
 } from '../lib/firebase';
 import { isPrimarySuperAdmin } from '../lib/adminPermissions';
 import {
+  isMockPastQuestion,
+  cleanupMockPastQuestionsFromFirestore,
+} from '../lib/pastQuestionsService';
+import {
   UserRole,
   ThemeMode,
   TabType,
@@ -2431,6 +2435,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cleanupMockMinimartProductsFromFirestore();
     }
 
+    // Clean up any mock past questions in background
+    cleanupMockPastQuestionsFromFirestore().catch(() => {});
+
     // 1. Minimart Config Listener
     const unsubConfig = minimartRepo.subscribeConfig((config) => {
       if (config) {
@@ -2779,7 +2786,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubPastQuestions = onSnapshot(
         pqQuery,
         (snap) => {
-          const loaded = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          const loaded = snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((d: any) => !isMockPastQuestion(d));
           setPendingPastQuestions(loaded);
         },
         (err) => {
