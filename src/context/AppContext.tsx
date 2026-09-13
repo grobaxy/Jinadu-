@@ -164,6 +164,7 @@ import {
   deleteMinimartCategoryFromFirestore,
   saveMinimartConfigToFirestore,
   seedInitialMinimartDataToFirestore,
+  cleanupMockMinimartProductsFromFirestore,
 } from '../lib/firebase';
 
 interface AppContextType {
@@ -2424,6 +2425,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isUserAdmin && typeof window !== 'undefined' && !sessionStorage.getItem('grobax_minimart_seed_checked')) {
       sessionStorage.setItem('grobax_minimart_seed_checked', 'true');
       seedInitialMinimartDataToFirestore();
+      cleanupMockMinimartProductsFromFirestore();
+    } else if (typeof window !== 'undefined' && !sessionStorage.getItem('grobax_mock_minimart_cleaned')) {
+      sessionStorage.setItem('grobax_mock_minimart_cleaned', 'true');
+      cleanupMockMinimartProductsFromFirestore();
     }
 
     // 1. Minimart Config Listener
@@ -2440,6 +2445,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    // Helper to identify legacy mock minimart products
+    const isMockMinimartProduct = (p: any): boolean => {
+      if (!p) return false;
+      const id = String(p.id || p.productId || '');
+      const mockIds = ['prod_1', 'prod_2', 'prod_3', 'prod_4', 'prod_5', 'prod_6', 'prod_7', 'prod_8', 'prod_9'];
+      if (mockIds.includes(id)) return true;
+      const mockSellerIds = ['usr_unilag_101', 'usr_ui_202', 'usr_covenant_303', 'usr_oau_404', 'usr_unn_505', 'usr_abu_606', 'usr_futa_707', 'usr_unilorin_808'];
+      if (p.sellerId && mockSellerIds.includes(p.sellerId)) return true;
+      return false;
+    };
+
     // 3. Minimart Products Listener (Limit 30 with sorting)
     const unsubProducts = grobaxDataService.subscribe<any>(
       'minimartProducts',
@@ -2450,8 +2466,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           deletedIds = new Set(JSON.parse(localStorage.getItem('grobax_deleted_minimart_products') || '[]'));
         } catch {}
 
+        // Check if any mock products came through from remote and remove them
+        const hasMock = prods.some(isMockMinimartProduct);
+        if (hasMock) {
+          cleanupMockMinimartProductsFromFirestore();
+        }
+
         const activeProds = prods.filter(
-          (p: any) => p.status !== 'removed' && !deletedIds.has(p.id) && !deletedIds.has(p.productId)
+          (p: any) => p.status !== 'removed' && !isMockMinimartProduct(p) && !deletedIds.has(p.id) && !deletedIds.has(p.productId)
         );
 
         // Auto-mark expired products

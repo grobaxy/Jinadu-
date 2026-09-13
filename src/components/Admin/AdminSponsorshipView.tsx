@@ -821,7 +821,7 @@ export function AdminSponsorshipView() {
                     className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Upload className="w-3 h-3" />
-                    Upload Image
+                    Upload Image (Max 2MB)
                   </button>
                 </label>
                 <input

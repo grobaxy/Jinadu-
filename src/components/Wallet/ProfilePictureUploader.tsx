@@ -52,8 +52,8 @@ export const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
       return;
     }
 
-    if (file.size > 15 * 1024 * 1024) {
-      setErrorMsg('Image size exceeds 15MB. Please choose a smaller file.');
+    if (file.size > 2 * 1024 * 1024) {
+      setErrorMsg('Image size exceeds 2MB. Please choose an image 2MB or smaller.');
       return;
     }
 
@@ -167,7 +167,7 @@ export const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
               <span>Change Profile Photo</span>
             </h4>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-              Upload photo, capture with camera, or select a scholar avatar.
+              Upload photo (Max 2MB), capture with camera, or select an avatar.
             </p>
           </div>
 

@@ -339,8 +339,8 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
         hasPdf = true;
         return;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        setError(`File ${file.name} exceeds the 10MB limit.`);
+      if (file.size > 2 * 1024 * 1024) {
+        setError(`File "${file.name}" exceeds the 2MB limit. Please upload files under 2MB.`);
         return;
       }
       validFiles.push(file);
@@ -947,7 +947,7 @@ export const PastQuestionUploadModal: React.FC<PastQuestionUploadModalProps> = (
                   Drag & drop examination question photos here
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Supports PNG, JPG, JPEG, WEBP (Images only. PDF files are not allowed for secure in-app viewing). Multi-page papers supported!
+                  Supports PNG, JPG, JPEG, WEBP (Max 2MB per photo. PDF files are not allowed for secure in-app viewing). Multi-page papers supported!
                 </p>
 
                 <label className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-colors">

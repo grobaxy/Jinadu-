@@ -185,9 +185,9 @@ export function AdminEventsView() {
     if (!files || files.length === 0) return;
     const file = files[0];
 
-    // File validation: Size (< 5MB) and type
-    if (file.size > 5 * 1024 * 1024) {
-      setFormError('Image file size must be less than 5MB.');
+    // File validation: Size (<= 2MB) and type
+    if (file.size > 2 * 1024 * 1024) {
+      setFormError('Image file size must be 2MB or less.');
       return;
     }
 
@@ -927,7 +927,7 @@ export function AdminEventsView() {
                       </button>
 
                       <span className="text-[10px] text-slate-400">
-                        Max 5MB (PNG, JPG, WebP)
+                        Max 2MB (PNG, JPG, WebP)
                       </span>
                     </div>
 

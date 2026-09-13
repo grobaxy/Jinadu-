@@ -80,8 +80,8 @@ export const EditPostModal: React.FC<EditPostModalProps> = ({ post, isOpen, onCl
     if (!files || files.length === 0) return;
     const file = files[0];
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Image must be less than 5MB.');
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Image must be 2MB or less.');
       return;
     }
 
@@ -223,7 +223,7 @@ export const EditPostModal: React.FC<EditPostModalProps> = ({ post, isOpen, onCl
                   onClick={() => fileInputRef.current?.click()}
                   className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
                 >
-                  <Upload className="w-3 h-3" /> Upload File
+                  <Upload className="w-3 h-3" /> Upload File (Max 2MB)
                 </button>
                 {!showImageInput && (
                   <button

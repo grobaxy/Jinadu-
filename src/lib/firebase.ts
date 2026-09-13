@@ -25,6 +25,7 @@ import {
   signOut,
   onAuthStateChanged,
   signInWithGoogle,
+  setSessionFromUrlOrHash,
   updateProfile,
   deleteUser,
   updatePassword,
@@ -71,6 +72,7 @@ export {
   signOut,
   onAuthStateChanged,
   signInWithGoogle,
+  setSessionFromUrlOrHash,
   updateProfile,
   deleteUser,
   updatePassword,
@@ -201,7 +203,6 @@ import { isPrimarySuperAdmin } from './adminPermissions';
 import {
   DEFAULT_MINIMART_CONFIG,
   INITIAL_MINIMART_CATEGORIES,
-  INITIAL_MINIMART_PRODUCTS,
 } from '../data/mockMinimartData';
 import {
   MOCK_MASTER_INSTITUTIONS,
@@ -8428,21 +8429,39 @@ export const seedInitialMinimartDataToFirestore = async (): Promise<void> => {
       }
     }
 
-    // Seed Initial Products
-    for (const prod of INITIAL_MINIMART_PRODUCTS) {
-      const prodRef = doc(db, 'minimartProducts', prod.id);
-      const prodSnap = await getDoc(prodRef);
-      if (!prodSnap.exists()) {
-        await setDoc(prodRef, prod);
+    // Clean up any legacy mock products (prod_1 through prod_9)
+    const mockIds = ['prod_1', 'prod_2', 'prod_3', 'prod_4', 'prod_5', 'prod_6', 'prod_7', 'prod_8', 'prod_9'];
+    for (const id of mockIds) {
+      try {
+        const prodRef = doc(db, 'minimartProducts', id);
+        await deleteDoc(prodRef);
+      } catch {
+        // ignore
       }
     }
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('grobax_seeded_minimart', 'true');
     }
-    console.log('Seeded initial Minimart data to Firestore.');
+    console.log('Synchronized Minimart categories to Firestore.');
   } catch (err) {
     console.warn('Minimart initial seed notice:', err);
+  }
+};
+
+export const cleanupMockMinimartProductsFromFirestore = async (): Promise<void> => {
+  try {
+    const mockIds = ['prod_1', 'prod_2', 'prod_3', 'prod_4', 'prod_5', 'prod_6', 'prod_7', 'prod_8', 'prod_9'];
+    for (const id of mockIds) {
+      try {
+        const prodRef = doc(db, 'minimartProducts', id);
+        await deleteDoc(prodRef);
+      } catch {
+        // ignore
+      }
+    }
+  } catch (err) {
+    console.warn('Notice cleaning up mock minimart products:', err);
   }
 };
 

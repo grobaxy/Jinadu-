@@ -78,9 +78,9 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
       return;
     }
 
-    // Limit original uncompressed file to 15MB
-    if (file.size > 15 * 1024 * 1024) {
-      setError('Selected image is too large. Please choose an image under 15MB.');
+    // Limit original file size to strictly maximum 2MB
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Selected image exceeds the 2MB size limit. Please choose an image under 2MB.');
       return;
     }
 
@@ -560,7 +560,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                         Select Photo from Device
                       </p>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Tap to choose from phone gallery, camera, or files (JPG, PNG, WebP)
+                        Tap to choose from phone gallery, camera, or files (Max 2MB)
                       </p>
                     </div>
                     <div className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-100/70 dark:bg-blue-950/70 px-2.5 py-1 rounded-full border border-blue-200 dark:border-blue-900/50 mt-1">

@@ -461,9 +461,30 @@ export const db: any = {
 let cachedCurrentUser: any = null;
 const authListeners = new Set<(user: any) => void>();
 
-// Check local storage for initial user or session
+// Check local storage for initial user or session and parse incoming tokens from URL
 if (typeof window !== 'undefined') {
   try {
+    // 1. If loaded with #access_token=... in the URL, immediately capture session
+    const currentHash = window.location.hash || '';
+    if (currentHash && currentHash.includes('access_token=')) {
+      const hashParams = new URLSearchParams(currentHash.replace(/^#/, ''));
+      const aToken = hashParams.get('access_token');
+      const rToken = hashParams.get('refresh_token');
+      if (aToken) {
+        supabase.auth.setSession({
+          access_token: aToken,
+          refresh_token: rToken || '',
+        }).then(({ data, error }) => {
+          if (!error && data?.user) {
+            handleSupabaseUser(data.user);
+          }
+        });
+        try {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
+      }
+    }
+
     supabase.auth.getSession().then(({ data }) => {
       if (data?.session?.user) {
         handleSupabaseUser(data.session.user);
@@ -619,64 +640,6 @@ export const signInWithGoogle = async (): Promise<any> => {
   const origin = window.location.origin;
   const redirectUrl = `${origin}/auth/callback`;
 
-  // 1. Try Google Identity Services (GSI) One-Tap / ID token if client library is loaded
-  const googleClientId = '730355558575-mhk1q5bao6mndkqao7me5iu3rhvk8tk7.apps.googleusercontent.com';
-  const hasGsi = !!(window as any).google?.accounts?.id;
-
-  if (hasGsi) {
-    try {
-      const idTokenUser = await new Promise<any>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('GSI_FALLBACK'));
-        }, 3500);
-
-        try {
-          (window as any).google.accounts.id.initialize({
-            client_id: googleClientId,
-            auto_select: false,
-            callback: async (response: any) => {
-              clearTimeout(timeout);
-              if (response?.credential) {
-                try {
-                  const { data: sData, error: sErr } = await supabase.auth.signInWithIdToken({
-                    provider: 'google',
-                    token: response.credential,
-                  });
-                  if (!sErr && sData.user) {
-                    handleSupabaseUser(sData.user);
-                    resolve(cachedCurrentUser);
-                    return;
-                  }
-                } catch (e) {
-                  console.warn('IdToken sign-in fallback to OAuth:', e);
-                }
-              }
-              reject(new Error('GSI_FALLBACK'));
-            },
-          });
-
-          // Trigger prompt (non-blocking)
-          (window as any).google.accounts.id.prompt((notification: any) => {
-            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-              clearTimeout(timeout);
-              reject(new Error('GSI_FALLBACK'));
-            }
-          });
-        } catch (e) {
-          clearTimeout(timeout);
-          reject(e);
-        }
-      });
-
-      if (idTokenUser) {
-        return idTokenUser;
-      }
-    } catch {
-      // Gracefully continue to standard OAuth popup flow
-    }
-  }
-
-  // 2. Standard Supabase OAuth popup / tab flow
   // Always use skipBrowserRedirect: true so the iframe is NEVER redirected to Google
   // (Google strictly returns HTTP 403 Forbidden when rendered inside an iframe)
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -886,3 +849,73 @@ export const signInWithGoogle = async (): Promise<any> => {
     }, 240000);
   });
 };
+
+/**
+ * Manually connect session from a redirected URL (such as localhost:3000/#access_token=... or code)
+ */
+export const setSessionFromUrlOrHash = async (input: string): Promise<any> => {
+  if (!input || typeof input !== 'string') {
+    throw new Error('Please provide a valid redirect URL or token.');
+  }
+
+  const trimmed = input.trim();
+  let accessToken: string | null = null;
+  let refreshToken: string | null = null;
+  let code: string | null = null;
+
+  try {
+    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://dummy.com/${trimmed}`);
+    if (url.hash) {
+      const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
+      accessToken = hashParams.get('access_token');
+      refreshToken = hashParams.get('refresh_token');
+    }
+    if (!accessToken && url.search) {
+      const searchParams = new URLSearchParams(url.search);
+      accessToken = searchParams.get('access_token');
+      refreshToken = searchParams.get('refresh_token');
+      code = searchParams.get('code');
+    }
+  } catch (_) {
+    // If not standard URL format
+  }
+
+  if (!accessToken) {
+    const accessMatch = trimmed.match(/access_token=([^&]+)/);
+    if (accessMatch) accessToken = decodeURIComponent(accessMatch[1]);
+    const refreshMatch = trimmed.match(/refresh_token=([^&]+)/);
+    if (refreshMatch) refreshToken = decodeURIComponent(refreshMatch[1]);
+  }
+
+  if (!accessToken && trimmed.startsWith('eyJ')) {
+    accessToken = trimmed;
+  }
+
+  if (accessToken) {
+    const { data, error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken || '',
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+    if (data?.user) {
+      handleSupabaseUser(data.user);
+      return cachedCurrentUser;
+    }
+  }
+
+  if (code) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      throw new Error(error.message);
+    }
+    if (data?.user) {
+      handleSupabaseUser(data.user);
+      return cachedCurrentUser;
+    }
+  }
+
+  throw new Error('No authentication tokens found in the URL. Please ensure you copied the entire address.');
+};
+
