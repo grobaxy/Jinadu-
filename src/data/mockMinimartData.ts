@@ -141,3 +141,19 @@ export const INITIAL_MINIMART_CATEGORIES: MinimartCategory[] = [
 
 export const INITIAL_MINIMART_PRODUCTS: MinimartProduct[] = [];
 
+export function isMockMinimartProduct(p: any): boolean {
+  if (!p) return false;
+  if (p.isMock) return true;
+  const id = String(p.id || p.productId || '');
+  if (id.startsWith('prod_seed_') || id.startsWith('seed_') || id.startsWith('mock_')) return true;
+  if (
+    p.sellerId === 'usr_02_kaito' ||
+    p.sellerId === 'usr_01_kayode' ||
+    p.sellerId === 'usr_03_elena' ||
+    p.sellerId === 'usr_admin_barns'
+  ) {
+    return true;
+  }
+  return false;
+}
+
