@@ -17,6 +17,7 @@ import {
   Square,
   Swords,
   ShieldAlert,
+  Lock,
 } from 'lucide-react';
 
 interface SchoolDomeQuestionCardProps {

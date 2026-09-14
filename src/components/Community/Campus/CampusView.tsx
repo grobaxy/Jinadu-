@@ -214,7 +214,7 @@ export const CampusView: React.FC = () => {
 
   const handleSelectOtherInstitution = (inst: StaticInstitution) => {
     setActiveInstitutionName(inst.name);
-    setActiveInstitutionCategory(inst.category);
+    setActiveInstitutionCategory((inst.category as InstitutionCategory) || 'University');
     setSelectedFaculty(null);
     setSelectedDepartment(null);
     setSearchQuery('');

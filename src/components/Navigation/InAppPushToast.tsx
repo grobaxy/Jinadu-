@@ -129,11 +129,8 @@ export const InAppPushToast: React.FC = () => {
     markNotificationRead(activeToast.id);
 
     // If targeted to admin or an admin-specific past question upload
-    const isAdminUser =
-      currentUser?.role === 'admin' ||
-      currentUser?.role === 'super_admin' ||
-      currentUser?.role === 'ADMIN' ||
-      currentUser?.role === 'SUPER_ADMIN';
+    const userRoleStr = String(currentUser?.role || '').toLowerCase();
+    const isAdminUser = userRoleStr === 'admin' || userRoleStr === 'super_admin';
 
     if (
       activeToast.targetRole === 'admin' ||

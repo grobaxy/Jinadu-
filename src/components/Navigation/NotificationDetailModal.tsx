@@ -43,11 +43,8 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
     if (onMarkAsRead) onMarkAsRead(notification.id);
     onClose();
 
-    const isAdminUser =
-      currentUser?.role === 'admin' ||
-      currentUser?.role === 'super_admin' ||
-      currentUser?.role === 'ADMIN' ||
-      currentUser?.role === 'SUPER_ADMIN';
+    const userRoleStr = String(currentUser?.role || '').toLowerCase();
+    const isAdminUser = userRoleStr === 'admin' || userRoleStr === 'super_admin';
 
     if (
       notification.targetRole === 'admin' ||

@@ -85,9 +85,9 @@ const EVENT_IMAGE_PRESETS = [
 ];
 
 export function AdminEventsView() {
-  const { user, events: contextEvents, deletePlatformEvent } = useApp();
-  const adminUid = user?.id || PRIMARY_SUPER_ADMIN_UID;
-  const adminName = user?.name || 'Administrator';
+  const { currentUser, events: contextEvents, deletePlatformEvent } = useApp();
+  const adminUid = currentUser?.id || PRIMARY_SUPER_ADMIN_UID;
+  const adminName = currentUser?.name || 'Administrator';
 
   const [events, setEvents] = useState<PlatformEventItem[]>((contextEvents as any as PlatformEventItem[]) || []);
   const [loading, setLoading] = useState<boolean>(false);

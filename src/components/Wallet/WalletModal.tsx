@@ -160,7 +160,7 @@ export const WalletModal: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<
     'profile' | 'airtime_data' | 'privacy' | 'withdraw' | 'history' | 'upgrade' | 'contact'
-  >(walletModalTab === 'admin' ? 'profile' : walletModalTab || 'profile');
+  >((walletModalTab as string) === 'admin' ? 'profile' : walletModalTab || 'profile');
 
   // Plan Upgrade / Checkout Modal State
   const [selectedPlanForUpgrade, setSelectedPlanForUpgrade] = useState<SubscriptionPlan | null>(null);
@@ -190,7 +190,7 @@ export const WalletModal: React.FC = () => {
 
   // Sync activeTab when walletModalTab changes
   useEffect(() => {
-    if (walletModalTab && walletModalTab !== 'admin') {
+    if (walletModalTab && (walletModalTab as string) !== 'admin') {
       setActiveTab(walletModalTab);
     }
   }, [walletModalTab, isWalletModalOpen]);
@@ -637,9 +637,9 @@ export const WalletModal: React.FC = () => {
                     {currentUser.equippedBadge ? (
                       <div
                         className="absolute -bottom-2 -right-2 p-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-sm shadow-md flex items-center justify-center border-2 border-white dark:border-slate-900"
-                        title={`Equipped Badge: ${currentUser.equippedBadge.name}`}
+                        title={`Equipped Badge: ${typeof currentUser.equippedBadge === 'object' ? (currentUser.equippedBadge.name || currentUser.equippedBadge.title || 'Badge') : currentUser.equippedBadge}`}
                       >
-                        <span>{currentUser.equippedBadge.icon}</span>
+                        <span>{typeof currentUser.equippedBadge === 'object' ? (currentUser.equippedBadge.icon || '🎖️') : '🎖️'}</span>
                       </div>
                     ) : (
                       <button

@@ -14,7 +14,8 @@ export type ManagerRole =
   | 'CHATROOM_LIVE_MANAGER'
   | 'QUESTION_MANAGER'
   | 'NOTIFICATION_MANAGER'
-  | 'USER_MANAGER';
+  | 'USER_MANAGER'
+  | 'INSTITUTIONAL_LEAGUE_MANAGER';
 
 export const PRIMARY_SUPER_ADMIN_UID = '4403bd2b-e385-479b-af16-058582fa4ee3';
 export const LEGACY_SUPER_ADMIN_UID = 'iH02BTcB4B0BV2YLA60WwFAi50CJ3';
@@ -149,7 +150,7 @@ export type TabType = 'home' | 'gus' | 'daily_qa' | 'school_dome' | 'school_dome
 // GROBAAX COMPETITION HINTS TYPES & SCHEMAS
 // ==========================================
 export type CompetitionHintType = 'daily_qa' | 'school_dome';
-export type HintSubscriptionTier = 'premium' | 'vip' | 'both';
+export type HintSubscriptionTier = 'free' | 'premium' | 'vip' | 'both';
 export type HintStatus = 'draft' | 'published' | 'hidden';
 
 export interface CompetitionHint {
@@ -706,8 +707,9 @@ export type UserEquippedBadge =
   | string
   | {
       id?: string;
-      title: string;
-      icon: string;
+      title?: string;
+      name?: string;
+      icon?: string;
       color?: string;
     };
 
@@ -717,9 +719,15 @@ export interface AcademicProfileData {
   institutionName: string;
   facultyId?: string;
   facultyName?: string;
+  faculty?: string;
   departmentId?: string;
   departmentName: string;
+  department?: string;
   level: string;
+  academicLevel?: string;
+  state?: string;
+  matricNumber?: string;
+  isVerified?: boolean;
   completedAt?: string;
 }
 
@@ -727,6 +735,7 @@ export interface UserProfile {
   id: string;
   uid?: string;
   name: string;
+  displayName?: string;
   fullName?: string;
   username: string;
   usernameLower?: string;
@@ -752,6 +761,7 @@ export interface UserProfile {
   departmentName?: string;
   level: string;
   major: string;
+  matricNumber?: string;
   grbxTokens: number;
   gpBalance: number; // GP Wallet balance
   stakedTokens: number;
@@ -761,6 +771,9 @@ export interface UserProfile {
   walletAddress: string;
   bio: string;
   verified: boolean;
+  isVerified?: boolean;
+  isSuperAdmin?: boolean;
+  hasBlueBadge?: boolean;
   studentIdCardUrl?: string;
   idVerificationStatus?: 'unsubmitted' | 'pending' | 'verified' | 'rejected';
   idCardUploadedAt?: string;
@@ -1755,7 +1768,15 @@ export interface Transaction {
   meta?: any;
 }
 
-export type MinimartProductCondition = 'New' | 'Used' | 'Fairly Used';
+export type MinimartProductCondition =
+  | 'New'
+  | 'Used'
+  | 'Fairly Used'
+  | 'Used - Good'
+  | 'Used - Like New'
+  | 'Used - Fair'
+  | 'Refurbished'
+  | string;
 
 export type MinimartProductStatus = 'active' | 'expired' | 'suspended' | 'removed' | 'archived';
 
@@ -1764,7 +1785,12 @@ export interface MinimartProduct {
   productId: string;
   sellerId: string;
   sellerName: string;
-  sellerProfileImage: string;
+  sellerUsername?: string;
+  sellerProfileImage?: string;
+  sellerAvatar?: string;
+  sellerVerified?: boolean;
+  sellerInstitution?: string;
+  sellerDepartment?: string;
   institutionId?: string;
   institutionName: string;
   departmentName?: string;
@@ -1775,9 +1801,14 @@ export interface MinimartProduct {
   price: number;
   currency: 'NGN' | string;
   condition: MinimartProductCondition;
-  imageUrls: string[];
+  imageUrls?: string[];
+  images?: string[];
   whatsappNumber: string;
   location?: string;
+  locationCampus?: string;
+  contactHours?: string;
+  tags?: string[];
+  isNegotiable?: boolean;
   additionalInfo?: string;
   status: MinimartProductStatus;
   createdAt: string;
@@ -1809,7 +1840,13 @@ export type MinimartReportReason =
   | 'Misleading information'
   | 'Inappropriate content'
   | 'Spam'
-  | 'Other';
+  | 'Other'
+  | 'scam_fraud'
+  | 'fake_counterfeit'
+  | 'prohibited_goods'
+  | 'misleading_pricing'
+  | 'inappropriate'
+  | 'other';
 
 export interface MinimartReport {
   id: string;
@@ -2287,6 +2324,8 @@ export interface ChatroomLiveMessage {
     questionNumber: number;
     totalQuestions: number;
     questionText: string;
+    correctAnswer?: string;
+    acceptedAlternativeAnswers?: string[];
     status: 'active' | 'closed';
     gpRewardPerWinner: number;
     winnerCountLimit: number;
@@ -2345,6 +2384,8 @@ export interface ChatroomLiveQuestion {
     userAvatar: string;
     institution: string;
     isPremium: boolean;
+    isVip?: boolean;
+    membershipTier?: string;
     submittedAt: number;
     gpAwarded: number;
   }>;

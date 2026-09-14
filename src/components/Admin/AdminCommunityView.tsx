@@ -179,7 +179,6 @@ export const AdminCommunityView: React.FC<AdminCommunityViewProps> = ({
           userProfile?.avatar ||
           currentUser?.avatar ||
           'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         important: annPriority === 'High' || annPriority === 'Urgent',
         status: 'Published',
       });

@@ -265,13 +265,14 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
     }
 
     // 2. Identify target question if message references or replies to a question
+    const replyMsgId = (message.replyTo as any)?.messageId || message.replyTo?.id || '';
     const qId =
       message.questionId ||
-      (message.replyTo?.messageId &&
-        (message.replyTo.messageId.startsWith('msg_sdq_')
-          ? message.replyTo.messageId.replace('msg_sdq_', '')
-          : message.replyTo.messageId.startsWith('dome_msg_q_')
-          ? message.replyTo.messageId.replace('dome_msg_q_', '')
+      (replyMsgId &&
+        (replyMsgId.startsWith('msg_sdq_')
+          ? replyMsgId.replace('msg_sdq_', '')
+          : replyMsgId.startsWith('dome_msg_q_')
+          ? replyMsgId.replace('dome_msg_q_', '')
           : null));
 
     const isReplyToQuestion = Boolean(

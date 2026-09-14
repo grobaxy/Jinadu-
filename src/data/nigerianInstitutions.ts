@@ -2,7 +2,7 @@ export interface StaticInstitution {
   id: string;
   name: string;
   shortName: string;
-  category: 'University' | 'Polytechnic' | 'College of Education';
+  category: 'University' | 'Polytechnic' | 'College of Education' | 'College of Health & Nursing' | string;
   state: string;
   logo: string; // Emoji or logo identifier
   type: 'Federal' | 'State' | 'Private';
@@ -323,7 +323,7 @@ export const NIGERIAN_INSTITUTIONS: StaticInstitution[] = [
  * Filter institutions by Category (University, Polytechnic, College of Education)
  */
 export const getNigerianInstitutionsByCategory = (
-  category?: 'University' | 'Polytechnic' | 'College of Education' | 'All'
+  category?: 'University' | 'Polytechnic' | 'College of Education' | 'College of Health & Nursing' | 'All' | string
 ): StaticInstitution[] => {
   if (!category || category === 'All') {
     return NIGERIAN_INSTITUTIONS;
@@ -336,7 +336,7 @@ export const getNigerianInstitutionsByCategory = (
  */
 export const searchNigerianInstitutions = (
   queryText: string,
-  category?: 'University' | 'Polytechnic' | 'College of Education' | 'All'
+  category?: 'University' | 'Polytechnic' | 'College of Education' | 'College of Health & Nursing' | 'All' | string
 ): StaticInstitution[] => {
   const baseList = getNigerianInstitutionsByCategory(category);
   const cleanQuery = (queryText || '').trim().toLowerCase();

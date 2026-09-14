@@ -1041,7 +1041,7 @@ export const AdminGusManager: React.FC<AdminGusManagerProps> = ({ onClose }) => 
                   Edit Live State Directly
                 </button>
                 <button
-                  onClick={handleSeedQuestions}
+                  onClick={() => handleSeedQuestions()}
                   disabled={actionLoading}
                   className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                 >

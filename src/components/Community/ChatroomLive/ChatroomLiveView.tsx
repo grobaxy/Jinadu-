@@ -786,7 +786,7 @@ export const ChatroomLiveView: React.FC = () => {
       {/* Floating Scroll To Bottom Button */}
       {showScrollBottom && (
         <button
-          onClick={scrollToBottom}
+          onClick={() => scrollToBottom()}
           className="absolute bottom-20 right-6 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 transition-all cursor-pointer z-20 flex items-center gap-1.5 text-xs font-bold"
         >
           <ArrowDown className="w-3.5 h-3.5" />

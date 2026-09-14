@@ -151,8 +151,10 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
   };
 
   const handleEndSeasonAndSplitPrize = async () => {
-    const standingCount = season.activeUserIds?.length || 0;
-    const confirmText = `Are you sure you want to end ${season.title}?\n\nThe ${season.prizeCurrency === 'NGN' ? '₦' : ''}${season.prizePool.toLocaleString()} prize pool will be divided EQUALLY among the ${standingCount} last scholar(s) standing (${season.prizeCurrency === 'NGN' ? '₦' : ''}${Math.floor(season.prizePool / Math.max(1, standingCount)).toLocaleString()} each).`;
+    const standingCount = (season.activeUserIds && season.activeUserIds.length > 0)
+      ? season.activeUserIds.length
+      : (season.registeredUserIds?.length || 0);
+    const confirmText = `Are you sure you want to end ${season.title}?\n\nThe ${season.prizeCurrency === 'NGN' ? '₦' : ''}${season.prizePool.toLocaleString()} prize pool will be divided EQUALLY among the last scholar(s) standing (${standingCount > 0 ? `${season.prizeCurrency === 'NGN' ? '₦' : ''}${Math.floor(season.prizePool / standingCount).toLocaleString()} each` : 'equal split'}).`;
 
     if (!window.confirm(confirmText)) return;
 

@@ -16,6 +16,7 @@ export const ALL_MANAGER_ROLES: ManagerRole[] = [
   'QUESTION_MANAGER',
   'NOTIFICATION_MANAGER',
   'USER_MANAGER',
+  'INSTITUTIONAL_LEAGUE_MANAGER',
 ];
 
 export const ROLE_LABELS: Record<ManagerRole, string> = {
@@ -33,6 +34,7 @@ export const ROLE_LABELS: Record<ManagerRole, string> = {
   QUESTION_MANAGER: 'Question Bank Manager',
   NOTIFICATION_MANAGER: 'Notification Manager',
   USER_MANAGER: 'User Accounts Manager',
+  INSTITUTIONAL_LEAGUE_MANAGER: 'Institutional League Manager',
 };
 
 export const ROLE_DESCRIPTIONS: Record<ManagerRole, string> = {
@@ -50,6 +52,7 @@ export const ROLE_DESCRIPTIONS: Record<ManagerRole, string> = {
   QUESTION_MANAGER: 'Maintains master question banks across all competition categories and difficulty levels.',
   NOTIFICATION_MANAGER: 'Sends targeted push/system notifications to platform users.',
   USER_MANAGER: 'Views, searches, filters, inspects, and manages registered student user profiles.',
+  INSTITUTIONAL_LEAGUE_MANAGER: 'Manages inter-institution league competitions, seasons, rankings, and match schedules.',
 };
 
 export function isPrimarySuperAdmin(uid?: string | null, email?: string | null): boolean {
@@ -188,6 +191,11 @@ export function getTabsForRole(role?: ManagerRole | null, uid?: string | null): 
       break;
     case 'USER_MANAGER':
       tabs.add('users');
+      break;
+    case 'INSTITUTIONAL_LEAGUE_MANAGER':
+      tabs.add('institutions');
+      tabs.add('live_management');
+      tabs.add('questions');
       break;
     default:
       break;

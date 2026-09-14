@@ -307,7 +307,14 @@ export async function setDoc<T = any>(
   options?: { merge?: boolean }
 ): Promise<void> {
   const merge = options?.merge ?? true;
-  await setDocToSupabase(docRef.collection, docRef.id, data, merge);
+  let finalData: any = data;
+  if (merge) {
+    const existing = await getDocFromSupabase(docRef.collection, docRef.id);
+    finalData = resolveFieldUpdates(existing, data);
+  } else {
+    finalData = resolveFieldUpdates({}, data);
+  }
+  await setDocToSupabase(docRef.collection, docRef.id, finalData, merge);
 }
 
 export async function updateDoc<T = any>(

@@ -139,6 +139,19 @@ export async function setDocToSupabase<T = any>(
         ...finalPayload,
         updatedAt: now,
       };
+      // Extra safeguard against raw __op field values
+      for (const [k, v] of Object.entries(data as any || {})) {
+        if (v && typeof v === 'object' && (v as any).__op === 'increment') {
+          finalPayload[k] = (Number(existing[k]) || 0) + Number((v as any).value || 0);
+        }
+      }
+    }
+  }
+
+  // Sanitize any remaining __op increment objects
+  for (const [k, v] of Object.entries(finalPayload)) {
+    if (v && typeof v === 'object' && (v as any).__op === 'increment') {
+      finalPayload[k] = Number((v as any).value || 0);
     }
   }
 

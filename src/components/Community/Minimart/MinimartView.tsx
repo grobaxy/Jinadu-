@@ -507,7 +507,7 @@ export const MinimartView: React.FC = () => {
 
                     {/* Action Controls */}
                     <div className="flex items-center gap-1 shrink-0">
-                      {(isOwner || role === 'admin') && (
+                      {isOwner && (
                         <>
                           <button
                             type="button"

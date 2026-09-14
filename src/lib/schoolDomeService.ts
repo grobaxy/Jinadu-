@@ -1346,30 +1346,111 @@ export async function endSchoolDomeSeasonAndDistributePrize(
     }
 
     const seasonData = seasonSnap.data() as SchoolDomeSeason;
-    const lastStandingIds = seasonData.activeUserIds || [];
 
-    // Fetch user details for each last standing scholar and distribute prizes concurrently
-    const totalPrize = seasonData.prizePool || 0;
+    // 1. Resolve Last Standing Scholars with complete fallbacks
+    let lastStandingIds: string[] = Array.isArray(seasonData.activeUserIds)
+      ? [...seasonData.activeUserIds].filter(Boolean)
+      : [];
+
+    // Fallback 1: Query school_dome_registrations with status 'active' for this season
+    if (lastStandingIds.length === 0) {
+      try {
+        const activeRegsSnap = await getDocs(
+          query(
+            collection(db, 'school_dome_registrations'),
+            where('seasonId', '==', seasonId),
+            where('status', '==', 'active')
+          )
+        );
+        if (!activeRegsSnap.empty) {
+          lastStandingIds = activeRegsSnap.docs.map((d) => d.data().userId).filter(Boolean);
+        }
+      } catch (err) {
+        console.warn('[School Dome] Notice: Could not query active registrations:', err);
+      }
+    }
+
+    // Fallback 2: If all contenders were eliminated (e.g. final question expired or all wrong),
+    // find the contenders who reached the highest question number (the top finalists who survived longest)
+    if (lastStandingIds.length === 0) {
+      try {
+        const allRegsSnap = await getDocs(
+          query(
+            collection(db, 'school_dome_registrations'),
+            where('seasonId', '==', seasonId)
+          )
+        );
+        if (!allRegsSnap.empty) {
+          const regs = allRegsSnap.docs.map((d) => d.data() as SchoolDomeParticipant);
+          const maxQ = Math.max(...regs.map((r) => r.eliminatedAtQuestionNumber || 0), 0);
+          if (maxQ > 0) {
+            const finalists = regs.filter((r) => (r.eliminatedAtQuestionNumber || 0) === maxQ);
+            if (finalists.length > 0) {
+              lastStandingIds = finalists.map((r) => r.userId).filter(Boolean);
+            }
+          }
+          // If still empty (e.g. no questions numbers recorded), award all registered scholars
+          if (lastStandingIds.length === 0 && regs.length > 0) {
+            lastStandingIds = regs.map((r) => r.userId).filter(Boolean);
+          }
+        }
+      } catch (err) {
+        console.warn('[School Dome] Notice: Could not query fallback registrations:', err);
+      }
+    }
+
+    // Fallback 3: Use registeredUserIds from season document
+    if (lastStandingIds.length === 0 && Array.isArray(seasonData.registeredUserIds) && seasonData.registeredUserIds.length > 0) {
+      lastStandingIds = seasonData.registeredUserIds.filter(Boolean);
+    }
+
+    // Deduplicate IDs
+    lastStandingIds = Array.from(new Set(lastStandingIds));
+
+    // 2. Calculate prize pool distribution
+    const totalPrize = Math.max(0, Number(seasonData.prizePool) || 0);
     const winnerCount = Math.max(1, lastStandingIds.length);
-    const prizePerWinner = Math.floor(totalPrize / winnerCount);
+    const prizePerWinner = lastStandingIds.length > 0 ? Math.floor(totalPrize / winnerCount) : 0;
 
+    // 3. Concurrently credit each winner's user document and record compliant transaction
     const winners: SchoolDomeWinner[] = await Promise.all(
       lastStandingIds.map(async (uId) => {
         let userName = `Scholar (${uId.slice(-4)})`;
         let avatar: string | undefined;
         let institution = 'Nigerian Higher Institution';
         let department: string | undefined;
+        let currentGp = 0;
+        let currentWalletBalance = 0;
+        let currentTotalGpEarned = 0;
+        let existingData: any = null;
 
         try {
           const uSnap = await getDoc(doc(db, 'users', uId));
           if (uSnap.exists()) {
-            const u = uSnap.data() as UserProfile;
-            userName = u.name || userName;
-            avatar = u.avatar;
-            institution = u.institution || institution;
-            department = u.department;
+            existingData = uSnap.data();
+            userName = existingData.name || existingData.fullName || existingData.username || userName;
+            avatar = existingData.avatar || existingData.profileImage;
+            institution = existingData.institution || existingData.institutionName || institution;
+            department = existingData.department || existingData.departmentName;
+
+            currentGp = typeof existingData.gpBalance === 'number'
+              ? existingData.gpBalance
+              : Number(existingData.gpBalance || 0);
+            if (isNaN(currentGp)) currentGp = 0;
+
+            currentWalletBalance = typeof existingData.walletBalance === 'number'
+              ? existingData.walletBalance
+              : currentGp;
+            if (isNaN(currentWalletBalance)) currentWalletBalance = currentGp;
+
+            currentTotalGpEarned = typeof existingData.totalGpEarned === 'number'
+              ? existingData.totalGpEarned
+              : Number(existingData.totalGpEarned || 0);
+            if (isNaN(currentTotalGpEarned)) currentTotalGpEarned = 0;
           }
-        } catch {}
+        } catch (err) {
+          console.warn(`[School Dome] Could not fetch user data for ${uId}:`, err);
+        }
 
         const winnerRecord: SchoolDomeWinner = {
           userId: uId,
@@ -1380,46 +1461,88 @@ export async function endSchoolDomeSeasonAndDistributePrize(
           prizeWon: prizePerWinner,
         };
 
-        const txDoc = doc(collection(db, 'walletTransactions'));
-        const notifDoc = doc(collection(db, 'notifications'));
+        if (prizePerWinner > 0) {
+          const newGpBalance = currentGp + prizePerWinner;
+          const newWalletBalance = currentWalletBalance + prizePerWinner;
+          const newTotalGpEarned = currentTotalGpEarned + prizePerWinner;
 
-        // Concurrently credit wallet, create transaction, and send notification
-        await Promise.allSettled([
-          setDoc(doc(db, 'users', uId), {
-            gpBalance: increment(prizePerWinner),
-            gp: increment(prizePerWinner),
-            walletBalance: increment(prizePerWinner),
-            totalGpEarned: increment(prizePerWinner),
-            updatedAt: serverTimestamp(),
-          }, { merge: true }),
-          setDoc(txDoc, {
-            id: txDoc.id,
-            userId: uId,
-            userName,
-            type: 'Credit',
-            action: 'Credit',
-            category: 'School Dome Prize',
-            amount: prizePerWinner,
-            unit: 'GP',
-            currency: 'GP',
-            description: `School Dome Season #${seasonData.seasonNumber || 1} Champion Prize (Equal Share)`,
-            status: 'Completed',
-            timestamp: Date.now(),
-            createdAt: serverTimestamp(),
-            source: 'School Dome Prize',
-          }),
-          setDoc(notifDoc, {
-            id: notifDoc.id,
-            userId: uId,
-            title: '🏆 School Dome Champion Prize Credited!',
-            message: `Congratulations! You survived as a champion in ${seasonData.title}! Your equal share of ${prizePerWinner.toLocaleString()} GP has been deposited directly into your wallet.`,
-            type: 'dome',
-            isRead: false,
-            timestamp: Date.now(),
-            createdAt: serverTimestamp(),
-            actionUrl: 'school_dome_results',
-          })
-        ]);
+          const txDoc = doc(collection(db, 'walletTransactions'));
+          const notifDoc = doc(collection(db, 'notifications'));
+          const txRefId = `TX-DOME-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
+          const dateStr = new Date().toLocaleDateString('en-US', {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+
+          // Perform writes
+          try {
+            // A. Directly write updated GP balance to users document
+            await setDoc(
+              doc(db, 'users', uId),
+              {
+                gpBalance: newGpBalance,
+                gp: newGpBalance,
+                walletBalance: newWalletBalance,
+                totalGpEarned: newTotalGpEarned,
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            );
+
+            // B. Record fully compliant wallet transaction
+            await setDoc(txDoc, {
+              id: txDoc.id,
+              transactionId: txRefId,
+              userId: uId,
+              userName,
+              type: 'gp_earned',
+              action: 'Credit',
+              category: 'School Dome Prize',
+              amount: prizePerWinner,
+              unit: 'GP',
+              currency: 'GP',
+              title: `🏆 School Dome Season #${seasonData.seasonNumber || 1} Champion Prize (+${prizePerWinner.toLocaleString()} GP)`,
+              description: `Equal share of ${totalPrize.toLocaleString()} GP prize pool for surviving Season #${seasonData.seasonNumber || 1}: ${seasonData.title}.`,
+              isCredit: true,
+              status: 'completed',
+              date: dateStr,
+              timestamp: Date.now(),
+              createdAt: serverTimestamp(),
+              source: 'School Dome Prize',
+            });
+
+            // C. Send congratulatory in-app notification
+            await setDoc(notifDoc, {
+              id: notifDoc.id,
+              userId: uId,
+              title: '🏆 School Dome Champion Prize Credited!',
+              message: `Congratulations! You survived as a champion in ${seasonData.title}! Your equal share of ${prizePerWinner.toLocaleString()} GP has been deposited directly into your wallet.`,
+              type: 'dome',
+              isRead: false,
+              timestamp: Date.now(),
+              createdAt: serverTimestamp(),
+              actionUrl: 'school_dome_results',
+            });
+
+            // D. Mark registration record as winner
+            const regDocRef = doc(db, 'school_dome_registrations', `${seasonId}_${uId}`);
+            await setDoc(
+              regDocRef,
+              {
+                isWinner: true,
+                prizeWon: prizePerWinner,
+                status: 'active',
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            );
+          } catch (creditErr) {
+            console.error(`[School Dome] Error crediting prize to user ${uId}:`, creditErr);
+          }
+        }
 
         return winnerRecord;
       })
@@ -1433,6 +1556,8 @@ export async function endSchoolDomeSeasonAndDistributePrize(
             detail: {
               seasonId,
               seasonNumber: seasonData.seasonNumber,
+              title: seasonData.title,
+              totalPrize,
               winners,
               prizePerWinner,
             },
@@ -1601,6 +1726,25 @@ export async function updateSchoolDomeSeason(
     }
     if (updates.rules !== undefined) {
       sanitizedUpdates.rules = updates.rules;
+    }
+
+    // If status is transitioning to 'ended', ensure prizes are distributed
+    if (updates.status === 'ended') {
+      try {
+        const snap = await getDoc(seasonRef);
+        if (snap.exists()) {
+          const curData = snap.data() as SchoolDomeSeason;
+          if (curData.status !== 'ended' || !curData.winners || curData.winners.length === 0) {
+            // Apply other edits first
+            await updateDoc(seasonRef, sanitizedUpdates);
+            // Then execute formal prize distribution
+            await endSchoolDomeSeasonAndDistributePrize(seasonId);
+            return;
+          }
+        }
+      } catch (endErr) {
+        console.warn('[School Dome] Notice: Could not auto-finalize prize distribution in updateSchoolDomeSeason:', endErr);
+      }
     }
 
     await updateDoc(seasonRef, sanitizedUpdates);

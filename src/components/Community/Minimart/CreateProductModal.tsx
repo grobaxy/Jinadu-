@@ -55,7 +55,9 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [isNegotiable, setIsNegotiable] = useState<boolean>(initialProduct?.isNegotiable ?? true);
   const [condition, setCondition] = useState<MinimartProduct['condition']>(initialProduct?.condition || 'Used - Good');
   const [description, setDescription] = useState(initialProduct?.description || '');
-  const [imageUrl, setImageUrl] = useState(initialProduct?.images?.[0] || '');
+  const [imageUrl, setImageUrl] = useState(
+    initialProduct?.imageUrls?.[0] || initialProduct?.images?.[0] || ''
+  );
   const [fileName, setFileName] = useState('');
   const [isCompressing, setIsCompressing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -190,6 +192,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
           isNegotiable,
           condition,
           description: description.trim(),
+          imageUrls: [imageUrl.trim()],
           images: [imageUrl.trim()],
           whatsappNumber: whatsappNumber.trim(),
           locationCampus: locationCampus.trim(),
@@ -208,21 +211,29 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
           categoryId,
           categoryName: selectedCategory?.name || 'General',
           price: numPrice,
+          currency: 'NGN',
           isNegotiable,
           condition,
           description: description.trim(),
+          imageUrls: [imageUrl.trim()],
           images: [imageUrl.trim()],
           whatsappNumber: whatsappNumber.trim(),
           sellerId: currentUser.id,
           sellerName: currentUser.name,
           sellerUsername: currentUser.username,
+          sellerProfileImage: currentUser.avatar || '',
           sellerAvatar: currentUser.avatar,
           sellerInstitution: currentUser.institution || 'Grobaax Campus',
+          institutionName: currentUser.institution || 'Grobaax Campus',
+          institutionId: currentUser.institutionId || '',
           sellerDepartment: currentUser.department || 'Student',
           sellerVerified: currentUser.verified || false,
           locationCampus: locationCampus.trim(),
           contactHours: contactHours.trim(),
           tags,
+          subscriptionPlan: 'free',
+          listingDurationHours: eligibility.listingDurationHours || 12,
+          status: 'active',
         });
         if (!res.success) {
           setError(res.error || 'Failed to create listing.');

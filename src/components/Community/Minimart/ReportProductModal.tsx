@@ -59,7 +59,7 @@ export const ReportProductModal: React.FC<ReportProductModalProps> = ({
   product,
 }) => {
   const { reportMinimartProduct } = useApp();
-  const [selectedReason, setSelectedReason] = useState<MinimartReportReason>('scam_fraud');
+  const [selectedReason, setSelectedReason] = useState<MinimartReportReason>('Scam');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');

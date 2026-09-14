@@ -871,7 +871,8 @@ interface GusResetConfirmModalProps {
   onClose: () => void;
   onConfirm: () => Promise<void>;
   seasonTitle?: string;
-  totalParticipants: number;
+  totalParticipants?: number;
+  activeParticipantsCount?: number;
 }
 
 export const GusResetConfirmModal: React.FC<GusResetConfirmModalProps> = ({
@@ -880,7 +881,9 @@ export const GusResetConfirmModal: React.FC<GusResetConfirmModalProps> = ({
   onConfirm,
   seasonTitle,
   totalParticipants,
+  activeParticipantsCount,
 }) => {
+  const count = totalParticipants ?? activeParticipantsCount ?? 0;
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -926,7 +929,7 @@ export const GusResetConfirmModal: React.FC<GusResetConfirmModalProps> = ({
           <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-1.5">
             <div className="font-black uppercase tracking-wider text-[10px]">Actions to be executed:</div>
             <ul className="list-disc pl-4 space-y-1 text-[11px]">
-              <li>All <strong>{totalParticipants}</strong> participants will be restored to <strong>ACTIVE</strong> status.</li>
+              <li>All <strong>{count}</strong> participants will be restored to <strong>ACTIVE</strong> status.</li>
               <li>Eliminations, timeouts, and wrong answer strikes will be cleared.</li>
               <li>Live engine stage will return to <strong>Round 1, Question 1</strong> (Lobby Waiting state).</li>
               <li>Hall of Fame / Champion records for this run will be cleared.</li>

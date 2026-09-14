@@ -310,9 +310,11 @@ export function AdminSubscriptionsView() {
       .filter((f) => f.length > 0);
 
     const isFreeScholarSave = formPlanId === 'plan_free_scholar';
+    const computedPlanId = formPlanId.trim() || `plan_${Date.now()}`;
 
-    const planData: Omit<SubscriptionPlan, 'id'> = {
-      planId: formPlanId.trim() || `plan_${Date.now()}`,
+    const planData: SubscriptionPlan = {
+      id: selectedPlan?.id || computedPlanId,
+      planId: computedPlanId,
       name: formName.trim(),
       shortDescription: formShortDesc.trim(),
       fullDescription: formFullDesc.trim(),

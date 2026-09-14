@@ -279,6 +279,7 @@ interface AppContextType {
   };
   triggerSubscriptionSensorCheck: () => Promise<void>;
   isUserSubscribed: boolean;
+  isSubscriber: boolean;
   isUpgradePromoVisible: boolean;
   dismissUpgradePromo: () => void;
   isAuthModalOpen: boolean;
@@ -302,7 +303,7 @@ interface AppContextType {
   badgeStore: BadgeStoreItem[];
   buyBadge: (badge: BadgeStoreItem) => Promise<boolean> | boolean;
   withdrawals: WithdrawalRecord[];
-  requestGpWithdrawal: (gpAmount: number, bankName: string, accountNumber: string) => boolean;
+  requestGpWithdrawal: (gpAmount: number, bankName: string, accountNumber: string, accountName?: string) => boolean;
   updatePrivacy: (newPrivacy: Partial<PrivacySettings>) => void;
   isBalanceHidden: boolean;
   toggleBalanceHidden: () => void;
@@ -399,9 +400,13 @@ interface AppContextType {
   reportMinimartProduct: (productId: string, reason: MinimartReportReason, description: string) => Promise<{ success: boolean; error?: string }>;
   updateMinimartProductStatus: (productId: string, status: MinimartProductStatus) => Promise<{ success: boolean; error?: string }>;
   saveMinimartCategory: (category: MinimartCategory) => Promise<{ success: boolean; error?: string }>;
+  addMinimartCategory: (categoryData: Omit<MinimartCategory, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ success: boolean; error?: string }>;
+  updateMinimartCategory: (categoryId: string, updates: Partial<MinimartCategory>) => Promise<{ success: boolean; error?: string }>;
   deleteMinimartCategory: (categoryId: string) => Promise<{ success: boolean; error?: string }>;
   saveMinimartConfig: (config: Partial<MinimartConfig>) => Promise<{ success: boolean; error?: string }>;
+  updateMinimartConfig: (config: Partial<MinimartConfig>) => Promise<{ success: boolean; error?: string }>;
   moderateMinimartReport: (reportId: string, action: 'dismiss' | 'resolve' | 'suspend_product', adminNotes?: string) => Promise<{ success: boolean; error?: string }>;
+  resolveMinimartReport: (reportId: string, action: string, notes?: string) => Promise<{ success: boolean; error?: string }>;
   checkUserListingEligibility: (userId?: string) => UserListingEligibility;
   updateAnnouncement: (id: string, patch: Partial<Announcement>) => void;
   deleteAnnouncement: (id: string) => void;
@@ -3970,6 +3975,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateMinimartConfig = saveMinimartConfig;
+
+  const addMinimartCategory = async (categoryData: Omit<MinimartCategory, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; error?: string }> => {
+    const newCategory: MinimartCategory = {
+      ...categoryData,
+      id: `cat_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    return saveMinimartCategory(newCategory);
+  };
+
+  const updateMinimartCategory = async (categoryId: string, updates: Partial<MinimartCategory>): Promise<{ success: boolean; error?: string }> => {
+    const existing = minimartCategories.find(c => c.id === categoryId || c.categoryId === categoryId);
+    if (!existing) return { success: false, error: 'Category not found' };
+    const updated: MinimartCategory = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    return saveMinimartCategory(updated);
+  };
+
+  const resolveMinimartReport = async (reportId: string, action: string, notes?: string): Promise<{ success: boolean; error?: string }> => {
+    const actionNormalized =
+      action === 'dismissed' || action === 'dismiss'
+        ? 'dismiss'
+        : action === 'resolved' || action === 'resolve'
+        ? 'resolve'
+        : 'suspend_product';
+    return moderateMinimartReport(reportId, actionNormalized as any, notes);
+  };
+
   const updateAnnouncement = (id: string, patch: Partial<Announcement>) => {
     setAnnouncements(prev => prev.map(a => a.id === id ? { ...a, ...patch } : a));
   };
@@ -4621,6 +4659,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('sendNotification firestore notice:', err);
     }
   };
+
+  // Listen for School Dome Season Concluded & Prize Distributed events to ensure real-time wallet balance sync
+  useEffect(() => {
+    const handleDomeConcluded = (e: any) => {
+      const detail = e?.detail;
+      if (!detail || !Array.isArray(detail.winners) || !detail.prizePerWinner) return;
+
+      const currentUid = firebaseUser?.uid || currentUser.id;
+      const myWin = detail.winners.find((w: any) => w.userId === currentUid || w.userId === currentUser.id);
+
+      if (myWin && detail.prizePerWinner > 0) {
+        const prize = Number(detail.prizePerWinner);
+        setCurrentUser((prev) => {
+          const currentBal = typeof prev.gpBalance === 'number' ? prev.gpBalance : Number(prev.gpBalance || 0);
+          const newBal = (isNaN(currentBal) ? 0 : currentBal) + prize;
+          const updated = {
+            ...prev,
+            gpBalance: newBal,
+            walletBalance: newBal,
+            totalGpEarned: (Number((prev as any).totalGpEarned || 0) + prize),
+          };
+          try {
+            localStorage.setItem('grobax_cached_user_profile', JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+
+        // Prepend new transaction locally so history reflects it immediately
+        const txId = `tx_dome_win_${Date.now()}`;
+        const newTx: Transaction = {
+          id: txId,
+          transactionId: `TX-DOME-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+          userId: currentUid,
+          userName: currentUser.name || 'Scholar',
+          type: 'gp_earned',
+          amount: prize,
+          unit: 'GP',
+          title: `🏆 School Dome Season #${detail.seasonNumber || 1} Champion Prize (+${prize.toLocaleString()} GP)`,
+          description: `Equal split of ${detail.totalPrize?.toLocaleString() || prize.toLocaleString()} GP prize pool for surviving ${detail.title || 'School Dome'}.`,
+          date: new Date().toLocaleDateString('en-US', {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          status: 'completed',
+          isCredit: true,
+          createdAt: { seconds: Math.floor(Date.now() / 1000) },
+        };
+
+        setTransactions((prev) => [newTx, ...prev.filter((t) => t.id !== txId)]);
+
+        // Push in-app notification
+        sendNotification({
+          title: '🏆 School Dome Prize Distributed!',
+          message: `Congratulations! ${prize.toLocaleString()} GP has been deposited directly into your wallet!`,
+          type: 'dome',
+          actionUrl: 'school_dome_results',
+        });
+      }
+    };
+
+    window.addEventListener('school_dome_season_concluded', handleDomeConcluded);
+    return () => window.removeEventListener('school_dome_season_concluded', handleDomeConcluded);
+  }, [currentUser.id, currentUser.name, firebaseUser?.uid]);
 
   const updateSystemSettings = async (settingsPatch: Partial<SystemSettings>) => {
     setSystemSettings(prev => ({ ...prev, ...settingsPatch }));
@@ -5346,6 +5450,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activePaymentSensor,
         triggerSubscriptionSensorCheck,
         isUserSubscribed,
+        isSubscriber: isUserSubscribed,
         isUpgradePromoVisible,
         dismissUpgradePromo,
         isAuthModalOpen,
@@ -5437,9 +5542,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reportMinimartProduct,
         updateMinimartProductStatus,
         saveMinimartCategory,
+        addMinimartCategory,
+        updateMinimartCategory,
         deleteMinimartCategory,
         saveMinimartConfig,
+        updateMinimartConfig,
         moderateMinimartReport,
+        resolveMinimartReport,
         checkUserListingEligibility,
 
         updateAnnouncement,
