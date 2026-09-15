@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { CreateProductModal } from './Minimart/CreateProductModal';
 import { UserBadgeItem } from '../ui/UserBadgeItem';
-import { X, Image as ImageIcon, Tag, Send, AlertCircle, FileText, ShoppingBag, Crown, Upload } from 'lucide-react';
+import { X, Image as ImageIcon, Tag, Send, AlertCircle, FileText, ShoppingBag, Crown, Upload, Sparkles, Clock } from 'lucide-react';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -17,7 +17,7 @@ const PRESET_ATTACHMENTS = [
 ];
 
 export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, createPost } = useApp();
+  const { currentUser, createPost, checkUserPostEligibility, openWalletModal } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [postType, setPostType] = useState<'post' | 'product'>('post');
   const [content, setContent] = useState('');
@@ -27,6 +27,20 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [showImageInput, setShowImageInput] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const eligibility = useMemo(() => {
+    if (!checkUserPostEligibility) {
+      return {
+        userId: currentUser.id,
+        postCountLast24h: 0,
+        dailyLimit: 1 as number | 'unlimited',
+        remainingPosts: 1 as number | 'unlimited',
+        userTier: 'free' as const,
+        canCreatePost: true,
+      };
+    }
+    return checkUserPostEligibility(currentUser.id);
+  }, [checkUserPostEligibility, currentUser.id, isOpen]);
 
   if (!isOpen) return null;
 
@@ -194,6 +208,67 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
           </div>
         </div>
 
+        {/* 24-Hour Post Limit & Tier Status */}
+        <div className="mt-3">
+          {eligibility.userTier === 'vip' ? (
+            <div className="flex items-center justify-between px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-800 dark:text-amber-300">
+              <div className="flex items-center gap-1.5 font-bold">
+                <Crown className="w-3.5 h-3.5 text-amber-500" />
+                <span>VIP Scholar</span>
+              </div>
+              <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">Unlimited Posts</span>
+            </div>
+          ) : eligibility.userTier === 'premium' ? (
+            <div className="flex items-center justify-between px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-900 dark:text-blue-300">
+              <div className="flex items-center gap-1.5 font-bold">
+                <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Premium: 3 posts / 24h</span>
+              </div>
+              <span className="text-[11px] font-semibold text-blue-800 dark:text-blue-200">
+                {eligibility.remainingPosts} of 3 remaining
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-700 dark:text-slate-300">
+              <div className="flex items-center gap-1.5 font-medium">
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
+                <span>Free Scholar: 1 post / 24h</span>
+              </div>
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                {eligibility.remainingPosts} of 1 remaining
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 24-Hour Cooldown Alert when limit reached */}
+        {!eligibility.canCreatePost && (
+          <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-900 dark:text-amber-200 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-900 dark:text-amber-100">24-Hour Post Limit Reached</p>
+                <p className="mt-0.5 text-slate-600 dark:text-slate-300 leading-relaxed">
+                  {eligibility.reason}
+                </p>
+              </div>
+            </div>
+            <div className="pt-1 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  openWalletModal('upgrade');
+                }}
+                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
+              >
+                <Crown className="w-3 h-3" />
+                <span>{eligibility.userTier === 'free' ? 'Upgrade to Premium or VIP' : 'Upgrade to VIP (Unlimited)'}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div>
@@ -348,7 +423,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             </button>
             <button
               type="submit"
-              disabled={currentUser.isPostingSuspended || isSubmitting}
+              disabled={currentUser.isPostingSuspended || isSubmitting || !eligibility.canCreatePost}
               className="px-5 py-2 bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-950/20 flex items-center gap-1.5 cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />

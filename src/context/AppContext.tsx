@@ -154,6 +154,7 @@ import {
   MinimartProductStatus,
   MinimartReportReason,
   UserListingEligibility,
+  UserPostEligibility,
   UserSectionUnreadCounts,
   AdminSectionUnreadCounts,
   CompetitionHint,
@@ -408,6 +409,7 @@ interface AppContextType {
   moderateMinimartReport: (reportId: string, action: 'dismiss' | 'resolve' | 'suspend_product', adminNotes?: string) => Promise<{ success: boolean; error?: string }>;
   resolveMinimartReport: (reportId: string, action: string, notes?: string) => Promise<{ success: boolean; error?: string }>;
   checkUserListingEligibility: (userId?: string) => UserListingEligibility;
+  checkUserPostEligibility: (userId?: string) => UserPostEligibility;
   updateAnnouncement: (id: string, patch: Partial<Announcement>) => void;
   deleteAnnouncement: (id: string) => void;
   publishAnnouncement: (id: string) => void;
@@ -2920,7 +2922,173 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveAnnouncementToFirestore(item).catch(err => console.warn('Notice saving announcement to Firestore:', err));
   };
 
+  const checkUserPostEligibility = (targetUserId?: string): UserPostEligibility => {
+    const uid = targetUserId || currentUser.id;
+    const isTargetCurrentUser = uid === currentUser.id;
+    const userRole = isTargetCurrentUser ? (currentUser.role || 'student').toLowerCase() : 'student';
+
+    // 1. Staff and Admins always get VIP unlimited posting capabilities
+    if (
+      userRole === 'admin' ||
+      userRole === 'super_admin' ||
+      userRole === 'community_manager' ||
+      userRole === 'staff' ||
+      (currentUser.name && currentUser.name.toLowerCase().includes('admin')) ||
+      (currentUser.name && currentUser.name.toLowerCase().includes('staff'))
+    ) {
+      return {
+        userId: uid,
+        postCountLast24h: 0,
+        dailyLimit: 'unlimited',
+        remainingPosts: 'unlimited',
+        userTier: 'vip',
+        canCreatePost: true,
+      };
+    }
+
+    // 2. Evaluate Subscription Tier
+    let tier: 'free' | 'premium' | 'vip' = 'free';
+    const isTargetUserExpired = isTargetCurrentUser && currentUser.subscriptionExpiry
+      ? new Date(currentUser.subscriptionExpiry).getTime() <= Date.now()
+      : false;
+
+    if (!isTargetUserExpired) {
+      const activeSub = userSubscriptions.find(
+        s => (s.userId === uid || (isTargetCurrentUser && s.userId === currentUser.id)) && s.status === 'active'
+      );
+
+      if (activeSub) {
+        const pName = (activeSub.planNameSnapshot || '').toLowerCase();
+        const pId = (activeSub.planId || '').toLowerCase();
+        if (pName.includes('vip') || pName.includes('titan') || pName.includes('annual') || pId.includes('vip') || pId.includes('titan')) {
+          tier = 'vip';
+        } else {
+          tier = 'premium';
+        }
+      } else if (isTargetCurrentUser) {
+        const membership = (currentUser.membershipTier || '').toLowerCase();
+        const subTier = (currentUser.subscriptionTier || '').toLowerCase();
+        const planStr = ((currentUser.subscriptionPlan || (currentUser as any).planId || (currentUser as any).tier || currentUser.activePlanId || '') + '').toLowerCase();
+        const isActivelySubscribed = isUserSubscribed || checkIsUserSubscribed(currentUser);
+
+        const isVipTier =
+          membership.includes('vip') ||
+          membership.includes('titan') ||
+          subTier.includes('vip') ||
+          subTier.includes('titan') ||
+          planStr.includes('vip') ||
+          planStr.includes('titan') ||
+          planStr.includes('annual');
+
+        if (isVipTier) {
+          tier = 'vip';
+        } else if (
+          isActivelySubscribed ||
+          currentUser.isPremium ||
+          (currentUser.activePlanId && !currentUser.activePlanId.toLowerCase().includes('free')) ||
+          (membership && !membership.includes('free') && membership !== 'starter scholar' && !membership.includes('scholar (starter)') && membership.trim().length > 0) ||
+          (subTier && !subTier.includes('free') && subTier !== 'starter scholar' && !subTier.includes('scholar (starter)') && subTier.trim().length > 0) ||
+          (planStr && !planStr.includes('free') && planStr !== 'starter scholar' && planStr.trim().length > 0)
+        ) {
+          tier = 'premium';
+        }
+      }
+    }
+
+    // 3. VIP tier: Unlimited posts!
+    if (tier === 'vip') {
+      return {
+        userId: uid,
+        postCountLast24h: 0,
+        dailyLimit: 'unlimited',
+        remainingPosts: 'unlimited',
+        userTier: 'vip',
+        canCreatePost: true,
+      };
+    }
+
+    // 4. Calculate posts made in the last 24 hours
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const currentUsername = (currentUser.username || '').toLowerCase().trim();
+    const currentFullName = (currentUser.name || currentUser.fullName || '').toLowerCase().trim();
+
+    // Count user posts in memory
+    const userPosts = posts.filter(p => {
+      if (p.status === 'Deleted') return false;
+      const authorAny = p.author as any;
+      const isMatch =
+        (p as any).userId === uid ||
+        authorAny?.id === uid ||
+        authorAny?.userId === uid ||
+        (authorAny?.username && currentUsername && authorAny.username.toLowerCase().trim() === currentUsername) ||
+        (authorAny?.name && currentFullName && authorAny.name.toLowerCase().trim() === currentFullName);
+      if (!isMatch) return false;
+      const time = p.createdAtMillis || (p.id.startsWith('post_') && !isNaN(Number(p.id.split('_')[1])) ? Number(p.id.split('_')[1]) : 0);
+      return time >= oneDayAgo;
+    });
+
+    // Also check localStorage post log for reliable client-side enforcement
+    let localLog: number[] = [];
+    try {
+      const stored = localStorage.getItem(`grobax_post_log_${uid}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          localLog = parsed.filter(t => typeof t === 'number' && t >= oneDayAgo);
+        }
+      }
+    } catch {}
+
+    const postCount = Math.max(userPosts.length, localLog.length);
+    const limit = tier === 'premium' ? 3 : 1;
+    const remaining = Math.max(0, limit - postCount);
+    const canCreate = remaining > 0;
+
+    let reason: string | undefined;
+    let hoursRemaining: number | undefined;
+    let nextEligibleDate: string | null = null;
+
+    if (!canCreate) {
+      const timestamps = [
+        ...userPosts.map(p => p.createdAtMillis || (p.id.startsWith('post_') && !isNaN(Number(p.id.split('_')[1])) ? Number(p.id.split('_')[1]) : Date.now())),
+        ...localLog,
+      ].filter(t => t >= oneDayAgo).sort((a, b) => a - b);
+
+      if (timestamps.length > 0) {
+        const oldestTime = timestamps[0];
+        const nextTime = oldestTime + 24 * 60 * 60 * 1000;
+        const diffMs = Math.max(0, nextTime - Date.now());
+        hoursRemaining = Math.max(1, Math.ceil(diffMs / (60 * 60 * 1000)));
+        nextEligibleDate = new Date(nextTime).toISOString();
+      }
+
+      if (tier === 'free') {
+        reason = `Free scholars can only post once in 24 hours. Your next post is available in ${hoursRemaining || 24}h. Upgrade to Premium (3 posts/24h) or VIP (Unlimited) to post now!`;
+      } else {
+        reason = `You have reached your limit of 3 posts in 24 hours. Your next post is available in ${hoursRemaining || 24}h. Upgrade to VIP for unlimited posts!`;
+      }
+    }
+
+    return {
+      userId: uid,
+      postCountLast24h: postCount,
+      dailyLimit: limit,
+      remainingPosts: remaining,
+      userTier: tier,
+      canCreatePost: canCreate,
+      hoursRemaining,
+      nextEligibleDate,
+      reason,
+    };
+  };
+
   const createPost = async (content: string, tags: string[], attachmentData?: string): Promise<void> => {
+    // 1. Enforce 24-hour post allowance per subscription tier (Free: 1, Premium: 3, VIP: Unlimited)
+    const eligibility = checkUserPostEligibility(currentUser.id);
+    if (!eligibility.canCreatePost) {
+      throw new Error(eligibility.reason || 'You have reached your 24-hour post limit.');
+    }
+
     const subInfo = resolveUserSubscriptionStatus(currentUser);
     const hasUpgradedPlan = subInfo.isSubscribed;
     const effectiveTier = subInfo.effectiveTier;
@@ -2939,6 +3107,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newPost: Post = {
       id: 'post_' + nowMillis + '_' + Math.random().toString(36).substring(2, 6),
       author: {
+        id: currentUser.id,
         name: currentUser.name || currentUser.fullName || 'Grobaax Scholar',
         username: currentUser.username || '@scholar',
         avatar: currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
@@ -2957,7 +3126,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isStaffOrAdmin,
         isCommunityManager,
         verified: hasUpgradedPlan || isStaffOrAdmin || isCommunityManager || currentUser.verified,
-      },
+      } as any,
       content,
       image: attachmentData && (attachmentData.startsWith('http') || attachmentData.startsWith('data:')) ? attachmentData : undefined,
       timestamp: 'Just now',
@@ -2978,6 +3147,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
       return updated;
     });
+
+    // Record user post in local log for instant quota caching
+    try {
+      const key = `grobax_post_log_${currentUser.id}`;
+      const stored = localStorage.getItem(key);
+      const log: number[] = stored ? JSON.parse(stored) : [];
+      log.push(nowMillis);
+      localStorage.setItem(key, JSON.stringify(log));
+    } catch {}
 
     try {
       await saveCommunityPostToFirestore(newPost);
@@ -5550,6 +5728,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         moderateMinimartReport,
         resolveMinimartReport,
         checkUserListingEligibility,
+        checkUserPostEligibility,
 
         updateAnnouncement,
         deleteAnnouncement,

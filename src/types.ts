@@ -1894,6 +1894,18 @@ export interface UserListingEligibility {
   reason?: string;
 }
 
+export interface UserPostEligibility {
+  userId: string;
+  postCountLast24h: number;
+  dailyLimit: number | 'unlimited';
+  remainingPosts: number | 'unlimited';
+  userTier: 'free' | 'premium' | 'vip';
+  canCreatePost: boolean;
+  hoursRemaining?: number;
+  nextEligibleDate?: string | null;
+  reason?: string;
+}
+
 export interface GpConversionConfig {
   gpToFiatRate: number; // e.g. 100 GP = $1.00 USD
   currencySymbol: string;

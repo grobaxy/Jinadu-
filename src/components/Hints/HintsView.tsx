@@ -213,8 +213,8 @@ export function HintsView() {
     if (identifiedTier === 'premium') {
       return hint.accessLevel !== 'vip';
     }
-    // Free users can only view hints explicitly marked 'free'
-    return hint.accessLevel === 'free';
+    // Free users cannot view hint contents - upgrade to Premium or VIP is required
+    return false;
   };
 
   // Filtered hints by competition, search query, and access status
@@ -410,7 +410,7 @@ export function HintsView() {
                 {identifiedTier === 'admin' &&
                   'Administrative preview active. All hint rounds and hints are fully visible.'}
                 {identifiedTier === 'free' &&
-                  'Free scholars can browse hint titles, rounds, and subjects. Click "Unlock Hint" or "Subscribe" to access the hints.'}
+                  'Hint content is hidden for Free scholars. Upgrade to Premium or VIP to unlock and view all competition hints.'}
               </p>
             </div>
           </div>
