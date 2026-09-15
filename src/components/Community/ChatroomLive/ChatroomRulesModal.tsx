@@ -163,7 +163,7 @@ export const ChatroomRulesModal: React.FC<ChatroomRulesModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">
-                  {rulesData.title || 'Daily Ultimate Search — Official Rules'}
+                  {rulesData.title || 'Daily GP Grab — Official Rules'}
                 </h2>
                 {isManagerOrAdmin && !isEditing && (
                   <span className="px-2 py-0.5 rounded-md bg-amber-400/20 border border-amber-400/30 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase">
@@ -184,7 +184,7 @@ export const ChatroomRulesModal: React.FC<ChatroomRulesModalProps> = ({
                 id="admin-edit-rules-btn"
                 onClick={handleStartEdit}
                 className="px-2.5 py-1 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
-                title="Admin: Set Rules for Ultimate Search"
+                title="Admin: Set Rules for Daily GP Grab"
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Set Rules</span>
@@ -215,7 +215,7 @@ export const ChatroomRulesModal: React.FC<ChatroomRulesModalProps> = ({
             <div className="space-y-4">
               <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-300">
                 <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-                <span>Admin Mode: Customize the rules for the Daily Ultimate Search. Updates are synced live to all scholars in this chatroom.</span>
+                <span>Admin Mode: Customize the rules for the Daily GP Grab. Updates are synced live to all scholars in this chatroom.</span>
               </div>
 
               {/* Title */}

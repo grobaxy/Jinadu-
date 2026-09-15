@@ -273,7 +273,7 @@ export function AdminHintsView() {
           grobaxNotificationService.emitSectionNotification({
             section: 'hints',
             title: 'New Competition Hint',
-            message: `Strategic hints published for ${formData.competitionType === 'daily_qa' ? 'Daily Ultimate Search' : 'School Dome'} (${formData.roundLabel}).`,
+            message: `Strategic hints published for ${formData.competitionType === 'daily_qa' ? 'Daily GP Grab' : 'School Dome'} (${formData.roundLabel}).`,
             targetRole: 'ALL',
           });
         }
@@ -298,7 +298,7 @@ export function AdminHintsView() {
         grobaxNotificationService.emitSectionNotification({
           section: 'hints',
           title: 'Competition Hint Published',
-          message: `Strategic hints are now live for ${hint.competitionType === 'daily_qa' ? 'Daily Ultimate Search' : 'School Dome'}.`,
+          message: `Strategic hints are now live for ${hint.competitionType === 'daily_qa' ? 'Daily GP Grab' : 'School Dome'}.`,
           targetRole: 'ALL',
         });
       }
@@ -345,7 +345,7 @@ export function AdminHintsView() {
             HINT MANAGEMENT
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl">
-            Create, publish, and manage strategic preparation hints for Daily Ultimate Search and School Dome competitions. Protect content for eligible subscribers.
+            Create, publish, and manage strategic preparation hints for Daily GP Grab and School Dome competitions. Protect content for eligible subscribers.
           </p>
         </div>
 
@@ -379,7 +379,7 @@ export function AdminHintsView() {
         <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 shadow-xs space-y-1">
           <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
             <Trophy className="w-3 h-3" />
-            Daily Ultimate Search
+            Daily GP Grab
           </span>
           <div className="text-2xl font-black text-amber-700 dark:text-amber-400">
             {stats.dailyQA}
@@ -510,7 +510,7 @@ export function AdminHintsView() {
                       ) : (
                         <Swords className="w-3 h-3 text-blue-500" />
                       )}
-                      <span>{isDailyQA ? 'Daily Ultimate Search' : 'School Dome'}</span>
+                      <span>{isDailyQA ? 'Daily GP Grab' : 'School Dome'}</span>
                     </span>
 
                     {/* Access Level Badge */}
@@ -599,7 +599,7 @@ export function AdminHintsView() {
                 {/* Round Label / Title */}
                 <div className="space-y-1">
                   <h4 className="text-base font-bold text-slate-900 dark:text-white">
-                    {hint.roundLabel || hint.title || (isDailyQA ? 'Daily Ultimate Search Hint' : 'School Dome Hint')}
+                    {hint.roundLabel || hint.title || (isDailyQA ? 'Daily GP Grab Hint' : 'School Dome Hint')}
                   </h4>
                   <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -698,7 +698,7 @@ export function AdminHintsView() {
                       <Trophy className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="text-xs font-extrabold">Daily Ultimate Search</div>
+                      <div className="text-xs font-extrabold">Daily GP Grab</div>
                       <div className="text-[10px] text-slate-500 dark:text-slate-400">
                         Daily challenge arena
                       </div>
@@ -915,7 +915,7 @@ export function AdminHintsView() {
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Are you sure you want to permanently delete{' '}
                 <span className="font-bold text-slate-800 dark:text-slate-200">
-                  "{hintToDelete.roundLabel || hintToDelete.title || (hintToDelete.competitionType === 'daily_qa' ? 'Daily Ultimate Search Hint' : 'School Dome Hint')}"
+                  "{hintToDelete.roundLabel || hintToDelete.title || (hintToDelete.competitionType === 'daily_qa' ? 'Daily GP Grab Hint' : 'School Dome Hint')}"
                 </span>
                 ? This action cannot be undone.
               </p>

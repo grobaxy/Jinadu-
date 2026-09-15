@@ -127,7 +127,7 @@ export function AdminSubscriptionsView() {
         planId: 'plan_basic_naira',
         name: 'Scholar Starter Plan',
         shortDescription: 'Essential premium academic privileges & competition access',
-        fullDescription: 'Essential premium plan for scholars wanting daily ultimate search, withdrawal eligibility, AI library handouts, and minimart listings.',
+        fullDescription: 'Essential premium plan for scholars wanting daily GP grab, withdrawal eligibility, AI library handouts, and minimart listings.',
         priceNaira: 1000,
         currency: 'NGN',
         targetTier: 'premium',
@@ -135,7 +135,7 @@ export function AdminSubscriptionsView() {
         durationValue: 30,
         durationUnit: 'Days',
         benefits: [
-          'Daily Ultimate Search — 15 Responses',
+          'Daily GP Grab — 15 Responses',
           'Withdrawal Eligibility — Available',
           'AI Library — 5 Handout Generations',
           'Campus Minimart Products Listing (3 / Day)',
@@ -163,7 +163,7 @@ export function AdminSubscriptionsView() {
         durationValue: 30,
         durationUnit: 'Days',
         benefits: [
-          'Daily Ultimate Search — 15 Responses',
+          'Daily GP Grab — 15 Responses',
           'Withdrawal Eligibility — Available',
           'AI Library — 5 Handout Generations',
           'Campus Minimart Products Listing (3 / Day)',
@@ -192,7 +192,7 @@ export function AdminSubscriptionsView() {
         durationValue: 365,
         durationUnit: 'Days',
         benefits: [
-          'Daily Ultimate Search — 20 Responses',
+          'Daily GP Grab — 20 Responses',
           'Withdrawal Eligibility — Available (Zero Processing Fees)',
           'AI Library — Unlimited Handouts Generation',
           'Campus Minimart Products Listing (6 / Day)',
@@ -1199,7 +1199,7 @@ export function AdminSubscriptionsView() {
                   rows={4}
                   value={formBenefitsText}
                   onChange={(e) => setFormBenefitsText(e.target.value)}
-                  placeholder="Daily Ultimate Search — 2 Responses&#10;Campus Minimart Browsing&#10;Withdrawal Eligibility — Not Available"
+                  placeholder="Daily GP Grab — 2 Responses&#10;Campus Minimart Browsing&#10;Withdrawal Eligibility — Not Available"
                   className="w-full px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 font-mono"
                 />
               </div>

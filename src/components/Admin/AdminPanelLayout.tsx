@@ -153,7 +153,7 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
     {
       title: 'COMMUNITY & MARKETING',
       items: [
-        { id: 'chatroom_live' as AdminTabType, label: 'Daily Ultimate Search Chat', icon: Trophy, badge: 'Live' },
+        { id: 'chatroom_live' as AdminTabType, label: 'Daily GP Grab Chat', icon: Trophy, badge: 'Live' },
         { id: 'announcements' as AdminTabType, label: 'Admin Announcements', icon: MessageSquare },
         { id: 'sponsorship' as AdminTabType, label: 'Sponsorship & Ticker', icon: Tag },
       ],

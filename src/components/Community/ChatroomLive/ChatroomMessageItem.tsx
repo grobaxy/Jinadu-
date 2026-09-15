@@ -464,7 +464,7 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
                     First {message.competitionRef?.winnerCountLimit || 5} scholars
                   </span>
 
-                  {/* Daily Ultimate Search Rules Button */}
+                  {/* Daily GP Grab Rules Button */}
                   <button
                     type="button"
                     id={`question-rules-btn-${message.id}`}
@@ -473,7 +473,7 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
                       setIsRulesModalOpen(true);
                     }}
                     className="px-2 py-0.5 rounded-full bg-indigo-500/25 hover:bg-indigo-500/45 border border-indigo-400/40 text-indigo-100 hover:text-white font-bold text-[10px] flex items-center gap-1 shadow-xs transition hover:scale-105 active:scale-95 cursor-pointer"
-                    title="View Daily Ultimate Search Rules"
+                    title="View Daily GP Grab Rules"
                   >
                     <ScrollText className="w-3 h-3 text-amber-300" />
                     <span>Rules</span>
@@ -704,7 +704,7 @@ export const ChatroomMessageItem: React.FC<ChatroomMessageItemProps> = ({
         )}
       </div>
 
-      {/* Daily Ultimate Search Rules Modal */}
+      {/* Daily GP Grab Rules Modal */}
       {isRulesModalOpen && (
         <ChatroomRulesModal
           isOpen={isRulesModalOpen}

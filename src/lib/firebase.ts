@@ -5464,7 +5464,7 @@ export const saveChatroomLiveSettingsToFirestore = async (
 };
 
 export const DEFAULT_ULTIMATE_SEARCH_RULES: UltimateSearchRulesData = {
-  title: 'Daily Ultimate Search — Official Rules & Fair Play Guidelines',
+  title: 'Daily GP Grab — Official Rules & Fair Play Guidelines',
   scheduleNotice: 'Competitions are hosted live in this chatroom every Monday through Friday at 7:00 PM (WAT). Questions are published directly by Community Management.',
   generalGuidelines: 'Fast-paced academic typed-answer speed rounds with instant GP wallet rewards. Answer with the exact word, name, or number in the chatbox below as soon as each challenge appears.',
   freeScholarPolicy: 'Free scholars are fully eligible to answer and earn verified correct status (✓). However, instant cash GP reward prizes are exclusive to registered Premium & VIP scholars. Free scholars can upgrade at any time to claim GP rewards.',
@@ -5793,7 +5793,7 @@ export const ensureActiveDailySearchQuestion = async (): Promise<ChatroomLiveQue
         questionNumber: (dayIndex + 1),
       },
       'grobax_arbiter',
-      'Daily Ultimate Search 🎯'
+      'Daily GP Grab 🎯'
     );
     return newQuestion;
   } catch (err) {
@@ -6354,7 +6354,7 @@ export const evaluateAndProcessLiveAnswer = async (
       await sendBroadcastNotificationToFirestore(
         {
           title: `🏆 +${gpAward} GP Reward Claimed!`,
-          message: `Congratulations! You answered Question #${question.questionNumber} correctly and earned +${gpAward} GP in Daily Ultimate Search Live! (Winner #${winnerRank} of ${maxWinners})`,
+          message: `Congratulations! You answered Question #${question.questionNumber} correctly and earned +${gpAward} GP in Daily GP Grab Live! (Winner #${winnerRank} of ${maxWinners})`,
           type: 'gus',
           userId: user.id,
           targetUserId: user.id,
@@ -6648,6 +6648,19 @@ export const savePlatformEventToFirestore = async (
     console.warn('Legacy events mirror notice:', e);
   }
 
+  // Update browser cache & notify UI listeners immediately
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('grobax_saved_platform_events');
+      const list = raw ? JSON.parse(raw) : [];
+      const itemToSave = { ...payload, id: eventId, eventId };
+      const idx = Array.isArray(list) ? list.findIndex((e: any) => e.id === eventId || e.eventId === eventId) : -1;
+      const updatedList = idx >= 0 ? list.map((e: any, i: number) => (i === idx ? { ...e, ...itemToSave } : e)) : [itemToSave, ...list];
+      localStorage.setItem('grobax_saved_platform_events', JSON.stringify(updatedList));
+      window.dispatchEvent(new CustomEvent('grobax_events_changed', { detail: itemToSave }));
+    } catch {}
+  }
+
   await logAdminAuditAction(
     adminUid,
     adminName,
@@ -6685,6 +6698,21 @@ export const deletePlatformEventFromFirestore = async (
     await deleteEventCatalogImage(imageStoragePath);
   }
 
+  // Update browser cache & notify UI listeners immediately
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('grobax_saved_platform_events');
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          const updated = list.filter((e: any) => e.id !== eventId && e.eventId !== eventId);
+          localStorage.setItem('grobax_saved_platform_events', JSON.stringify(updated));
+          window.dispatchEvent(new CustomEvent('grobax_events_changed', { detail: { id: eventId, deleted: true } }));
+        }
+      }
+    } catch {}
+  }
+
   await logAdminAuditAction(adminUid, adminName, 'DELETE_PLATFORM_EVENT', eventId, {
     title: eventTitle,
   });
@@ -6712,6 +6740,23 @@ export const togglePlatformEventStatusInFirestore = async (
   try {
     await updateDoc(doc(db, 'events', eventId), updates);
   } catch (e) {}
+
+  // Update browser cache & notify UI listeners immediately
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('grobax_saved_platform_events');
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          const updated = list.map((e: any) =>
+            e.id === eventId || e.eventId === eventId ? { ...e, status: newStatus } : e
+          );
+          localStorage.setItem('grobax_saved_platform_events', JSON.stringify(updated));
+          window.dispatchEvent(new CustomEvent('grobax_events_changed', { detail: { id: eventId, status: newStatus } }));
+        }
+      }
+    } catch {}
+  }
 
   await logAdminAuditAction(
     adminUid,

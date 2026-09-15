@@ -177,7 +177,7 @@ export const SchoolDomeComposer: React.FC<SchoolDomeComposerProps> = ({
 
           {/* Right Input Icons (Admin Yellow Q Button, Emoji, Send) */}
           <div className="flex items-center gap-1.5 ml-2 shrink-0">
-            {/* Admin 'Q' Question Challenge Creator Button - Exact same as Daily Ultimate Search */}
+            {/* Admin 'Q' Question Challenge Creator Button - Exact same as Daily GP Grab */}
             {isManagerOrAdmin && onOpenCreateQuestion && (
               <button
                 type="button"

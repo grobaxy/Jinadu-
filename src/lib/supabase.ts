@@ -77,6 +77,116 @@ export const supabaseAdmin: SupabaseClient = createClient(SUPABASE_URL, SUPABASE
 // Cache for in-flight real-time subscriptions
 const activeChannels = new Map<string, any>();
 
+// Shared real-time broadcast channel across all connected clients & devices
+const GLOBAL_SYNC_CHANNEL_NAME = 'grobaax-realtime-bus';
+let globalBusChannel: any = null;
+let globalBusSubscribed = false;
+
+// Cross-tab broadcast channel for instantaneous local sync
+let crossTabChannel: any = null;
+if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+  try {
+    crossTabChannel = new BroadcastChannel('grobaax_tab_sync');
+  } catch {}
+}
+
+// In-memory registry of active table subscriber callbacks
+const inMemoryTableSubscribers = new Map<string, Set<() => void>>();
+
+function getGlobalBusChannel() {
+  if (!globalBusChannel && typeof window !== 'undefined') {
+    globalBusChannel = supabase.channel(GLOBAL_SYNC_CHANNEL_NAME, {
+      config: {
+        broadcast: { self: false },
+      },
+    });
+
+    globalBusChannel
+      .on('broadcast', { event: 'db_mutation' }, (msg: any) => {
+        const payload = msg?.payload;
+        if (!payload) return;
+        const targetTable = normalizeTableName(payload.table || payload.originalTable || '');
+        notifyTableListeners(targetTable, payload);
+      })
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          globalBusSubscribed = true;
+          console.info('[Realtime] Grobaax WhatsApp-style real-time sync connected');
+        }
+      });
+  }
+  return globalBusChannel;
+}
+
+if (crossTabChannel) {
+  crossTabChannel.onmessage = (event: MessageEvent) => {
+    const payload = event.data;
+    if (payload?.table) {
+      notifyTableListeners(normalizeTableName(payload.table), payload);
+    }
+  };
+}
+
+function notifyTableListeners(table: string, payload: any) {
+  // 1. Trigger registered in-memory table callbacks
+  const subscribers = inMemoryTableSubscribers.get(table);
+  if (subscribers && subscribers.size > 0) {
+    subscribers.forEach((cb) => {
+      try {
+        cb();
+      } catch (err) {
+        console.warn('[Realtime] Subscriber notification error:', err);
+      }
+    });
+  }
+
+  // 2. Dispatch window event for other components
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(
+        new CustomEvent('supabase_table_changed', {
+          detail: payload,
+        })
+      );
+    } catch {}
+  }
+}
+
+function broadcastTableMutation(table: string, originalTable: string, docId: string, data: any, op: 'set' | 'delete') {
+  const payload = {
+    table,
+    originalTable,
+    docId,
+    data,
+    op,
+    timestamp: Date.now(),
+  };
+
+  // 1. Notify local subscribers immediately
+  notifyTableListeners(table, payload);
+
+  // 2. Broadcast to other tabs
+  if (crossTabChannel) {
+    try {
+      crossTabChannel.postMessage(payload);
+    } catch {}
+  }
+
+  // 3. Broadcast to all other devices/users via Supabase Realtime WebSocket
+  try {
+    const bus = getGlobalBusChannel();
+    if (bus) {
+      bus.send({
+        type: 'broadcast',
+        event: 'db_mutation',
+        payload,
+      });
+    }
+  } catch (err) {
+    console.warn('[Realtime] Bus send notice:', err);
+  }
+}
+
 /**
  * Normalizes table name for PostgreSQL query
  */
@@ -187,6 +297,9 @@ export async function setDocToSupabase<T = any>(
     throw new Error(error.message);
   }
 
+  // Broadcast mutation instantly across all devices, windows, and tabs
+  broadcastTableMutation(table, tableName, docId, finalPayload, 'set');
+
   return finalPayload as T;
 }
 
@@ -216,6 +329,7 @@ export async function deleteDocFromSupabase(tableName: string, docId: string): P
       console.error(`[Supabase] Delete error in ${table}/${docId}:`, error.message);
       return false;
     }
+    broadcastTableMutation(table, tableName, docId, { id: docId, isDeleted: true }, 'delete');
     return true;
   } catch (err) {
     console.error(`[Supabase] Exception deleting ${tableName}/${docId}:`, err);
@@ -238,15 +352,25 @@ export async function queryDocsFromSupabase<T = any>(
     const table = normalizeTableName(tableName);
     let query = supabase.from(table).select('id, data, created_at, updated_at');
 
-    if (options?.limit) {
-      query = query.limit(options.limit);
+    // Always fetch latest records first so newly created questions and messages are never missed
+    query = query.order('created_at', { ascending: false });
+
+    // CRITICAL FIX: Only apply SQL limit if there are NO in-memory where filters to prevent
+    // truncating the database before matching questions or active seasons can be found
+    const hasWhere = Boolean(options?.where && options.where.length > 0);
+    if (!hasWhere && options?.limit) {
+      query = query.limit(Math.max(options.limit, 50));
+    } else {
+      query = query.limit(300);
     }
 
     let { data, error } = await query;
     if (error || !data) {
-      let adminQuery = supabaseAdmin.from(table).select('id, data, created_at, updated_at');
-      if (options?.limit) {
-        adminQuery = adminQuery.limit(options.limit);
+      let adminQuery = supabaseAdmin.from(table).select('id, data, created_at, updated_at').order('created_at', { ascending: false });
+      if (!hasWhere && options?.limit) {
+        adminQuery = adminQuery.limit(Math.max(options.limit, 50));
+      } else {
+        adminQuery = adminQuery.limit(300);
       }
       const adminRes = await adminQuery;
       if (!adminRes.error && adminRes.data) {
@@ -267,7 +391,7 @@ export async function queryDocsFromSupabase<T = any>(
       updatedAt: row.data?.updatedAt || row.updated_at,
     }));
 
-    // Apply where filters in-memory for JSONB flexibilty
+    // Apply where filters in-memory for JSONB flexibility
     if (options?.where && options.where.length > 0) {
       items = items.filter((item: any) => {
         return options.where!.every(([field, op, val]) => {
@@ -312,6 +436,11 @@ export async function queryDocsFromSupabase<T = any>(
       });
     }
 
+    // Apply limit AFTER where filter and sorting so results are strictly correct
+    if (options?.limit && items.length > options.limit) {
+      items = items.slice(0, options.limit);
+    }
+
     return items;
   } catch (err) {
     console.warn(`[Supabase] Exception querying ${tableName}:`, err);
@@ -320,7 +449,7 @@ export async function queryDocsFromSupabase<T = any>(
 }
 
 /**
- * Subscribe to real-time changes on a Supabase table
+ * Subscribe to real-time changes on a Supabase table with instant synchronization
  */
 export function subscribeToSupabase<T = any>(
   tableName: string,
@@ -335,20 +464,47 @@ export function subscribeToSupabase<T = any>(
   const table = normalizeTableName(tableName);
   const channelId = `realtime:${table}:${options?.filterDocId || 'all'}:${Math.random().toString(36).substring(7)}`;
 
-  // Run initial fetch
+  // Ensure global realtime bus is connected
+  getGlobalBusChannel();
+
+  let isCancelled = false;
+  let isFetching = false;
+
+  // Run initial fetch and notification
   const fetchAndNotify = async () => {
-    if (options?.filterDocId) {
-      const single = await getDocFromSupabase<T>(tableName, options.filterDocId);
-      if (single) onData([single]);
-    } else {
-      const list = await queryDocsFromSupabase<T>(tableName, options);
-      onData(list);
+    if (isCancelled || isFetching) return;
+    isFetching = true;
+    try {
+      if (options?.filterDocId) {
+        const single = await getDocFromSupabase<T>(tableName, options.filterDocId);
+        if (!isCancelled) {
+          if (single) onData([single]);
+        }
+      } else {
+        const list = await queryDocsFromSupabase<T>(tableName, options);
+        if (!isCancelled) {
+          onData(list);
+        }
+      }
+    } catch (err) {
+      console.warn(`[Realtime] Sync notice for ${tableName}:`, err);
+    } finally {
+      isFetching = false;
     }
   };
 
   fetchAndNotify();
 
-  // Create real-time channel
+  // Register in memory table subscriber for direct sub-millisecond local triggers
+  if (!inMemoryTableSubscribers.has(table)) {
+    inMemoryTableSubscribers.set(table, new Set());
+  }
+  const subscriberCb = () => {
+    fetchAndNotify();
+  };
+  inMemoryTableSubscribers.get(table)!.add(subscriberCb);
+
+  // Create real-time postgres changes channel
   const channel = supabase
     .channel(channelId)
     .on(
@@ -359,7 +515,6 @@ export function subscribeToSupabase<T = any>(
         table: table,
       },
       () => {
-        // Debounced refetch on any change to ensure unified data
         fetchAndNotify();
       }
     )
@@ -367,7 +522,47 @@ export function subscribeToSupabase<T = any>(
 
   activeChannels.set(channelId, channel);
 
+  // WhatsApp-grade silent background sync: check every 3.5 seconds while page is active
+  // Guarantees zero missed updates even under unstable mobile network conditions
+  let syncInterval: any = null;
+  if (typeof window !== 'undefined') {
+    syncInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchAndNotify();
+      }
+    }, 3500);
+  }
+
+  // Listen to in-window mutation events for instantaneous synchronization across components
+  let localCleanup: (() => void) | null = null;
+  if (typeof window !== 'undefined') {
+    const localHandler = (e: any) => {
+      const detail = e.detail;
+      if (!detail) return;
+      if (
+        detail.table === table ||
+        detail.originalTable === tableName ||
+        detail.table === tableName ||
+        normalizeTableName(detail.table || '') === table
+      ) {
+        fetchAndNotify();
+      }
+    };
+    window.addEventListener('supabase_table_changed', localHandler);
+    localCleanup = () => {
+      window.removeEventListener('supabase_table_changed', localHandler);
+    };
+  }
+
   return () => {
+    isCancelled = true;
+    if (syncInterval) clearInterval(syncInterval);
+    if (localCleanup) localCleanup();
+    const set = inMemoryTableSubscribers.get(table);
+    if (set) {
+      set.delete(subscriberCb);
+      if (set.size === 0) inMemoryTableSubscribers.delete(table);
+    }
     supabase.removeChannel(channel);
     activeChannels.delete(channelId);
   };

@@ -69,7 +69,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
 
   const navItems = [
     { id: 'home', label: 'Home', icon: Home, badgeKey: 'home' },
-    { id: 'daily_qa', label: 'Daily Ultimate search', icon: Trophy, badgeKey: 'daily_qa' },
+    { id: 'daily_qa', label: 'Daily GP Grab', icon: Trophy, badgeKey: 'daily_qa' },
     { id: 'school_dome', label: 'School Dome', icon: Swords, badgeKey: 'school_dome' },
     { id: 'hints', label: 'Hints', icon: Lightbulb, badgeKey: 'hints' },
     { id: 'library', label: 'Library', icon: BookOpen, badgeKey: 'library' },
@@ -385,7 +385,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
               >
                 <Icon className="w-5 h-5 shrink-0" />
                 <span className="text-[10px] font-bold tracking-tight text-center leading-tight truncate max-w-[62px]">
-                  {item.label === 'Daily Ultimate search' ? 'Daily GUS' : item.label}
+                  {item.label === 'Daily GP Grab' ? 'GP Grab' : item.label}
                 </span>
 
                 {badgeCount > 0 && (

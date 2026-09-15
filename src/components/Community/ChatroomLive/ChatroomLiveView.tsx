@@ -481,7 +481,7 @@ export const ChatroomLiveView: React.FC = () => {
           <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-100 font-extrabold text-sm sm:text-base">
             <span className="text-blue-500 dark:text-blue-400 font-black text-base sm:text-lg">#</span>
             <span className="text-sm">💬</span>
-            <span className="truncate tracking-tight">daily-ultimate-search</span>
+            <span className="truncate tracking-tight">daily-gp-grab</span>
           </div>
 
           {/* Active Live Indicator */}
@@ -533,7 +533,7 @@ export const ChatroomLiveView: React.FC = () => {
             id="chatroom-rules-btn"
             onClick={() => setIsRulesModalOpen(true)}
             className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition shrink-0"
-            title="Daily Ultimate Search Rules"
+            title="Daily GP Grab Rules"
           >
             <ScrollText className="w-3.5 h-3.5 text-amber-500" />
             <span className="hidden sm:inline">Rules</span>
@@ -818,10 +818,43 @@ export const ChatroomLiveView: React.FC = () => {
           onClose={() => setIsCreateQuestionModalOpen(false)}
           adminUid={currentUser.id}
           adminName={currentUser.name}
+          onQuestionCreated={(newQ) => {
+            const now = Date.now();
+            const questionMessage: ChatroomLiveMessage = {
+              id: 'msg_q_' + newQ.id,
+              userId: currentUser.id || 'admin_mod',
+              userName: `${currentUser.name} 🛡️`,
+              userAvatar: currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+              institution: currentUser.institution || 'Grobaax Community Management',
+              department: currentUser.department || 'Head Moderator',
+              level: 'Admin',
+              isPremium: true,
+              messageText: `🎯 LIVE QUESTION #${newQ.questionNumber}: ${newQ.questionText}\n\n🏆 Reward: +${newQ.gpRewardPerWinner} GP each for the first ${newQ.winnerLimit} correct scholars!\n⏱️ Time Limit: ${Math.round(newQ.timeLimitSeconds / 60)} minutes. Type your answer directly in the chat below!`,
+              timestamp: now,
+              type: 'question',
+              competitionRef: {
+                competitionId: 'daily_live_chat',
+                questionId: newQ.id,
+                questionNumber: newQ.questionNumber,
+                totalQuestions: 10,
+                questionText: newQ.questionText,
+                status: 'active',
+                gpRewardPerWinner: newQ.gpRewardPerWinner,
+                winnerCountLimit: newQ.winnerLimit,
+                allowFreeParticipation: true,
+                timeLimitSeconds: newQ.timeLimitSeconds,
+                startAt: now,
+                endAt: newQ.endAt,
+              },
+              reactions: { '🎯': 1, '⚡': 1 },
+            };
+            sendChatroomMessage(questionMessage);
+            setIsCreateQuestionModalOpen(false);
+          }}
         />
       )}
 
-      {/* Daily Ultimate Search Rules & Settings Modal */}
+      {/* Daily GP Grab Rules & Settings Modal */}
       {isRulesModalOpen && (
         <ChatroomRulesModal
           isOpen={isRulesModalOpen}

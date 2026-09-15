@@ -664,13 +664,13 @@ export function subscribeSchoolDomeActiveQuestion(
       },
       (err) => {
         console.warn('School Dome active question snapshot notice:', err);
-        callback(DEFAULT_INITIAL_QUESTION);
+        callback(null);
       }
     );
 
     return unsubscribe;
   } catch {
-    callback(DEFAULT_INITIAL_QUESTION);
+    callback(null);
     return () => {};
   }
 }
@@ -697,17 +697,17 @@ export function subscribeSchoolDomeQuestions(
           }));
           callback(list);
         } else {
-          callback([DEFAULT_INITIAL_QUESTION]);
+          callback([]);
         }
       },
       () => {
-        callback([DEFAULT_INITIAL_QUESTION]);
+        callback([]);
       }
     );
 
     return unsubscribe;
   } catch {
-    callback([DEFAULT_INITIAL_QUESTION]);
+    callback([]);
     return () => {};
   }
 }

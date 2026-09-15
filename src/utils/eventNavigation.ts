@@ -72,8 +72,8 @@ export function resolveEventChannel(event: PlatformEventItem): EventTargetChanne
     if (event.targetTab === 'daily_qa' || (event.targetTab as string) === 'gus') {
       return {
         tab: 'daily_qa',
-        label: 'Daily Ultimate Search',
-        actionText: 'Enter Daily Ultimate Search',
+        label: 'Daily GP Grab',
+        actionText: 'Enter Daily GP Grab',
         badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
       };
     }
@@ -101,12 +101,12 @@ export function resolveEventChannel(event: PlatformEventItem): EventTargetChanne
     if (categoryMeta.tabKey === 'daily_qa' || (categoryMeta.tabKey as string) === 'gus') {
       return {
         tab: 'daily_qa',
-        label: categoryMeta.channelName || 'Daily Ultimate Search',
+        label: categoryMeta.channelName || 'Daily GP Grab',
         actionText:
           event.category === 'gus'
-            ? 'Enter Daily Ultimate Search'
+            ? 'Enter Daily GP Grab'
             : event.category === 'chatroom_live'
-            ? 'Enter Daily Ultimate Search Live'
+            ? 'Enter Daily GP Grab Live'
             : 'Enter Academic Olympiad',
         badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
       };
@@ -169,11 +169,11 @@ export function resolveEventChannel(event: PlatformEventItem): EventTargetChanne
     };
   }
 
-  // Default: Daily Ultimate Search
+  // Default: Daily GP Grab
   return {
     tab: 'daily_qa',
-    label: 'Daily Ultimate Search',
-    actionText: 'Enter Daily Ultimate Search',
+    label: 'Daily GP Grab',
+    actionText: 'Enter Daily GP Grab',
     badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
   };
 }

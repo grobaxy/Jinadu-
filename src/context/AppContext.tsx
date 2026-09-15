@@ -43,6 +43,8 @@ import {
   saveCommunityPostToFirestore,
   updateCommunityPostInFirestore,
   deletePlatformEventFromFirestore,
+  savePlatformEventToFirestore,
+  togglePlatformEventStatusInFirestore,
   toggleLikeCommunityPostInFirestore,
   addCommentToCommunityPostInFirestore,
   sendChatroomMessageToFirestore,
@@ -104,6 +106,8 @@ import {
   ChatroomLiveMessage,
   AdminTabType,
   PRIMARY_SUPER_ADMIN_UID,
+  PlatformEventStatus,
+  PLATFORM_EVENT_CATEGORIES,
 } from '../types';
 import { verifyPaystackTransaction } from '../lib/paystackService';
 import { resolveEventChannel } from '../utils/eventNavigation';
@@ -299,6 +303,8 @@ interface AppContextType {
   createPost: (content: string, tags: string[], attachmentData?: string) => Promise<void>;
   updatePost: (postId: string, content: string, tags: string[], image?: string) => Promise<void>;
   deletePlatformEvent: (eventId: string) => Promise<void>;
+  savePlatformEvent: (eventData: Partial<PlatformEventItem>) => Promise<string>;
+  togglePlatformEventStatus: (eventId: string, newStatus: PlatformEventStatus) => Promise<void>;
   toggleLikePost: (id: string) => void;
   claimReward: (amount: number, unit: 'GRBX' | 'GP', reason: string) => void;
   badgeStore: BadgeStoreItem[];
@@ -499,7 +505,7 @@ export const DEFAULT_FREE_SCHOLAR_PLAN: SubscriptionPlan = {
   durationValue: 1,
   durationUnit: 'Years',
   benefits: [
-    'Daily Ultimate Search — 2 Responses',
+    'Daily GP Grab — 2 Responses',
     'Browse Campus Minimart (Discovery Only)',
     'Withdrawal Eligibility — Not Available',
     'SchoolDome',
@@ -522,7 +528,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     planId: 'plan_basic_naira',
     name: 'Scholar Starter Plan',
     shortDescription: 'Essential premium academic privileges & competition access',
-    fullDescription: 'Essential premium plan for scholars wanting daily ultimate search, withdrawal eligibility, AI library handouts, and minimart listings.',
+    fullDescription: 'Essential premium plan for scholars wanting daily GP grab, withdrawal eligibility, AI library handouts, and minimart listings.',
     priceNaira: 1000,
     currency: 'NGN',
     targetTier: 'premium',
@@ -530,7 +536,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     durationValue: 30,
     durationUnit: 'Days',
     benefits: [
-      'Daily Ultimate Search — 15 Responses',
+      'Daily GP Grab — 15 Responses',
       'Withdrawal Eligibility — Available',
       'AI Library — 5 Handout Generations',
       'Campus Minimart Products Listing (3 / Day)',
@@ -559,7 +565,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     durationValue: 30,
     durationUnit: 'Days',
     benefits: [
-      'Daily Ultimate Search — 15 Responses',
+      'Daily GP Grab — 15 Responses',
       'Withdrawal Eligibility — Available',
       'AI Library — 5 Handout Generations',
       'Campus Minimart Products Listing (3 / Day)',
@@ -589,7 +595,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     durationValue: 365,
     durationUnit: 'Days',
     benefits: [
-      'Daily Ultimate Search — 20 Responses',
+      'Daily GP Grab — 20 Responses',
       'Withdrawal Eligibility — Available (Zero Processing Fees)',
       'AI Library — Unlimited Handouts Generation',
       'Campus Minimart Products Listing (6 / Day)',
@@ -1271,8 +1277,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const filtered = parsed.filter(e => !e.id?.startsWith('ev'));
-          if (filtered.length > 0) return filtered;
+          return parsed;
         }
       }
     } catch {}
@@ -2122,11 +2127,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser.id, currentUser.role, currentUser.isRepresentative, currentUser.username, firebaseUser?.uid]);
 
-  // Firestore Real-Time Listener for Platform Events Catalog (limit 20 with cache)
+  // Firestore Real-Time Listener for Platform Events Catalog (limit 50 with cache)
   useEffect(() => {
+    let unsubEvents = () => {};
+
+    // 1. Direct initial query from Supabase to guarantee events populate immediately
+    (async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'platformEvents'), limit(50)));
+        if (!snap.empty) {
+          const loadedEvents: EventItem[] = snap.docs.map((docSnap) => {
+            const data = docSnap.data();
+            const resolvedTargetTab: TabType =
+              data.targetTab ||
+              (data.category === 'school_dome'
+                ? 'school_dome'
+                : data.category === 'gus' || data.category === 'academic_olympiad' || data.category === 'chatroom_live'
+                ? 'daily_qa'
+                : 'community');
+
+            return {
+              id: docSnap.id,
+              eventId: docSnap.id,
+              title: data.title || '',
+              category: data.category || (resolvedTargetTab === 'school_dome' ? 'school_dome' : 'gus'),
+              categoryLabel: data.categoryLabel,
+              host: data.host || OFFICIAL_EVENT_HOST,
+              startDate: data.startDate || '',
+              endDate: data.endDate || '',
+              eventTime: data.eventTime || data.time || '18:00 UTC',
+              prizeReward: data.prizeReward || data.prizePool || '',
+              audience: data.audience || 'all_users',
+              description: data.description || '',
+              imageUrl: data.imageUrl || data.image || '',
+              imageStoragePath: data.imageStoragePath || '',
+              status: data.status || 'Published',
+              targetTab: resolvedTargetTab,
+              targetSubTab: data.targetSubTab || undefined,
+              channelName: data.channelName || undefined,
+              channelUrl: data.channelUrl || undefined,
+              targetChannel: data.targetChannel || resolvedTargetTab,
+              createdBy: data.createdBy,
+              createdByName: data.createdByName,
+              createdAt: data.createdAt,
+              updatedAt: data.updatedAt,
+              publishedAt: data.publishedAt,
+              date: data.startDate && data.endDate ? `${data.startDate} to ${data.endDate}` : data.date || '',
+              time: data.eventTime || data.time || '18:00 UTC',
+              prizePool: data.prizeReward || data.prizePool || '',
+              institutionHost: data.host || OFFICIAL_EVENT_HOST,
+              image: data.imageUrl || data.image || '',
+              participantsCount: data.participantsCount || 0,
+              maxParticipants: data.maxParticipants || 0,
+              isRegistered: data.isRegistered || false,
+            };
+          });
+          setEvents(loadedEvents);
+          try {
+            localStorage.setItem('grobax_saved_platform_events', JSON.stringify(loadedEvents));
+          } catch {}
+        }
+      } catch (err) {
+        console.warn('Direct events fetch notice:', err);
+      }
+    })();
+
+    // 2. Real-time snapshot listener
     try {
-      const eventsQuery = query(collection(db, 'platformEvents'), limit(20));
-      const unsubEvents = onSnapshot(
+      const eventsQuery = query(collection(db, 'platformEvents'), limit(50));
+      unsubEvents = onSnapshot(
         eventsQuery,
         (snapshot) => {
           if (!snapshot.empty) {
@@ -2207,10 +2276,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch {}
         }
       );
-      return () => unsubEvents();
     } catch (err) {
       console.warn('Platform Events subscription init notice:', err);
     }
+
+    // 3. In-window synchronous event listener for instant updates
+    const handleEventsChanged = () => {
+      try {
+        const cached = localStorage.getItem('grobax_saved_platform_events');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setEvents(parsed);
+          }
+        }
+      } catch {}
+    };
+    window.addEventListener('grobax_events_changed', handleEventsChanged);
+
+    return () => {
+      unsubEvents();
+      window.removeEventListener('grobax_events_changed', handleEventsChanged);
+    };
   }, []);
 
   // Firestore Real-Time Listener for Central Representative System (limit 30)
@@ -4307,11 +4394,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         eventId,
         ev?.title || 'Platform Event',
         ev?.imageStoragePath,
-        currentUser?.id || 'admin_user',
+        currentUser?.id || PRIMARY_SUPER_ADMIN_UID,
         currentUser?.name || 'Administrator'
       );
     } catch (err) {
       console.warn('Notice deleting platform event from Firestore:', err);
+    }
+  };
+
+  const savePlatformEvent = async (eventData: Partial<PlatformEventItem>): Promise<string> => {
+    const adminUid = currentUser?.id || PRIMARY_SUPER_ADMIN_UID;
+    const adminName = currentUser?.name || 'Administrator';
+    const eventId = await savePlatformEventToFirestore(eventData, adminUid, adminName);
+
+    const catObj = PLATFORM_EVENT_CATEGORIES.find((c) => c.id === eventData.category);
+    const resolvedTargetTab: TabType =
+      eventData.targetTab || (eventData.category === 'school_dome' ? 'school_dome' : catObj?.tabKey || 'daily_qa');
+    const fullEvent: EventItem = {
+      id: eventId,
+      eventId,
+      title: (eventData.title || '').trim(),
+      category: eventData.category || (resolvedTargetTab === 'school_dome' ? 'school_dome' : 'gus'),
+      categoryLabel: catObj?.label || eventData.categoryLabel || 'Platform Event',
+      host: OFFICIAL_EVENT_HOST,
+      startDate: eventData.startDate || new Date().toISOString().split('T')[0],
+      endDate: eventData.endDate || new Date().toISOString().split('T')[0],
+      eventTime: eventData.eventTime || '18:00 UTC',
+      prizeReward: (eventData.prizeReward || '').trim(),
+      audience: 'all_users',
+      description: (eventData.description || '').trim(),
+      imageUrl: eventData.imageUrl || eventData.image || 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
+      imageStoragePath: eventData.imageStoragePath || '',
+      status: eventData.status || 'Published',
+      targetTab: resolvedTargetTab,
+      targetSubTab: eventData.targetSubTab || catObj?.subTab || undefined,
+      channelName: eventData.channelName || catObj?.channelName || undefined,
+      channelUrl: eventData.channelUrl || undefined,
+      targetChannel: eventData.targetChannel || resolvedTargetTab,
+      createdBy: adminUid,
+      createdByName: adminName,
+      date: `${eventData.startDate || ''} to ${eventData.endDate || ''}`,
+      time: eventData.eventTime || '18:00 UTC',
+      prizePool: (eventData.prizeReward || '').trim(),
+      institutionHost: OFFICIAL_EVENT_HOST,
+      image: eventData.imageUrl || eventData.image || 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
+      participantsCount: eventData.participantsCount || 0,
+      maxParticipants: 0,
+      isRegistered: false,
+    };
+
+    setEvents((prev) => {
+      const idx = prev.findIndex((e) => e.id === eventId || e.eventId === eventId);
+      const updated = idx >= 0 ? prev.map((e, i) => (i === idx ? { ...e, ...fullEvent } : e)) : [fullEvent, ...prev];
+      try {
+        localStorage.setItem('grobax_saved_platform_events', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('grobax_events_changed', { detail: fullEvent }));
+    }
+
+    return eventId;
+  };
+
+  const togglePlatformEventStatus = async (eventId: string, newStatus: PlatformEventStatus): Promise<void> => {
+    const adminUid = currentUser?.id || PRIMARY_SUPER_ADMIN_UID;
+    const adminName = currentUser?.name || 'Administrator';
+    const ev = events.find((e) => e.id === eventId || e.eventId === eventId);
+
+    setEvents((prev) => {
+      const updated = prev.map((e) => (e.id === eventId || e.eventId === eventId ? { ...e, status: newStatus } : e));
+      try {
+        localStorage.setItem('grobax_saved_platform_events', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await togglePlatformEventStatusInFirestore(eventId, ev?.title || 'Platform Event', newStatus, adminUid, adminName);
+    } catch (err) {
+      console.warn('Notice toggling event status in Firestore:', err);
     }
   };
 
@@ -5781,6 +5945,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deletePost,
         updatePost,
         deletePlatformEvent,
+        savePlatformEvent,
+        togglePlatformEventStatus,
         restorePost,
         reportPost,
         addCommentToPost,

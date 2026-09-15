@@ -85,7 +85,7 @@ const EVENT_IMAGE_PRESETS = [
 ];
 
 export function AdminEventsView() {
-  const { currentUser, events: contextEvents, deletePlatformEvent } = useApp();
+  const { currentUser, events: contextEvents, deletePlatformEvent, savePlatformEvent, togglePlatformEventStatus } = useApp();
   const adminUid = currentUser?.id || PRIMARY_SUPER_ADMIN_UID;
   const adminName = currentUser?.name || 'Administrator';
 
@@ -272,7 +272,27 @@ export function AdminEventsView() {
     };
 
     try {
-      await savePlatformEventToFirestore(payload, adminUid, adminName);
+      let savedId = '';
+      if (savePlatformEvent) {
+        savedId = await savePlatformEvent(payload);
+      } else {
+        savedId = await savePlatformEventToFirestore(payload, adminUid, adminName);
+      }
+
+      const fullItem: PlatformEventItem = {
+        ...payload,
+        id: savedId,
+        eventId: savedId,
+      } as PlatformEventItem;
+
+      setEvents((prev) => {
+        const idx = prev.findIndex((ev) => ev.id === savedId || ev.id === editingEvent?.id);
+        if (idx >= 0) {
+          return prev.map((item, i) => (i === idx ? { ...item, ...fullItem } : item));
+        }
+        return [fullItem, ...prev];
+      });
+
       setShowModal(false);
       resetForm();
     } catch (err: any) {
@@ -313,8 +333,13 @@ export function AdminEventsView() {
 
   const handleToggleStatus = async (ev: PlatformEventItem) => {
     const nextStatus: PlatformEventStatus = ev.status === 'Published' ? 'Unpublished' : 'Published';
+    setEvents((prev) => prev.map((item) => (item.id === ev.id ? { ...item, status: nextStatus } : item)));
     try {
-      await togglePlatformEventStatusInFirestore(ev.id, ev.title, nextStatus, adminUid, adminName);
+      if (togglePlatformEventStatus) {
+        await togglePlatformEventStatus(ev.id, nextStatus);
+      } else {
+        await togglePlatformEventStatusInFirestore(ev.id, ev.title, nextStatus, adminUid, adminName);
+      }
     } catch (err) {
       console.error('Failed to update event status:', err);
       alert('Failed to toggle event status.');
@@ -760,7 +785,7 @@ export function AdminEventsView() {
                       className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs focus:border-blue-500 focus:outline-hidden"
                     >
                       <option value="school_dome">School Dome Arena</option>
-                      <option value="daily_qa">Daily Ultimate Search (GUS)</option>
+                      <option value="daily_qa">Daily GP Grab</option>
                       <option value="community">Community / Campus / Mini Mart</option>
                       <option value="library">AI Academic Library & Assistant</option>
                       <option value="home">Home Hub</option>

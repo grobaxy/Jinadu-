@@ -1109,7 +1109,7 @@ export const WalletModal: React.FC = () => {
                         )}
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Authoritative track record of academic milestones, Daily Ultimate Search ranks, and campus honours.
+                        Authoritative track record of academic milestones, Daily GP Grab ranks, and campus honours.
                       </p>
                     </div>
                   </div>
@@ -2596,7 +2596,7 @@ export const WalletModal: React.FC = () => {
                           {(freeScholarPlan?.benefits && freeScholarPlan.benefits.length > 0
                             ? freeScholarPlan.benefits
                             : [
-                                'Daily Ultimate Search — 2 Responses',
+                                'Daily GP Grab — 2 Responses',
                                 'Browse Campus Minimart (Discovery Only)',
                                 'Withdrawal Eligibility — Not Available',
                                 'SchoolDome',

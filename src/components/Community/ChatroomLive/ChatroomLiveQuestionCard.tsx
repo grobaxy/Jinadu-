@@ -137,12 +137,12 @@ export const ChatroomLiveQuestionCard: React.FC<ChatroomLiveQuestionCardProps> =
             </span>
           </div>
 
-          {/* Daily Ultimate Search Rules Icon Button */}
+          {/* Daily GP Grab Rules Icon Button */}
           <button
             type="button"
             onClick={() => setIsRulesModalOpen(true)}
             className="px-2.5 py-1 rounded-full bg-indigo-500/20 hover:bg-indigo-500/40 border border-indigo-400/40 text-indigo-200 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-            title="View Daily Ultimate Search Rules"
+            title="View Daily GP Grab Rules"
           >
             <ScrollText className="w-3.5 h-3.5 text-amber-300" />
             <span>Rules</span>

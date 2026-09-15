@@ -583,6 +583,17 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
       }
     }
 
+    // Optimistic message append so chat appears immediately like WhatsApp without refreshing
+    setMessages(prev => {
+      const exists = prev.some(m => m.id === newMessage.id);
+      if (exists) return prev;
+      const updated = [...prev, newMessage];
+      try {
+        localStorage.setItem('grobax_school_dome_cached_messages', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
     try {
       await sendSchoolDomeMessage(newMessage, currentSeason, activeQuestion, currentUser);
     } catch (err) {
@@ -1084,6 +1095,64 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
           adminName={currentUser.name}
           defaultWinnerCount={1}
           defaultGpReward={500}
+          onQuestionCreated={(createdQ) => {
+            setActiveQuestion(createdQ);
+            setSeasonQuestions((prev) => {
+              const filtered = prev.filter((q) => q.id !== createdQ.id);
+              return [...filtered, createdQ].sort((a, b) => a.questionNumber - b.questionNumber);
+            });
+            setCurrentSeason((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    currentQuestionNumber: createdQ.questionNumber,
+                    firstQuestionLaunched: true,
+                    isRegistrationLocked: true,
+                  }
+                : prev
+            );
+
+            const qMsg: SchoolDomeMessage = {
+              id: 'dome_msg_q_' + createdQ.id,
+              seasonId: currentSeason?.id || 'season_dome_1',
+              userId: currentUser.id || PRIMARY_SUPER_ADMIN_UID,
+              userName: `${currentUser.name} 🛡️ (Arbiter)`,
+              userAvatar:
+                currentUser.avatar ||
+                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+              institution: currentUser.institution || 'Grobaax High Arbiter Command',
+              isPremium: true,
+              isVip: true,
+              messageText: `⚡ ELIMINATION QUESTION #${createdQ.questionNumber}: ${createdQ.questionText}\n\n⏱️ Time Limit: ${Math.round(
+                createdQ.timeLimitSeconds / 60
+              )} min. Answer correctly to survive!`,
+              timestamp: Date.now(),
+              type: 'question',
+              questionId: createdQ.id,
+              questionNumber: createdQ.questionNumber,
+              competitionRef: {
+                competitionId: 'school_dome',
+                questionId: createdQ.id,
+                questionNumber: createdQ.questionNumber,
+                totalQuestions: 100,
+                questionText: createdQ.questionText,
+                status: 'active',
+                gpRewardPerWinner: 0,
+                winnerCountLimit: 1,
+                allowFreeParticipation: true,
+                timeLimitSeconds: createdQ.timeLimitSeconds,
+                startAt: createdQ.startAt,
+                endAt: createdQ.endAt,
+              },
+            };
+
+            setMessages((prev) => {
+              const exists = prev.some((m) => m.id === qMsg.id);
+              return exists ? prev : [...prev, qMsg];
+            });
+
+            setIsCreateQuestionModalOpen(false);
+          }}
         />
       )}
 

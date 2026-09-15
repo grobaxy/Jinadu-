@@ -59,7 +59,11 @@ export const HomeTab: React.FC = () => {
 
   // Display platform events (Published events for users)
   const sourceEvents = platformEvents.length > 0 ? platformEvents : (contextEvents as any) || [];
-  const publishedEvents = sourceEvents.filter((ev: PlatformEventItem) => ev.status === 'Published');
+  const publishedEvents = sourceEvents.filter((ev: PlatformEventItem) => {
+    if (!ev.status) return true;
+    const s = String(ev.status).toLowerCase();
+    return s === 'published' || s === 'active';
+  });
 
   const filteredEvents = publishedEvents.filter((ev: PlatformEventItem) => {
     if (eventCategoryFilter === 'All') return true;
@@ -109,7 +113,7 @@ export const HomeTab: React.FC = () => {
             </p>
 
             <p className="text-xs sm:text-sm lg:text-base text-slate-600 dark:text-slate-300 max-w-3xl leading-relaxed font-medium">
-              Grobaax is an education-focused platform where students discover useful academic resources in the <strong>Academic Library</strong>, test knowledge through <strong>Daily Ultimate Search</strong>, represent their institution as the last school standing in the <strong>School Dome Arena</strong>, recharge instant <strong>VTU Airtime & Data</strong>, connect with fellow scholars via the <strong>Campus Mini Mart</strong>, and build verified student networks on <strong>Campus</strong>.
+              Grobaax is an education-focused platform where students discover useful academic resources in the <strong>Academic Library</strong>, test knowledge through <strong>Daily GP Grab</strong>, represent their institution as the last school standing in the <strong>School Dome Arena</strong>, recharge instant <strong>VTU Airtime & Data</strong>, connect with fellow scholars via the <strong>Campus Mini Mart</strong>, and build verified student networks on <strong>Campus</strong>.
             </p>
           </div>
 
@@ -146,7 +150,7 @@ export const HomeTab: React.FC = () => {
               </div>
             </div>
 
-            {/* 2. Daily Ultimate Search Pillar */}
+            {/* 2. Daily GP Grab Pillar */}
             <div
               id="home-pillar-gus-card"
               onClick={() => setActiveTab('daily_qa')}
@@ -159,7 +163,7 @@ export const HomeTab: React.FC = () => {
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5">
                     <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      Daily Ultimate Search
+                      Daily GP Grab
                     </h2>
                     <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-300 text-[9px] font-black border border-amber-500/30">
                       LIVE
@@ -172,7 +176,7 @@ export const HomeTab: React.FC = () => {
               </div>
 
               <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-blue-600 dark:text-blue-400">
-                <span>Enter Daily Ultimate Search</span>
+                <span>Enter Daily GP Grab</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
