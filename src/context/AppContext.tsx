@@ -494,6 +494,8 @@ export const DEFAULT_FREE_SCHOLAR_PLAN: SubscriptionPlan = {
   fullDescription: 'Included default membership tier for all registered scholars on Grobaax.',
   priceNaira: 0,
   currency: 'NGN',
+  targetTier: 'free',
+  tierType: 'free',
   durationValue: 1,
   durationUnit: 'Years',
   benefits: [
@@ -523,6 +525,8 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     fullDescription: 'Essential premium plan for scholars wanting daily ultimate search, withdrawal eligibility, AI library handouts, and minimart listings.',
     priceNaira: 1000,
     currency: 'NGN',
+    targetTier: 'premium',
+    tierType: 'premium',
     durationValue: 30,
     durationUnit: 'Days',
     benefits: [
@@ -550,6 +554,8 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     fullDescription: 'Designed for high-performing scholars competing in the Institutional Champions League and Global Ultimate Search.',
     priceNaira: 2500,
     currency: 'NGN',
+    targetTier: 'premium',
+    tierType: 'premium',
     durationValue: 30,
     durationUnit: 'Days',
     benefits: [
@@ -578,6 +584,8 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     fullDescription: 'Comprehensive annual subscription for institution representatives and top scholars with full VIP status, 20 searches, unlimited handouts, 6 listings/day, and maximum rewards.',
     priceNaira: 25000,
     currency: 'NGN',
+    targetTier: 'vip',
+    tierType: 'vip',
     durationValue: 365,
     durationUnit: 'Days',
     benefits: [
@@ -733,7 +741,10 @@ export const resolveUserSubscriptionStatus = (user: Partial<UserProfile> | null 
   const subTier = (user.subscriptionTier || '').toLowerCase();
   const planStr = (((user as any).subscriptionPlan || (user as any).planId || (user as any).tier || user.activePlanId || '') + '').toLowerCase();
 
+  const userTargetTier = (user as any).targetTier || (user as any).tierType;
   const isVip =
+    userTargetTier === 'vip' ||
+    Boolean(user.isVip) ||
     membership.includes('vip') ||
     membership.includes('titan') ||
     subTier.includes('vip') ||
@@ -753,6 +764,7 @@ export const resolveUserSubscriptionStatus = (user: Partial<UserProfile> | null 
   }
 
   const isPrem = Boolean(
+    userTargetTier === 'premium' ||
     user.isPremium ||
     (user as any).isSubscribed ||
     (user.activePlanId && !user.activePlanId.toLowerCase().includes('free')) ||
@@ -2958,12 +2970,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
 
       if (activeSub) {
-        const pName = (activeSub.planNameSnapshot || '').toLowerCase();
-        const pId = (activeSub.planId || '').toLowerCase();
-        if (pName.includes('vip') || pName.includes('titan') || pName.includes('annual') || pId.includes('vip') || pId.includes('titan')) {
+        if (activeSub.targetTier === 'vip' || activeSub.tierType === 'vip' || activeSub.isVip) {
           tier = 'vip';
-        } else {
+        } else if (activeSub.targetTier === 'premium' || activeSub.tierType === 'premium') {
           tier = 'premium';
+        } else {
+          const pName = (activeSub.planNameSnapshot || '').toLowerCase();
+          const pId = (activeSub.planId || '').toLowerCase();
+          if (pName.includes('vip') || pName.includes('titan') || pName.includes('annual') || pId.includes('vip') || pId.includes('titan')) {
+            tier = 'vip';
+          } else {
+            tier = 'premium';
+          }
         }
       } else if (isTargetCurrentUser) {
         const membership = (currentUser.membershipTier || '').toLowerCase();
@@ -2972,6 +2990,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const isActivelySubscribed = isUserSubscribed || checkIsUserSubscribed(currentUser);
 
         const isVipTier =
+          (currentUser as any).targetTier === 'vip' ||
+          (currentUser as any).tierType === 'vip' ||
+          Boolean(currentUser.isVip) ||
           membership.includes('vip') ||
           membership.includes('titan') ||
           subTier.includes('vip') ||
@@ -3740,12 +3761,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
 
       if (activeSub) {
-        const pName = (activeSub.planNameSnapshot || '').toLowerCase();
-        const pId = (activeSub.planId || '').toLowerCase();
-        if (pName.includes('vip') || pName.includes('titan') || pName.includes('annual') || pId.includes('vip') || pId.includes('titan')) {
+        if (activeSub.targetTier === 'vip' || activeSub.tierType === 'vip' || activeSub.isVip) {
           tier = 'vip';
-        } else {
+        } else if (activeSub.targetTier === 'premium' || activeSub.tierType === 'premium') {
           tier = 'premium';
+        } else {
+          const pName = (activeSub.planNameSnapshot || '').toLowerCase();
+          const pId = (activeSub.planId || '').toLowerCase();
+          if (pName.includes('vip') || pName.includes('titan') || pName.includes('annual') || pId.includes('vip') || pId.includes('titan')) {
+            tier = 'vip';
+          } else {
+            tier = 'premium';
+          }
         }
       } else if (isTargetCurrentUser) {
         const membership = (currentUser.membershipTier || '').toLowerCase();
@@ -3754,6 +3781,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const isActivelySubscribed = isUserSubscribed || checkIsUserSubscribed(currentUser);
 
         const isVipTier =
+          (currentUser as any).targetTier === 'vip' ||
+          (currentUser as any).tierType === 'vip' ||
+          Boolean(currentUser.isVip) ||
           membership.includes('vip') ||
           membership.includes('titan') ||
           subTier.includes('vip') ||
@@ -5145,6 +5175,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
+      // Determine new tier attributes
+      const resolvedTargetTier: 'free' | 'premium' | 'vip' =
+        plan.targetTier ||
+        plan.tierType ||
+        ((plan.planId && (plan.planId.toLowerCase().includes('titan') || plan.planId.toLowerCase().includes('vip'))) ||
+        (plan.name && (plan.name.toLowerCase().includes('titan') || plan.name.toLowerCase().includes('vip') || plan.name.toLowerCase().includes('annual'))) ||
+        plan.priceNaira >= 20000
+          ? 'vip'
+          : 'premium');
+
+      const isTitanVip = resolvedTargetTier === 'vip';
+
       const subRecord: Omit<UserSubscriptionRecord, 'id'> = {
         subscriptionId: `sub_${Date.now()}_${(curUser.id || 'user').substring(0, 5)}`,
         userId: curUser.id || fbUser?.uid || 'guest',
@@ -5152,6 +5194,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userEmail: curUser.username || curUser.email || '',
         planId: plan.planId,
         planNameSnapshot: plan.name,
+        targetTier: resolvedTargetTier,
+        tierType: resolvedTargetTier,
+        isVip: isTitanVip,
         priceSnapshot: plan.priceNaira,
         currencySnapshot: 'NGN',
         durationSnapshot: `${plan.durationValue} ${plan.durationUnit}`,
@@ -5159,6 +5204,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         expiryDate,
         status: 'active',
         paymentReference: finalReference,
+        channel: paymentMethod === 'GP' ? 'wallet_gp' : 'paystack',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -5178,13 +5224,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('Saving subscription record notice:', dbErr);
       }
 
-      // Determine new tier attributes
-      const isTitanVip = Boolean(
-        (plan.planId && (plan.planId.toLowerCase().includes('titan') || plan.planId.toLowerCase().includes('vip'))) ||
-        (plan.name && (plan.name.toLowerCase().includes('titan') || plan.name.toLowerCase().includes('vip') || plan.name.toLowerCase().includes('annual'))) ||
-        plan.priceNaira >= 20000
-      );
-
       const gusTier =
         isTitanVip ? 'Titan' : plan.priceNaira >= 2000 ? 'Master' : 'Scholar';
 
@@ -5197,6 +5236,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         planId: plan.planId,
         tier: plan.name,
         plan: plan.name,
+        targetTier: resolvedTargetTier,
+        tierType: resolvedTargetTier,
         isSubscribed: true,
         isPremium: true,
         isVip: isTitanVip,

@@ -75,6 +75,8 @@ export interface GroupBattleTeam {
   status: 'Active' | 'Eliminated';
 }
 
+export type SubscriptionTierType = 'free' | 'premium' | 'vip';
+
 export interface SubscriptionPlan {
   id: string;
   planId: string;
@@ -83,6 +85,8 @@ export interface SubscriptionPlan {
   fullDescription: string;
   priceNaira: number; // Price in ₦
   currency: 'NGN' | string; // '₦'
+  targetTier?: SubscriptionTierType; // Base membership tier rule applied to this plan: 'free' | 'premium' | 'vip'
+  tierType?: SubscriptionTierType;
   durationValue: number;
   durationUnit: 'Days' | 'Months' | 'Years';
   benefits: string[];
@@ -103,6 +107,9 @@ export interface UserSubscriptionRecord {
   userEmail: string;
   planId: string;
   planNameSnapshot: string;
+  targetTier?: SubscriptionTierType;
+  tierType?: SubscriptionTierType;
+  isVip?: boolean;
   priceSnapshot: number;
   currencySnapshot: string;
   durationSnapshot: string;
@@ -110,6 +117,7 @@ export interface UserSubscriptionRecord {
   expiryDate: string;
   status: 'active' | 'expired' | 'cancelled';
   paymentReference: string;
+  channel?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -790,6 +798,8 @@ export interface UserProfile {
   planId?: string;
   tier?: string;
   plan?: string;
+  targetTier?: SubscriptionTierType;
+  tierType?: SubscriptionTierType;
   isSubscribed?: boolean;
   isPremium?: boolean;
   isVip?: boolean;

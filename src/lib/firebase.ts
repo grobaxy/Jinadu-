@@ -8809,6 +8809,7 @@ export interface ActivateSubscriptionOptions {
   userName?: string;
   planId?: string;
   planName?: string;
+  targetTier?: 'free' | 'premium' | 'vip';
   amountNaira?: number;
   channel?: string;
   durationDays?: number;
@@ -8825,6 +8826,7 @@ export const activateUserSubscriptionInFirestore = async (
       userName,
       planId: rawPlanId,
       planName: rawPlanName,
+      targetTier,
       amountNaira = 0,
       channel = 'paystack',
     } = options;
@@ -8861,6 +8863,7 @@ export const activateUserSubscriptionInFirestore = async (
     const pName = (rawPlanName || '').toLowerCase().trim();
 
     const isTitanVip =
+      targetTier === 'vip' ||
       pId.includes('titan') ||
       pId.includes('vip') ||
       pName.includes('titan') ||
@@ -8868,7 +8871,7 @@ export const activateUserSubscriptionInFirestore = async (
       pName.includes('annual') ||
       amount >= 20000;
 
-    const isPro = !isTitanVip && (pId.includes('pro') || pName.includes('pro') || pName.includes('champion') || amount >= 2000);
+    const isPro = !isTitanVip && (targetTier === 'premium' || pId.includes('pro') || pName.includes('pro') || pName.includes('champion') || amount >= 2000);
 
     // CRITICAL: Preserve exact plan name and ID if provided by user/admin/catalog
     const effectivePlanId = rawPlanId && rawPlanId.trim() !== ''

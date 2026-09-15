@@ -20,6 +20,7 @@ import {
   Clock,
   Zap,
   ExternalLink,
+  Crown,
 } from 'lucide-react';
 
 export function AdminSubscriptionsView() {
@@ -52,6 +53,7 @@ export function AdminSubscriptionsView() {
   // Form state
   const [formPlanId, setFormPlanId] = useState('');
   const [formName, setFormName] = useState('');
+  const [formTargetTier, setFormTargetTier] = useState<'free' | 'premium' | 'vip'>('premium');
   const [formShortDesc, setFormShortDesc] = useState('');
   const [formFullDesc, setFormFullDesc] = useState('');
   const [formPriceNaira, setFormPriceNaira] = useState<number | string>(1000);
@@ -128,6 +130,8 @@ export function AdminSubscriptionsView() {
         fullDescription: 'Essential premium plan for scholars wanting daily ultimate search, withdrawal eligibility, AI library handouts, and minimart listings.',
         priceNaira: 1000,
         currency: 'NGN',
+        targetTier: 'premium',
+        tierType: 'premium',
         durationValue: 30,
         durationUnit: 'Days',
         benefits: [
@@ -154,6 +158,8 @@ export function AdminSubscriptionsView() {
         fullDescription: 'Designed for high-performing scholars competing in the Institutional Champions League and Global Ultimate Search.',
         priceNaira: 2500,
         currency: 'NGN',
+        targetTier: 'premium',
+        tierType: 'premium',
         durationValue: 30,
         durationUnit: 'Days',
         benefits: [
@@ -181,6 +187,8 @@ export function AdminSubscriptionsView() {
         fullDescription: 'Comprehensive annual subscription for institution representatives and top scholars with full VIP status, 20 searches, unlimited handouts, 6 listings/day, and maximum rewards.',
         priceNaira: 25000,
         currency: 'NGN',
+        targetTier: 'vip',
+        tierType: 'vip',
         durationValue: 365,
         durationUnit: 'Days',
         benefits: [
@@ -225,6 +233,7 @@ export function AdminSubscriptionsView() {
     setSelectedPlan(null);
     setFormPlanId(`plan_${Date.now()}`);
     setFormName('');
+    setFormTargetTier('premium');
     setFormShortDesc('');
     setFormFullDesc('');
     setFormPriceNaira(1000);
@@ -257,6 +266,7 @@ export function AdminSubscriptionsView() {
     setSelectedPlan(target);
     setFormPlanId('plan_free_scholar');
     setFormName(target.name || 'Free Scholar');
+    setFormTargetTier('free');
     setFormShortDesc(target.shortDescription || 'Standard academic access to campus discussions and basic quizzes.');
     setFormFullDesc(target.fullDescription || 'Included default membership tier for all registered scholars on Grobaax.');
     setFormPriceNaira(0);
@@ -275,6 +285,19 @@ export function AdminSubscriptionsView() {
     setSelectedPlan(plan);
     setFormPlanId(plan.planId);
     setFormName(plan.name);
+    const derivedTier =
+      plan.targetTier ||
+      plan.tierType ||
+      (plan.planId === 'plan_free_scholar'
+        ? 'free'
+        : (plan.planId.toLowerCase().includes('titan') ||
+           plan.planId.toLowerCase().includes('vip') ||
+           plan.name.toLowerCase().includes('titan') ||
+           plan.name.toLowerCase().includes('vip') ||
+           plan.priceNaira >= 20000)
+        ? 'vip'
+        : 'premium');
+    setFormTargetTier(derivedTier);
     setFormShortDesc(plan.shortDescription);
     setFormFullDesc(plan.fullDescription);
     setFormPriceNaira(plan.priceNaira);
@@ -311,6 +334,7 @@ export function AdminSubscriptionsView() {
 
     const isFreeScholarSave = formPlanId === 'plan_free_scholar';
     const computedPlanId = formPlanId.trim() || `plan_${Date.now()}`;
+    const effectiveTier = isFreeScholarSave ? 'free' : formTargetTier;
 
     const planData: SubscriptionPlan = {
       id: selectedPlan?.id || computedPlanId,
@@ -320,6 +344,8 @@ export function AdminSubscriptionsView() {
       fullDescription: formFullDesc.trim(),
       priceNaira: isFreeScholarSave ? 0 : Math.max(0, Number(formPriceNaira) || 0),
       currency: 'NGN',
+      targetTier: effectiveTier,
+      tierType: effectiveTier,
       durationValue: isFreeScholarSave ? 1 : (Number(formDurationValue) || 30),
       durationUnit: isFreeScholarSave ? 'Years' : formDurationUnit,
       benefits: benefitsArray,
@@ -745,15 +771,33 @@ export function AdminSubscriptionsView() {
                   )}
 
                   <div className="p-6 border-b border-slate-100 dark:border-slate-800/60">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <span
-                        className={`w-2.5 h-2.5 rounded-full ${
-                          plan.active ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-slate-400'
-                        }`}
-                      ></span>
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                        ID: {plan.planId}
-                      </span>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full ${
+                            plan.active ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-slate-400'
+                          }`}
+                        ></span>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          ID: {plan.planId}
+                        </span>
+                      </div>
+                      {plan.targetTier === 'vip' || plan.tierType === 'vip' || plan.planId.includes('titan') || plan.planId.includes('vip') || plan.name.toLowerCase().includes('titan') || plan.name.toLowerCase().includes('vip') ? (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                          <Crown className="w-3 h-3 text-amber-500" />
+                          VIP Tier
+                        </span>
+                      ) : plan.planId === 'plan_free_scholar' ? (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          Free Tier
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-blue-500" />
+                          Premium Tier
+                        </span>
+                      )}
                     </div>
 
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">{plan.name}</h3>
@@ -884,9 +928,20 @@ export function AdminSubscriptionsView() {
                         </div>
                       </td>
                       <td className="p-3.5">
-                        <span className="font-semibold text-blue-600 dark:text-blue-400">
-                          {sub.planNameSnapshot}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-blue-600 dark:text-blue-400">
+                            {sub.planNameSnapshot}
+                          </span>
+                          {sub.targetTier === 'vip' || sub.tierType === 'vip' || sub.isVip || (sub.planNameSnapshot || '').toLowerCase().includes('vip') || (sub.planNameSnapshot || '').toLowerCase().includes('titan') ? (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 flex items-center gap-0.5">
+                              <Crown className="w-2.5 h-2.5 text-amber-500" /> VIP
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 flex items-center gap-0.5">
+                              <Sparkles className="w-2.5 h-2.5 text-blue-500" /> PRO
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3.5 font-bold">₦{sub.priceSnapshot.toLocaleString()}</td>
                       <td className="p-3.5">{new Date(sub.startDate).toLocaleDateString()}</td>
@@ -970,6 +1025,91 @@ export function AdminSubscriptionsView() {
                   />
                 </div>
               </div>
+
+              {/* Target Subscription Tier Selector */}
+              {formPlanId === 'plan_free_scholar' ? (
+                <div className="p-3 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
+                    <Clock className="w-4 h-4 text-slate-500" />
+                    <span>Target Base Tier: Free Scholar</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    1 Post / 24h • 2 Daily Searches • Minimart Discovery
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Target Subscription Tier (Privilege Class) *
+                    </label>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Controls post quotas, search limits, marketplace listings & hints
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFormTargetTier('premium')}
+                      className={`p-3 rounded-xl border text-left transition relative cursor-pointer ${
+                        formTargetTier === 'premium'
+                          ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/30 text-blue-950 dark:text-blue-200 shadow-sm'
+                          : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5 font-bold text-xs">
+                          <Sparkles className={`w-4 h-4 ${formTargetTier === 'premium' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`} />
+                          <span>Premium Tier</span>
+                        </div>
+                        {formTargetTier === 'premium' && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-600 text-white">ACTIVE</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                        3 Posts / 24h • 15 Daily Searches • 3 Marketplace listings/day • Standard hints & 2x GP multiplier
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFormTargetTier('vip')}
+                      className={`p-3 rounded-xl border text-left transition relative cursor-pointer ${
+                        formTargetTier === 'vip'
+                          ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 shadow-sm'
+                          : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-amber-600 dark:text-amber-400">
+                          <Crown className={`w-4 h-4 ${formTargetTier === 'vip' ? 'text-amber-500' : 'text-slate-400'}`} />
+                          <span>VIP Tier</span>
+                        </div>
+                        {formTargetTier === 'vip' && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-500 text-white">ACTIVE</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                        Unlimited Posts • 20 Daily Searches • 6 Marketplace listings/day • Gold VIP Crown & all hints unlocked
+                      </p>
+                    </button>
+                  </div>
+
+                  <div className={`p-2.5 rounded-lg border text-[11px] flex items-center gap-2 ${
+                    formTargetTier === 'vip'
+                      ? 'bg-amber-500/10 border-amber-500/20 text-amber-900 dark:text-amber-300'
+                      : 'bg-blue-500/10 border-blue-500/20 text-blue-900 dark:text-blue-300'
+                  }`}>
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
+                    <span>
+                      {formTargetTier === 'vip'
+                        ? 'Enforcing VIP Tier: Subscribers receive Unlimited community posts, 20 live searches/day, 6 minimart listings/day, and VIP competition hints.'
+                        : 'Enforcing Premium Tier: Subscribers receive 3 community posts/24h, 15 live searches/day, 3 minimart listings/day, and premium competition hints.'}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
