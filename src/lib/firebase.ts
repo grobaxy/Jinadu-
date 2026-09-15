@@ -1385,6 +1385,12 @@ export const completeUserAcademicProfileDoc = async (
     }
   }
 
+  // Cache locally
+  try {
+    localStorage.setItem(`grobax_academic_completed_${uid}`, 'true');
+    localStorage.setItem(`grobax_user_profile_${uid}`, JSON.stringify(profileData));
+  } catch (_) {}
+
   return {
     ...profileData,
     id: uid,
@@ -1437,7 +1443,28 @@ export const ensureUserInFirestore = async (
     const isSuper = isPrimarySuperAdmin(uid, email);
     const resolvedRole = isSuper ? 'admin' : (existing?.role || fallbackDetails?.role || 'student');
 
+    const isAcademicComplete = Boolean(
+      existing?.academicProfileCompleted ||
+      fallbackDetails?.academicProfileCompleted ||
+      (existing?.institutionName && existing?.institutionName !== 'Unassigned Institution') ||
+      (existing?.institution && existing?.institution !== 'Unassigned Institution') ||
+      (typeof window !== 'undefined' && localStorage.getItem(`grobax_academic_completed_${uid}`) === 'true')
+    );
+
+    const resolvedAcademicProfile = existing?.academicProfile || fallbackDetails?.academicProfile || (isAcademicComplete ? {
+      institutionCategory: existing?.institutionCategory || fallbackDetails?.institutionCategory || 'University',
+      institutionId: existing?.institutionId || fallbackDetails?.institutionId || '',
+      institutionName: existing?.institutionName || existing?.institution || fallbackDetails?.institutionName || '',
+      facultyId: existing?.facultyId || fallbackDetails?.facultyId || '',
+      facultyName: existing?.facultyName || existing?.faculty || fallbackDetails?.facultyName || '',
+      departmentId: existing?.departmentId || fallbackDetails?.departmentId || '',
+      departmentName: existing?.departmentName || existing?.department || fallbackDetails?.departmentName || '',
+      level: existing?.level || fallbackDetails?.level || '100 Level',
+      completedAt: existing?.academicProfile?.completedAt || new Date().toISOString(),
+    } : null);
+
     const profileData: any = {
+      ...(existing || {}),
       uid,
       id: uid,
       name,
@@ -1450,7 +1477,11 @@ export const ensureUserInFirestore = async (
       role: resolvedRole,
       authProvider: existing?.authProvider || (firebaseUser.photoURL ? 'google.com' : 'email_password'),
       accountStatus: existing?.accountStatus || fallbackDetails?.accountStatus || 'active',
-      academicProfileCompleted: Boolean(existing?.academicProfileCompleted || fallbackDetails?.academicProfileCompleted),
+      academicProfileCompleted: isAcademicComplete,
+      academicProfile: resolvedAcademicProfile,
+      studentIdCardUrl: existing?.studentIdCardUrl || fallbackDetails?.studentIdCardUrl || '',
+      idVerificationStatus: existing?.idVerificationStatus || fallbackDetails?.idVerificationStatus || (existing?.studentIdCardUrl ? 'pending' : 'none'),
+      idCardUploadedAt: existing?.idCardUploadedAt || fallbackDetails?.idCardUploadedAt || '',
       institution: existing?.institutionName || existing?.institution || fallbackDetails?.institutionName || fallbackDetails?.institution || (isSuper ? 'Grobaax Systems Administration' : 'Unassigned Institution'),
       institutionName: existing?.institutionName || existing?.institution || fallbackDetails?.institutionName || fallbackDetails?.institution || (isSuper ? 'Grobaax Systems Administration' : 'Unassigned Institution'),
       institutionId: existing?.institutionId || fallbackDetails?.institutionId || '',
@@ -1519,6 +1550,13 @@ export const ensureUserInFirestore = async (
       updatedAt: serverTimestamp(),
     };
 
+    if (isAcademicComplete) {
+      profileData.academicProfileCompleted = true;
+      try {
+        localStorage.setItem(`grobax_academic_completed_${uid}`, 'true');
+      } catch (e) {}
+    }
+
     if (!snap.exists()) {
       profileData.createdAt = serverTimestamp();
       profileData.updatedAt = serverTimestamp();
@@ -1532,32 +1570,46 @@ export const ensureUserInFirestore = async (
       } catch (uErr) {
         // Ignored
       }
-    } else if (isSuper) {
-      // Self-heal super admin's Firestore document to guarantee VIP tier and maintain their personal GP balance
-      const adminPatch: Record<string, any> = {
-        role: 'admin',
-        membershipTier: 'Grobaax Titan Annual VIP',
-        subscriptionTier: 'Grobaax Titan Annual VIP',
-        subscriptionPlan: 'Grobaax Titan Annual VIP',
-        activePlanId: 'plan_titan_naira',
-        planId: 'plan_titan_naira',
-        tier: 'Grobaax Titan Annual VIP',
-        plan: 'Grobaax Titan Annual VIP',
-        isSubscribed: true,
-        isPremium: true,
-        isVip: true,
-        verified: true,
-        subscriptionExpiry: '2099-12-31T23:59:59.999Z',
-        updatedAt: serverTimestamp(),
-      };
-      if (existing?.gpBalance === undefined || isNaN(Number(existing?.gpBalance))) {
-        adminPatch.gpBalance = 100000;
-        profileData.gpBalance = 100000;
-      }
+    } else {
+      // Keep user document refreshed with latest timestamp and confirmed academic profile status
       try {
-        await setDoc(userDocRef, adminPatch, { merge: true });
-      } catch (healErr) {
-        console.warn('Super admin self-heal notice:', healErr);
+        await setDoc(userDocRef, cleanFirestoreData({
+          email,
+          academicProfileCompleted: isAcademicComplete,
+          lastLoginAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }), { merge: true });
+      } catch (uErr) {
+        console.warn('Notice refreshing lastLoginAt in database:', uErr);
+      }
+
+      if (isSuper) {
+        // Self-heal super admin's Firestore document to guarantee VIP tier and maintain their personal GP balance
+        const adminPatch: Record<string, any> = {
+          role: 'admin',
+          membershipTier: 'Grobaax Titan Annual VIP',
+          subscriptionTier: 'Grobaax Titan Annual VIP',
+          subscriptionPlan: 'Grobaax Titan Annual VIP',
+          activePlanId: 'plan_titan_naira',
+          planId: 'plan_titan_naira',
+          tier: 'Grobaax Titan Annual VIP',
+          plan: 'Grobaax Titan Annual VIP',
+          isSubscribed: true,
+          isPremium: true,
+          isVip: true,
+          verified: true,
+          subscriptionExpiry: '2099-12-31T23:59:59.999Z',
+          updatedAt: serverTimestamp(),
+        };
+        if (existing?.gpBalance === undefined || isNaN(Number(existing?.gpBalance))) {
+          adminPatch.gpBalance = 100000;
+          profileData.gpBalance = 100000;
+        }
+        try {
+          await setDoc(userDocRef, adminPatch, { merge: true });
+        } catch (healErr) {
+          console.warn('Super admin self-heal notice:', healErr);
+        }
       }
     }
 
@@ -1572,6 +1624,18 @@ export const ensureUserInFirestore = async (
     };
   } catch (err: any) {
     console.warn('ensureUserInFirestore notice:', err?.message || err);
+    
+    // Check if profile was previously cached locally
+    try {
+      const cached = typeof window !== 'undefined' ? localStorage.getItem(`grobax_user_profile_${uid}`) : null;
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && (parsed.id === uid || parsed.uid === uid)) {
+          return parsed;
+        }
+      }
+    } catch (_) {}
+
     // Return standard profile structure
     const email = (firebaseUser.email || fallbackDetails?.email || '').trim();
     const uname = (fallbackDetails?.username || email.split('@')[0] || `scholar_${uid.substring(0, 6)}`).replace(/[^a-zA-Z0-9_]/g, '');

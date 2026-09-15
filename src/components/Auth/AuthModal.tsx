@@ -176,7 +176,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error('Login error:', err);
-      setErrorMessage(formatAuthError(err.code || ''));
+      setErrorMessage(formatAuthError(err.code || err.message || ''));
     } finally {
       setIsSubmitting(false);
     }
@@ -254,7 +254,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setResetSuccessMsg(`Password reset instructions sent to ${email.trim()}. Check your inbox.`);
     } catch (err: any) {
       console.error('Password reset error:', err);
-      setErrorMessage(formatAuthError(err.code || ''));
+      setErrorMessage(formatAuthError(err.code || err.message || ''));
     } finally {
       setIsSubmitting(false);
     }
@@ -340,12 +340,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error('Registration error:', err);
-      if (err.code === 'auth/email-already-in-use' || err.message?.includes('email-already-in-use')) {
+      if (err.code === 'auth/email-already-in-use' || err.message?.includes('email-already-in-use') || err.message?.includes('already registered') || err.message?.includes('already exists')) {
         setIsEmailValid(false);
         setEmailError('This email is already registered with another account');
         setErrorMessage('An account with this email address already exists. Please sign in instead.');
       } else {
-        setErrorMessage(formatAuthError(err.code || ''));
+        setErrorMessage(formatAuthError(err.code || err.message || ''));
       }
     } finally {
       setIsSubmitting(false);

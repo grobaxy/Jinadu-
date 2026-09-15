@@ -568,10 +568,40 @@ export const onAuthStateChanged = (
 };
 
 export async function signInWithEmailAndPassword(authInstance: any, email: string, pass: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.trim(),
+  const cleanEmail = email.trim().toLowerCase();
+
+  let { data, error } = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
     password: pass,
   });
+
+  // If Supabase returns an error mentioning email confirmation, auto-confirm using admin API and retry
+  if (
+    error &&
+    (error.message?.toLowerCase().includes('email not confirmed') ||
+      error.message?.toLowerCase().includes('not confirmed'))
+  ) {
+    try {
+      const { data: userList } = await supabaseAdmin.auth.admin.listUsers();
+      const targetUser = (userList?.users as any[])?.find(
+        (u: any) => u.email?.toLowerCase() === cleanEmail
+      );
+      if (targetUser) {
+        await supabaseAdmin.auth.admin.updateUserById(targetUser.id, {
+          email_confirm: true,
+        });
+        // Retry sign in
+        const retry = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: pass,
+        });
+        data = retry.data;
+        error = retry.error;
+      }
+    } catch (adminErr) {
+      console.warn('[Supabase Auth] Auto-confirm error:', adminErr);
+    }
+  }
 
   if (error) {
     throw new Error(error.message);
@@ -582,16 +612,56 @@ export async function signInWithEmailAndPassword(authInstance: any, email: strin
 }
 
 export async function createUserWithEmailAndPassword(authInstance: any, email: string, pass: string) {
-  const { data, error } = await supabase.auth.signUp({
-    email: email.trim(),
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Try creating user pre-confirmed using supabaseAdmin so their account is active immediately
+  let user: any = null;
+  const { data: adminData, error: adminErr } = await supabaseAdmin.auth.admin.createUser({
+    email: cleanEmail,
+    password: pass,
+    email_confirm: true,
+  });
+
+  if (!adminErr && adminData?.user) {
+    user = adminData.user;
+  } else if (
+    adminErr &&
+    (adminErr.message?.toLowerCase().includes('already') || adminErr.message?.toLowerCase().includes('exists'))
+  ) {
+    throw new Error('An account with this email already exists. Please log in instead.');
+  } else {
+    // Fallback to standard signUp
+    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password: pass,
+    });
+
+    if (signUpErr) {
+      throw new Error(signUpErr.message);
+    }
+
+    user = signUpData.user;
+    if (user?.id) {
+      try {
+        await supabaseAdmin.auth.admin.updateUserById(user.id, { email_confirm: true });
+      } catch (_) {}
+    }
+  }
+
+  // Immediately sign in with password to establish persistent JWT session in browser
+  const { data: sessionData, error: sessionErr } = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
     password: pass,
   });
 
-  if (error) {
-    throw new Error(error.message);
+  if (sessionData?.user) {
+    handleSupabaseUser(sessionData.user);
+  } else if (user) {
+    handleSupabaseUser(user);
+  } else if (sessionErr) {
+    throw new Error(sessionErr.message);
   }
 
-  handleSupabaseUser(data.user);
   return { user: cachedCurrentUser };
 }
 
