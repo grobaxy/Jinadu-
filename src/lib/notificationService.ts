@@ -19,6 +19,12 @@ import { isMockAnnouncement } from '../data/mockData';
 import { isMockMinimartProduct } from '../data/mockMinimartData';
 import { isMockChatroomMessage } from '../data/mockChatroomData';
 
+const isMockSchoolDomeMessage = (m: any): boolean => {
+  if (!m || !m.id) return false;
+  const mockIds = ['dome_msg_welcome', 'dome_msg_q_13', 'dome_msg_user_1', 'dome_msg_user_2', 'dome_msg_user_3'];
+  return mockIds.includes(m.id) || m.id.startsWith('mock_') || m.isMock === true;
+};
+
 /**
  * ============================================================================
  * GROBAAX GLOBAL NOTIFICATION BADGE ENGINE
@@ -43,6 +49,7 @@ export interface NotificationDataSource {
   reportedPosts?: Array<{ id: string; status?: string }>;
   liveFixtures?: Array<{ id: string; status?: string }>;
   hints?: CompetitionHint[];
+  schoolDomeMessages?: Array<{ id: string; timestamp?: any; userId?: string; createdAt?: any; isDeleted?: boolean }>;
 }
 
 type NotificationSubscriber = (state: {
@@ -405,7 +412,39 @@ class GrobaaxNotificationService {
     const campusCount = this.eventCounts['campus'] || 0;
     const communityTotal = userFeedCount + minimartCount + annCount + campusCount;
 
-    const schoolDomeCount = this.eventCounts['school_dome'] || 0;
+    // 10. School Dome Arena & User Posts
+    const schoolDomeReadTime = lastRead['school_dome'] || 0;
+    let schoolDomeCount = this.eventCounts['school_dome'] || 0;
+    if (ds.schoolDomeMessages && ds.schoolDomeMessages.length > 0) {
+      const unreadSchoolDomeMsgs = ds.schoolDomeMessages.filter((m) => {
+        if (isMockSchoolDomeMessage(m)) return false;
+        const authorId = m.userId || (m as any).authorId;
+        if (authorId && (authorId === uid || authorId === `@${uid}`)) return false;
+        if ((m as any).isDeleted) return false;
+        const time = this.parseTimestamp((m as any).updatedAt || (m as any).createdAt || (m as any).timestamp);
+        return time > schoolDomeReadTime;
+      }).length;
+      schoolDomeCount += unreadSchoolDomeMsgs;
+    }
+
+    // Also include unread community posts tagged with School Dome
+    if (ds.posts && ds.posts.length > 0) {
+      const unreadDomePosts = ds.posts.filter((p) => {
+        if (isMockFeedPost(p)) return false;
+        const authorId = (p.author as any)?.id || p.author?.username;
+        if (authorId && (authorId === uid || authorId === `@${uid}`)) return false;
+        if (p.status === 'Hidden' || p.status === 'Deleted') return false;
+        const hasDomeTag = Array.isArray(p.tags) && p.tags.some((t: string) => {
+          const l = t.toLowerCase();
+          return l.includes('dome') || l.includes('school dome') || l.includes('arena');
+        });
+        if (!hasDomeTag) return false;
+        const time = this.parseTimestamp((p as any).updatedAt || (p as any).createdAtMillis || (p as any).createdAt || (p as any).timestamp);
+        return time > schoolDomeReadTime;
+      }).length;
+      schoolDomeCount += unreadDomePosts;
+    }
+
     const schoolDomeResultsCount = this.eventCounts['school_dome_results'] || 0;
 
     // 11. Hints Section (Strategic Preparation Hints)
@@ -536,6 +575,18 @@ class GrobaaxNotificationService {
       }).length;
     }
 
+    // 10. Admin School Dome Activity & User Posts
+    const adminDomeRead = lastRead['admin_school_dome'] || lastRead['school_dome'] || 0;
+    let adminSchoolDomeCount = this.eventCounts['admin_school_dome'] || 0;
+    if (ds.schoolDomeMessages && ds.schoolDomeMessages.length > 0) {
+      adminSchoolDomeCount += ds.schoolDomeMessages.filter((m) => {
+        if (m.userId && m.userId === uid) return false;
+        if ((m as any).isDeleted) return false;
+        const time = this.parseTimestamp((m as any).updatedAt || (m as any).createdAt || (m as any).timestamp);
+        return time > adminDomeRead;
+      }).length;
+    }
+
     // Populate full admin counts map
     this.adminCounts = {
       dashboard: pendingWithdrawals + pendingVerif + reportedPostsCount + adminChatCount + adminLibCount,
@@ -556,7 +607,7 @@ class GrobaaxNotificationService {
       questions: this.eventCounts['admin_questions'] || 0,
       live_management: liveMatchCount,
       chatroom_live: adminChatCount,
-      school_dome: this.eventCounts['admin_school_dome'] || 0,
+      school_dome: adminSchoolDomeCount,
       notifications: this.eventCounts['admin_notifications'] || 0,
       settings: this.eventCounts['admin_settings'] || 0,
       library: adminLibCount,

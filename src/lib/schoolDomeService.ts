@@ -842,6 +842,12 @@ export async function registerUserForSchoolDome(
   }
 }
 
+export const isMockSchoolDomeMessage = (m: any): boolean => {
+  if (!m || !m.id) return false;
+  const mockIds = ['dome_msg_welcome', 'dome_msg_q_13', 'dome_msg_user_1', 'dome_msg_user_2', 'dome_msg_user_3'];
+  return mockIds.includes(m.id) || m.id.startsWith('mock_') || (m as any).isMock === true;
+};
+
 // Send Message & Evaluate Live Answers
 export async function sendSchoolDomeMessage(
   message: SchoolDomeMessage,
@@ -856,6 +862,11 @@ export async function sendSchoolDomeMessage(
     const msgRef = doc(db, 'school_dome_messages', message.id);
     const cleanMsg = JSON.parse(JSON.stringify(message, (_, v) => (v === undefined ? null : v)));
     await setDoc(msgRef, cleanMsg);
+
+    // Notify local runtime listeners immediately for rapid optimistic badge and feed sync
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('school_dome_message_posted', { detail: cleanMsg }));
+    }
 
     // If message is not answering a question, return normal
     if (message.type !== 'normal' || !message.messageText || !currentSeason) {

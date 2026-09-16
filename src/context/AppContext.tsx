@@ -104,6 +104,7 @@ import {
   SubscriptionPlan,
   UserSubscriptionRecord,
   ChatroomLiveMessage,
+  SchoolDomeMessage,
   AdminTabType,
   PRIMARY_SUPER_ADMIN_UID,
   PlatformEventStatus,
@@ -183,6 +184,10 @@ import { isMockFeedPost } from '../data/initialFeedPosts';
 import { isMockAnnouncement } from '../data/mockData';
 import { isMockMinimartProduct } from '../data/mockMinimartData';
 import { isMockChatroomMessage } from '../data/mockChatroomData';
+import {
+  subscribeSchoolDomeMessages,
+  DEFAULT_INITIAL_MESSAGES as DEFAULT_SCHOOL_DOME_MESSAGES,
+} from '../lib/schoolDomeService';
 
 export function extractTxPaymentReference(tx: { description?: string; meta?: any } | null | undefined): string | null {
   if (!tx) return null;
@@ -394,6 +399,7 @@ interface AppContextType {
 
   // Community, Feed & Announcements
   chatroomMessages: ChatroomLiveMessage[];
+  schoolDomeMessages: SchoolDomeMessage[];
   sendChatroomMessage: (message: ChatroomLiveMessage) => Promise<void>;
   deleteChatroomMessage: (messageId: string) => Promise<void>;
   reactChatroomMessage: (messageId: string, emoji: string) => Promise<void>;
@@ -1270,6 +1276,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch {}
     return [];
+  });
+  const [schoolDomeMessages, setSchoolDomeMessages] = useState<SchoolDomeMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem('grobax_school_dome_cached_messages');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_SCHOOL_DOME_MESSAGES;
   });
   const [events, setEvents] = useState<EventItem[]>(() => {
     try {
@@ -2615,10 +2631,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       );
 
+      // Global School Dome message listener to keep notification signals updated based on users' posts
+      const unsubSchoolDome = subscribeSchoolDomeMessages('season_dome_1', (msgs) => {
+        setSchoolDomeMessages((prev) => {
+          const map = new Map<string, SchoolDomeMessage>();
+          msgs.forEach((m) => map.set(m.id, m));
+          prev.forEach((p) => {
+            if (map.has(p.id)) {
+              const existing = map.get(p.id)!;
+              const mergedReactions = { ...(existing.reactions || {}) };
+              if (p.reactions) {
+                for (const [em, cnt] of Object.entries(p.reactions)) {
+                  mergedReactions[em] = Math.max(Number(mergedReactions[em]) || 0, Number(cnt) || 0);
+                }
+              }
+              map.set(p.id, { ...existing, reactions: mergedReactions });
+            }
+          });
+          const combined = Array.from(map.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          try {
+            localStorage.setItem('grobax_school_dome_cached_messages', JSON.stringify(combined));
+          } catch {}
+          return combined;
+        });
+      });
+
+      const handleDomeMessagePosted = (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        if (detail && detail.id) {
+          setSchoolDomeMessages((prev) => {
+            if (prev.some((m) => m.id === detail.id)) return prev;
+            const updated = [...prev, detail];
+            try {
+              localStorage.setItem('grobax_school_dome_cached_messages', JSON.stringify(updated));
+            } catch {}
+            return updated;
+          });
+        }
+      };
+      window.addEventListener('school_dome_message_posted', handleDomeMessagePosted);
+
       return () => {
         unsubPosts();
         unsubAnn();
         unsubChat();
+        unsubSchoolDome();
+        window.removeEventListener('school_dome_message_posted', handleDomeMessagePosted);
       };
     } catch (err) {
       console.warn('Community posts and announcements listener init notice:', err);
@@ -5227,6 +5285,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       posts,
       announcements,
       chatMessages: chatroomMessages,
+      schoolDomeMessages,
       platformEvents: events as any,
       qualifications: qualificationCompetitions,
       minimartProducts: minimartProducts as any,
@@ -5245,6 +5304,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     posts,
     announcements,
     chatroomMessages,
+    schoolDomeMessages,
     events,
     qualificationCompetitions,
     minimartProducts,
@@ -5260,6 +5320,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (activeTab) {
       grobaxNotificationService.markSectionRead(activeTab);
+      if (activeTab === 'school_dome' || activeTab === 'school_dome_results') {
+        grobaxNotificationService.markSectionRead('school_dome');
+        grobaxNotificationService.markSectionRead('school_dome_results');
+      }
     }
   }, [activeTab]);
 
@@ -5960,6 +6024,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // Grobaax Minimart & Chatroom
         chatroomMessages,
+        schoolDomeMessages,
         sendChatroomMessage,
         deleteChatroomMessage,
         reactChatroomMessage,
