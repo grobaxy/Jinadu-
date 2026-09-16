@@ -118,17 +118,63 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
     const unsubSeason = subscribeSchoolDomeActiveSeason((season) => {
       setCurrentSeason(season);
     });
-    return () => unsubSeason();
+
+    const handleSeasonUpdated = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        setCurrentSeason(prev => (prev ? { ...prev, ...detail } : detail));
+      }
+    };
+    window.addEventListener('school_dome_season_updated', handleSeasonUpdated);
+
+    const handleMessageReacted = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.messageId && detail.emoji) {
+        setMessages(prev =>
+          prev.map(m => {
+            if (m.id !== detail.messageId) return m;
+            const reactions = { ...(m.reactions || {}) };
+            reactions[detail.emoji] = (Number(reactions[detail.emoji]) || 0) + 1;
+            return { ...m, reactions };
+          })
+        );
+      }
+    };
+    window.addEventListener('school_dome_message_reacted', handleMessageReacted);
+
+    return () => {
+      unsubSeason();
+      window.removeEventListener('school_dome_season_updated', handleSeasonUpdated);
+      window.removeEventListener('school_dome_message_reacted', handleMessageReacted);
+    };
   }, []);
 
   // Subscribe to live messages immediately so chats are visible right away
   useEffect(() => {
     const seasonId = currentSeason?.id || 'season_dome_1';
     const unsubMsg = subscribeSchoolDomeMessages(seasonId, (msgs) => {
-      setMessages(msgs);
-      try {
-        localStorage.setItem('grobax_school_dome_cached_messages', JSON.stringify(msgs));
-      } catch {}
+      setMessages(prev => {
+        // Merge with optimistic reaction state to prevent jitter during multi-clicks
+        const map = new Map<string, SchoolDomeMessage>();
+        msgs.forEach(m => map.set(m.id, m));
+        prev.forEach(p => {
+          if (map.has(p.id)) {
+            const existing = map.get(p.id)!;
+            const mergedReactions = { ...(existing.reactions || {}) };
+            if (p.reactions) {
+              for (const [em, cnt] of Object.entries(p.reactions)) {
+                mergedReactions[em] = Math.max(Number(mergedReactions[em]) || 0, Number(cnt) || 0);
+              }
+            }
+            map.set(p.id, { ...existing, reactions: mergedReactions });
+          }
+        });
+        const combined = Array.from(map.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        try {
+          localStorage.setItem('grobax_school_dome_cached_messages', JSON.stringify(combined));
+        } catch {}
+        return combined;
+      });
     });
     return () => unsubMsg();
   }, [currentSeason?.id]);
@@ -606,6 +652,20 @@ export const SchoolDomeView: React.FC<SchoolDomeViewProps> = ({ initialTab = 'ar
   };
 
   const handleReactMessage = async (msgId: string, emoji: string) => {
+    // Instant optimistic update for 0ms latency feedback
+    setMessages(prev => {
+      const updated = prev.map(m => {
+        if (m.id !== msgId) return m;
+        const reactions = { ...(m.reactions || {}) };
+        reactions[emoji] = (Number(reactions[emoji]) || 0) + 1;
+        return { ...m, reactions };
+      });
+      try {
+        localStorage.setItem('grobax_school_dome_cached_messages', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
     try {
       await reactSchoolDomeMessage(msgId, emoji);
     } catch (err) {

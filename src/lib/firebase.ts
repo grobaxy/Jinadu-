@@ -5143,10 +5143,26 @@ export const reactChatroomMessageInFirestore = async (
 ): Promise<void> => {
   try {
     const msgRef = doc(db, 'chatroom_live_messages', messageId);
-    // Atomic increment guarantees multiple clicks and rapid concurrent clicks all count properly
+    let fallbackMsg: any = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('grobax_chatroom_messages');
+        if (stored) {
+          const list = JSON.parse(stored);
+          if (Array.isArray(list)) {
+            fallbackMsg = list.find((m: any) => m.id === messageId);
+          }
+        }
+      } catch {}
+    }
+
+    const baseData = fallbackMsg ? { ...fallbackMsg } : {};
+    delete baseData.reactions; // Don't overwrite reactions with stale snapshot
+
     await setDoc(
       msgRef,
       {
+        ...baseData,
         reactions: {
           [emoji]: increment(1),
         },
@@ -5154,6 +5170,14 @@ export const reactChatroomMessageInFirestore = async (
       },
       { merge: true }
     );
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('chatroom_message_reacted', {
+          detail: { messageId, emoji },
+        })
+      );
+    }
   } catch (err) {
     console.warn('Error updating reactions in Firestore:', err);
   }

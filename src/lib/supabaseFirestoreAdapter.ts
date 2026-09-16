@@ -119,12 +119,45 @@ export const arrayRemove = (...items: any[]) => ({
   items,
 });
 
-// Helper to resolve special field values on objects
+// Helper to resolve special field values on objects (supports deep nesting and dot-notation)
 export function resolveFieldUpdates(target: any, updates: any): any {
   if (!updates || typeof updates !== 'object') return updates;
   const result = { ...(target || {}) };
 
   for (const [key, val] of Object.entries(updates)) {
+    // 1. Support dot-notation field paths (e.g. "reactions.🔥")
+    if (key.includes('.')) {
+      const parts = key.split('.');
+      let cur = result;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!cur[parts[i]] || typeof cur[parts[i]] !== 'object' || Array.isArray(cur[parts[i]])) {
+          cur[parts[i]] = {};
+        } else {
+          cur[parts[i]] = { ...cur[parts[i]] };
+        }
+        cur = cur[parts[i]];
+      }
+      const lastKey = parts[parts.length - 1];
+      if (val && typeof val === 'object' && (val as any).__op) {
+        const op = (val as any).__op;
+        if (op === 'increment') {
+          cur[lastKey] = (Number(cur[lastKey]) || 0) + Number((val as any).value || 0);
+        } else if (op === 'arrayUnion') {
+          const existingArr = Array.isArray(cur[lastKey]) ? cur[lastKey] : [];
+          const toAdd = (val as any).items || [];
+          cur[lastKey] = Array.from(new Set([...existingArr, ...toAdd]));
+        } else if (op === 'arrayRemove') {
+          const existingArr = Array.isArray(cur[lastKey]) ? cur[lastKey] : [];
+          const toRemove = new Set((val as any).items || []);
+          cur[lastKey] = existingArr.filter((item: any) => !toRemove.has(item));
+        }
+      } else {
+        cur[lastKey] = val;
+      }
+      continue;
+    }
+
+    // 2. Direct operations
     if (val && typeof val === 'object' && (val as any).__op) {
       const op = (val as any).__op;
       if (op === 'increment') {
@@ -138,6 +171,10 @@ export function resolveFieldUpdates(target: any, updates: any): any {
         const toRemove = new Set((val as any).items || []);
         result[key] = existingArr.filter((item: any) => !toRemove.has(item));
       }
+    } else if (val && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+      // 3. Deep merge nested objects (e.g. reactions: { '🔥': increment(1) })
+      // Preserves existing keys in the nested object and recurses down to resolve nested increments
+      result[key] = resolveFieldUpdates(result[key] || {}, val);
     } else {
       result[key] = val;
     }

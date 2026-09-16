@@ -236,6 +236,60 @@ export async function getDocFromSupabase<T = any>(tableName: string, docId: stri
   }
 }
 
+function deepMergeOperations(existing: any, incoming: any): any {
+  if (!incoming || typeof incoming !== 'object') return incoming;
+  const result = { ...(existing || {}) };
+
+  for (const [key, val] of Object.entries(incoming)) {
+    if (key.includes('.')) {
+      const parts = key.split('.');
+      let cur = result;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!cur[parts[i]] || typeof cur[parts[i]] !== 'object' || Array.isArray(cur[parts[i]])) {
+          cur[parts[i]] = {};
+        } else {
+          cur[parts[i]] = { ...cur[parts[i]] };
+        }
+        cur = cur[parts[i]];
+      }
+      const lastKey = parts[parts.length - 1];
+      if (val && typeof val === 'object' && (val as any).__op === 'increment') {
+        cur[lastKey] = (Number(cur[lastKey]) || 0) + Number((val as any).value || 0);
+      } else {
+        cur[lastKey] = val;
+      }
+      continue;
+    }
+
+    if (val && typeof val === 'object' && (val as any).__op === 'increment') {
+      result[key] = (Number(result[key]) || 0) + Number((val as any).value || 0);
+    } else if (val && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+      result[key] = deepMergeOperations(result[key] || {}, val);
+    } else {
+      result[key] = val;
+    }
+  }
+
+  return result;
+}
+
+function sanitizeOperations(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeOperations);
+  if (obj instanceof Date) return obj;
+  const result: any = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v && typeof v === 'object' && (v as any).__op === 'increment') {
+      result[k] = Number((v as any).value || 0);
+    } else if (v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date)) {
+      result[k] = sanitizeOperations(v);
+    } else {
+      result[k] = v;
+    }
+  }
+  return result;
+}
+
 /**
  * Set or upsert a document in Supabase
  */
@@ -257,26 +311,14 @@ export async function setDocToSupabase<T = any>(
   if (merge) {
     const existing = await getDocFromSupabase(tableName, docId);
     if (existing) {
-      finalPayload = {
-        ...existing,
-        ...finalPayload,
-        updatedAt: now,
-      };
-      // Extra safeguard against raw __op field values
-      for (const [k, v] of Object.entries(data as any || {})) {
-        if (v && typeof v === 'object' && (v as any).__op === 'increment') {
-          finalPayload[k] = (Number(existing[k]) || 0) + Number((v as any).value || 0);
-        }
-      }
+      finalPayload = deepMergeOperations(existing, finalPayload);
+      finalPayload.id = docId;
+      finalPayload.updatedAt = now;
     }
   }
 
-  // Sanitize any remaining __op increment objects
-  for (const [k, v] of Object.entries(finalPayload)) {
-    if (v && typeof v === 'object' && (v as any).__op === 'increment') {
-      finalPayload[k] = Number((v as any).value || 0);
-    }
-  }
+  // Sanitize any remaining __op increment objects recursively
+  finalPayload = sanitizeOperations(finalPayload);
 
   const row = {
     id: docId,

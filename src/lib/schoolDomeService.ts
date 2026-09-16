@@ -539,25 +539,59 @@ export function subscribeSchoolDomeActiveSeason(
       (snapshot) => {
         if (!snapshot.empty) {
           const docData = snapshot.docs[0].data() as SchoolDomeSeason;
-          callback({ ...docData, id: snapshot.docs[0].id });
+          const fullSeason = { ...docData, id: snapshot.docs[0].id };
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('grobax_school_dome_active_season', JSON.stringify(fullSeason));
+            }
+          } catch {}
+          callback(fullSeason);
         } else {
+          // Check localStorage first before falling back to DEFAULT_INITIAL_SEASON
+          let fallback = DEFAULT_INITIAL_SEASON;
+          try {
+            if (typeof window !== 'undefined') {
+              const stored = localStorage.getItem('grobax_school_dome_active_season');
+              if (stored) {
+                fallback = { ...DEFAULT_INITIAL_SEASON, ...JSON.parse(stored) };
+              }
+            }
+          } catch {}
           // Initialize default season in Firestore if non-existent
-          setDoc(doc(db, 'school_dome_seasons', DEFAULT_INITIAL_SEASON.id), DEFAULT_INITIAL_SEASON).catch(
+          setDoc(doc(db, 'school_dome_seasons', fallback.id || DEFAULT_INITIAL_SEASON.id), fallback, { merge: true }).catch(
             () => {}
           );
-          callback(DEFAULT_INITIAL_SEASON);
+          callback(fallback);
         }
       },
       (err) => {
         console.warn('School Dome active season snapshot notice:', err);
-        callback(DEFAULT_INITIAL_SEASON);
+        let fallback = DEFAULT_INITIAL_SEASON;
+        try {
+          if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('grobax_school_dome_active_season');
+            if (stored) {
+              fallback = { ...DEFAULT_INITIAL_SEASON, ...JSON.parse(stored) };
+            }
+          }
+        } catch {}
+        callback(fallback);
       }
     );
 
     return unsubscribe;
   } catch (err) {
     console.warn('School Dome active season subscription failed:', err);
-    callback(DEFAULT_INITIAL_SEASON);
+    let fallback = DEFAULT_INITIAL_SEASON;
+    try {
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('grobax_school_dome_active_season');
+        if (stored) {
+          fallback = { ...DEFAULT_INITIAL_SEASON, ...JSON.parse(stored) };
+        }
+      }
+    } catch {}
+    callback(fallback);
     return () => {};
   }
 }
@@ -618,7 +652,28 @@ export function subscribeSchoolDomeMessages(
       (snapshot) => {
         if (!snapshot.empty) {
           const msgs = snapshot.docs
-            .map(d => ({ ...(d.data() as SchoolDomeMessage), id: d.id }))
+            .map(d => {
+              const data = d.data() as any;
+              const cleanReactions: Record<string, number> = {};
+              if (data.reactions && typeof data.reactions === 'object') {
+                for (const [em, count] of Object.entries(data.reactions)) {
+                  let num = 0;
+                  if (typeof count === 'number') {
+                    num = count;
+                  } else if (count && typeof count === 'object' && (count as any).__op === 'increment') {
+                    num = Number((count as any).value) || 1;
+                  } else if (!isNaN(Number(count))) {
+                    num = Number(count);
+                  }
+                  if (num > 0) cleanReactions[em] = num;
+                }
+              }
+              return {
+                ...data,
+                id: d.id,
+                reactions: cleanReactions,
+              } as SchoolDomeMessage;
+            })
             .filter(m => !m.isDeleted)
             .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
           callback(msgs);
@@ -928,9 +983,26 @@ export async function sendSchoolDomeMessage(
 export async function reactSchoolDomeMessage(messageId: string, emoji: string): Promise<void> {
   try {
     const msgRef = doc(db, 'school_dome_messages', messageId);
+    let fallbackMsg: any = DEFAULT_INITIAL_MESSAGES.find(m => m.id === messageId) || null;
+    if (!fallbackMsg && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('grobax_school_dome_cached_messages');
+        if (stored) {
+          const list = JSON.parse(stored);
+          if (Array.isArray(list)) {
+            fallbackMsg = list.find((m: any) => m.id === messageId);
+          }
+        }
+      } catch {}
+    }
+
+    const baseData = fallbackMsg ? { ...fallbackMsg } : {};
+    delete baseData.reactions; // Don't overwrite reactions with stale snapshot
+
     await setDoc(
       msgRef,
       {
+        ...baseData,
         reactions: {
           [emoji]: increment(1),
         },
@@ -938,6 +1010,14 @@ export async function reactSchoolDomeMessage(messageId: string, emoji: string): 
       },
       { merge: true }
     );
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('school_dome_message_reacted', {
+          detail: { messageId, emoji },
+        })
+      );
+    }
   } catch (err) {
     console.warn('Error reacting to School Dome message:', err);
   }
@@ -1736,7 +1816,7 @@ export async function updateSchoolDomeSeason(
           const curData = snap.data() as SchoolDomeSeason;
           if (curData.status !== 'ended' || !curData.winners || curData.winners.length === 0) {
             // Apply other edits first
-            await updateDoc(seasonRef, sanitizedUpdates);
+            await setDoc(seasonRef, sanitizedUpdates, { merge: true });
             // Then execute formal prize distribution
             await endSchoolDomeSeasonAndDistributePrize(seasonId);
             return;
@@ -1747,19 +1827,20 @@ export async function updateSchoolDomeSeason(
       }
     }
 
-    await updateDoc(seasonRef, sanitizedUpdates);
+    await setDoc(seasonRef, sanitizedUpdates, { merge: true });
 
-    // Sync localStorage fallback active season if IDs match
+    // Sync localStorage fallback active season and notify all subscribers
     try {
       if (typeof window !== 'undefined') {
         const stored = localStorage.getItem('grobax_school_dome_active_season');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed.id === seasonId) {
-            Object.assign(parsed, sanitizedUpdates);
-            localStorage.setItem('grobax_school_dome_active_season', JSON.stringify(parsed));
-          }
-        }
+        const currentObj = stored ? JSON.parse(stored) : { id: seasonId, ...DEFAULT_INITIAL_SEASON };
+        Object.assign(currentObj, sanitizedUpdates);
+        localStorage.setItem('grobax_school_dome_active_season', JSON.stringify(currentObj));
+        window.dispatchEvent(
+          new CustomEvent('school_dome_season_updated', {
+            detail: currentObj,
+          })
+        );
       }
     } catch {}
   } catch (err) {

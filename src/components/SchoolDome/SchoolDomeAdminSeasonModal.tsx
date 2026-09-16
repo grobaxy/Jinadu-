@@ -46,7 +46,7 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
   // Edit Existing Season Form State
   const [editTitle, setEditTitle] = useState(season.title || '');
   const [editSeasonNumber, setEditSeasonNumber] = useState<number>(season.seasonNumber || 1);
-  const [editPrizePool, setEditPrizePool] = useState<number>(season.prizePool || 50000);
+  const [editPrizePool, setEditPrizePool] = useState<string | number>(season.prizePool !== undefined ? season.prizePool : 50000);
   const [editCurrency, setEditCurrency] = useState<'NGN' | 'GP'>(season.prizeCurrency || 'GP');
   const [editStatus, setEditStatus] = useState<SchoolDomeSeasonStatus>(season.status || 'active');
   const [editIsRegistrationLocked, setEditIsRegistrationLocked] = useState<boolean>(Boolean(season.isRegistrationLocked));
@@ -69,7 +69,7 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
   // New Season Form State
   const [newSeasonNumber, setNewSeasonNumber] = useState<number>(initialCalculatedNum);
   const [newTitle, setNewTitle] = useState(`Season #${initialCalculatedNum} — School Dome`);
-  const [newPrizePool, setNewPrizePool] = useState(50000);
+  const [newPrizePool, setNewPrizePool] = useState<string | number>(50000);
   const [newCurrency, setNewCurrency] = useState<'NGN' | 'GP'>('GP');
   const [newDescription, setNewDescription] = useState('');
   const [newRules, setNewRules] = useState(
@@ -79,13 +79,13 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
   const [isProcessing, setIsProcessing] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Synchronize edit fields when modal opens or season prop changes
+  // Synchronize edit fields when modal opens or when switching season ID
   useEffect(() => {
     if (isOpen) {
       setActiveSubTab(initialTab);
       setEditTitle(season.title || '');
       setEditSeasonNumber(season.seasonNumber || 1);
-      setEditPrizePool(season.prizePool || 50000);
+      setEditPrizePool(season.prizePool !== undefined ? season.prizePool : 50000);
       setEditCurrency(season.prizeCurrency || 'GP');
       setEditStatus(season.status || 'active');
       setEditIsRegistrationLocked(Boolean(season.isRegistrationLocked));
@@ -102,7 +102,7 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
       );
       setFeedback(null);
     }
-  }, [isOpen, initialTab, season]);
+  }, [isOpen, initialTab, season.id]);
 
   if (!isOpen) return null;
 
@@ -112,10 +112,7 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
       setFeedback({ type: 'error', text: 'Please enter a season title.' });
       return;
     }
-    if (editPrizePool < 0) {
-      setFeedback({ type: 'error', text: 'Prize pool cannot be negative.' });
-      return;
-    }
+    const numericPrizePool = Math.max(0, Number(editPrizePool) || 0);
 
     try {
       setIsProcessing(true);
@@ -129,7 +126,7 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
       await updateSchoolDomeSeason(season.id, {
         title: editTitle.trim(),
         seasonNumber: Number(editSeasonNumber) || 1,
-        prizePool: Number(editPrizePool),
+        prizePool: numericPrizePool,
         prizeCurrency: editCurrency,
         status: editStatus,
         isRegistrationLocked: editIsRegistrationLocked,
@@ -139,10 +136,13 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
 
       setFeedback({
         type: 'success',
-        text: `Season #${editSeasonNumber} details saved successfully!`,
+        text: `Season #${editSeasonNumber} details saved successfully! Prize Pool: ${editCurrency === 'NGN' ? '₦' : ''}${numericPrizePool.toLocaleString()} ${editCurrency === 'GP' ? 'GP' : ''}`,
       });
 
       if (onSeasonUpdated) onSeasonUpdated();
+      setTimeout(() => {
+        onClose();
+      }, 1200);
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || 'Failed to update season.' });
     } finally {
@@ -182,7 +182,8 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
       setFeedback({ type: 'error', text: 'Please enter a season title.' });
       return;
     }
-    if (newPrizePool < 1000) {
+    const numericNewPrize = Math.max(1000, Number(newPrizePool) || 0);
+    if (numericNewPrize < 1000) {
       setFeedback({ type: 'error', text: 'Prize pool must be at least 1,000.' });
       return;
     }
@@ -195,7 +196,7 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
         {
           seasonNumber: Number(newSeasonNumber) || 1,
           title: newTitle.trim(),
-          prizePool: Number(newPrizePool),
+          prizePool: numericNewPrize,
           prizeCurrency: newCurrency,
           description: newDescription.trim(),
           rules: newRules
@@ -368,7 +369,7 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
                     min="0"
                     step="500"
                     value={editPrizePool}
-                    onChange={e => setEditPrizePool(Number(e.target.value))}
+                    onChange={e => setEditPrizePool(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 font-bold"
                   />
                 </div>
@@ -612,7 +613,7 @@ export const SchoolDomeAdminSeasonModal: React.FC<SchoolDomeAdminSeasonModalProp
                     min="1000"
                     step="500"
                     value={newPrizePool}
-                    onChange={e => setNewPrizePool(Number(e.target.value))}
+                    onChange={e => setNewPrizePool(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 font-bold"
                   />
                 </div>

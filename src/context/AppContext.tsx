@@ -2535,10 +2535,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     ? data.createdAt
                     : (d.id.startsWith('msg_') && !isNaN(Number(d.id.split('_')[1])) ? Number(d.id.split('_')[1]) : Date.now());
 
+                const cleanReactions: Record<string, number> = {};
+                if (data.reactions && typeof data.reactions === 'object') {
+                  for (const [em, count] of Object.entries(data.reactions)) {
+                    let num = 0;
+                    if (typeof count === 'number') {
+                      num = count;
+                    } else if (count && typeof count === 'object' && (count as any).__op === 'increment') {
+                      num = Number((count as any).value) || 1;
+                    } else if (!isNaN(Number(count))) {
+                      num = Number(count);
+                    }
+                    if (num > 0) cleanReactions[em] = num;
+                  }
+                }
+
                 return {
                   id: d.id,
                   ...data,
-                  reactions: data.reactions && typeof data.reactions === 'object' ? data.reactions : {},
+                  reactions: cleanReactions,
                   timestamp: parsedTimestamp,
                 } as ChatroomLiveMessage;
               })
@@ -2546,12 +2561,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
             setChatroomMessages(prev => {
-              // Merge snapshot with recent optimistic in-flight messages so newly sent messages never disappear
+              // Merge snapshot with recent optimistic in-flight messages so newly sent messages and rapid reactions never disappear
               const map = new Map<string, ChatroomLiveMessage>();
               liveMsgs.forEach(m => map.set(m.id, m));
               prev.forEach(p => {
-                if (!map.has(p.id) && (Date.now() - (p.timestamp || 0)) < 45000 && !p.isDeleted) {
-                  map.set(p.id, p);
+                if (!map.has(p.id)) {
+                  if ((Date.now() - (p.timestamp || 0)) < 45000 && !p.isDeleted) {
+                    map.set(p.id, p);
+                  }
+                } else {
+                  // Merge reactions so rapid multi-clicks never get rolled back by intermediate snapshots
+                  const existing = map.get(p.id)!;
+                  const mergedReactions = { ...(existing.reactions || {}) };
+                  if (p.reactions) {
+                    for (const [em, cnt] of Object.entries(p.reactions)) {
+                      mergedReactions[em] = Math.max(Number(mergedReactions[em]) || 0, Number(cnt) || 0);
+                    }
+                  }
+                  map.set(p.id, { ...existing, reactions: mergedReactions });
                 }
               });
               const combined = Array.from(map.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
@@ -4665,14 +4692,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const reactChatroomMessage = async (messageId: string, emoji: string): Promise<void> => {
     // Instant optimistic update for silky-smooth repeated clicking
-    setChatroomMessages(prev =>
-      prev.map(m => {
+    setChatroomMessages(prev => {
+      const updated = prev.map(m => {
         if (m.id !== messageId) return m;
         const reactions = { ...(m.reactions || {}) };
         reactions[emoji] = (Number(reactions[emoji]) || 0) + 1;
         return { ...m, reactions };
-      })
-    );
+      });
+      try {
+        localStorage.setItem('grobax_chatroom_messages', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
 
     try {
       await reactChatroomMessageInFirestore(messageId, emoji);

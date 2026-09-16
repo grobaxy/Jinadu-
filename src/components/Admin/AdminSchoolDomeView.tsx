@@ -88,7 +88,19 @@ export const AdminSchoolDomeView: React.FC = () => {
     const unsub = subscribeSchoolDomeActiveSeason((s) => {
       setCurrentSeason(s);
     });
-    return () => unsub();
+
+    const handleSeasonUpdated = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        setCurrentSeason(prev => (prev ? { ...prev, ...detail } : detail));
+      }
+    };
+    window.addEventListener('school_dome_season_updated', handleSeasonUpdated);
+
+    return () => {
+      unsub();
+      window.removeEventListener('school_dome_season_updated', handleSeasonUpdated);
+    };
   }, []);
 
   useEffect(() => {
@@ -111,8 +123,8 @@ export const AdminSchoolDomeView: React.FC = () => {
 
   const standingCount = currentSeason?.activeUserIds?.length || 0;
   const registeredCount = currentSeason?.registeredUserIds?.length || 0;
-  const prizePool = currentSeason?.prizePool || 50000;
-  const currency = currentSeason?.prizeCurrency || 'NGN';
+  const prizePool = currentSeason?.prizePool !== undefined ? currentSeason.prizePool : 50000;
+  const currency = currentSeason?.prizeCurrency || 'GP';
   const prizePrefix = currency === 'NGN' ? '₦' : '';
   const prizeSuffix = currency === 'GP' ? ' GP' : '';
   const prizePerWinner = Math.floor(prizePool / Math.max(1, standingCount));
@@ -424,6 +436,15 @@ export const AdminSchoolDomeView: React.FC = () => {
             adminUid={currentUser?.id}
             adminName={currentUser?.name}
             initialTab={seasonModalInitialTab}
+            onSeasonUpdated={() => {
+              // Read immediately from localStorage if available to eliminate any latency
+              try {
+                const stored = localStorage.getItem('grobax_school_dome_active_season');
+                if (stored) {
+                  setCurrentSeason(JSON.parse(stored));
+                }
+              } catch {}
+            }}
           />
 
           {/* End Season & Prize Distribution Modal */}

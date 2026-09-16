@@ -578,8 +578,12 @@ export const SchoolDomeMessageItem: React.FC<SchoolDomeMessageItemProps> = ({
           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
             {/* Existing Reactions */}
             {Object.entries(reactions).map(([emoji, count]) => {
-              const numericCount = Number(count);
-              if (!numericCount || numericCount <= 0) return null;
+              const numericCount = typeof count === 'number'
+                ? count
+                : (count && typeof count === 'object' && (count as any).value !== undefined
+                  ? Number((count as any).value)
+                  : Number(count));
+              if (isNaN(numericCount) || numericCount <= 0) return null;
               return (
                 <button
                   key={emoji}
