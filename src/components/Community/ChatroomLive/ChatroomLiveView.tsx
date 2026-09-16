@@ -429,6 +429,7 @@ export const ChatroomLiveView: React.FC = () => {
       isPremium: isVIP || isPremium || isStaffOrAdmin,
       isVip: isVIP,
       membershipTier: isVIP ? 'VIP SCHOLAR' : isPremium ? 'PREMIUM SCHOLAR' : isStaffOrAdmin ? 'VIP SCHOLAR' : undefined,
+      role: currentUser.role,
       equippedBadge: currentUser.equippedBadge,
       messageText: text,
       timestamp: Date.now(),
@@ -818,37 +819,7 @@ export const ChatroomLiveView: React.FC = () => {
           onClose={() => setIsCreateQuestionModalOpen(false)}
           adminUid={currentUser.id}
           adminName={currentUser.name}
-          onQuestionCreated={(newQ) => {
-            const now = Date.now();
-            const questionMessage: ChatroomLiveMessage = {
-              id: 'msg_q_' + newQ.id,
-              userId: currentUser.id || 'admin_mod',
-              userName: `${currentUser.name} 🛡️`,
-              userAvatar: currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-              institution: currentUser.institution || 'Grobaax Community Management',
-              department: currentUser.department || 'Head Moderator',
-              level: 'Admin',
-              isPremium: true,
-              messageText: `🎯 LIVE QUESTION #${newQ.questionNumber}: ${newQ.questionText}\n\n🏆 Reward: +${newQ.gpRewardPerWinner} GP each for the first ${newQ.winnerLimit} correct scholars!\n⏱️ Time Limit: ${Math.round(newQ.timeLimitSeconds / 60)} minutes. Type your answer directly in the chat below!`,
-              timestamp: now,
-              type: 'question',
-              competitionRef: {
-                competitionId: 'daily_live_chat',
-                questionId: newQ.id,
-                questionNumber: newQ.questionNumber,
-                totalQuestions: 10,
-                questionText: newQ.questionText,
-                status: 'active',
-                gpRewardPerWinner: newQ.gpRewardPerWinner,
-                winnerCountLimit: newQ.winnerLimit,
-                allowFreeParticipation: true,
-                timeLimitSeconds: newQ.timeLimitSeconds,
-                startAt: now,
-                endAt: newQ.endAt,
-              },
-              reactions: { '🎯': 1, '⚡': 1 },
-            };
-            sendChatroomMessage(questionMessage);
+          onQuestionCreated={(_newQ) => {
             setIsCreateQuestionModalOpen(false);
           }}
         />

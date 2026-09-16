@@ -5094,8 +5094,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
+    const handleGpAwarded = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && (detail.userId === currentUser.id || detail.userId === firebaseUser?.uid)) {
+        const added = Number(detail.gpAwarded) || 0;
+        if (added > 0) {
+          setCurrentUser(prev => ({
+            ...prev,
+            gpBalance: Math.max(0, (Number(prev.gpBalance) || 0) + added),
+          }));
+        }
+      }
+    };
+
     window.addEventListener('school_dome_season_concluded', handleDomeConcluded);
-    return () => window.removeEventListener('school_dome_season_concluded', handleDomeConcluded);
+    window.addEventListener('grobaax_gp_awarded', handleGpAwarded);
+    return () => {
+      window.removeEventListener('school_dome_season_concluded', handleDomeConcluded);
+      window.removeEventListener('grobaax_gp_awarded', handleGpAwarded);
+    };
   }, [currentUser.id, currentUser.name, firebaseUser?.uid]);
 
   const updateSystemSettings = async (settingsPatch: Partial<SystemSettings>) => {

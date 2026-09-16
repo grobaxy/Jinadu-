@@ -5075,9 +5075,12 @@ export const sendChatroomMessageToFirestore = async (
 
         if (qSnap.exists()) {
           const qData = qSnap.data() as ChatroomLiveQuestion;
-          const normName = (message.userName || '').toLowerCase().trim();
+          const normName = (message.userName || '')
+            .replace(/\s*(💎\s*\|\s*Moderator|🛡️|⭐|👑|⚡).*$/, '')
+            .toLowerCase()
+            .trim();
           const repliedList = qData.repliedUserIds || [];
-          const repliedUsernames = qData.repliedUsernames || [];
+          const repliedUsernames = (qData.repliedUsernames || []).map(u => u.toLowerCase().trim());
           const winnersList = qData.selectedWinners || [];
 
           const hasAlreadyReplied =
@@ -5939,6 +5942,11 @@ export const getAnswerVariants = (raw: string): string[] => {
   return Array.from(variants);
 };
 
+// Safe regex escape helper to prevent invalid RegExp crashes on math/chemical formulas
+export const escapeRegExp = (str: string): string => {
+  return (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // Compares user submission against official answer and accepted alternatives
 export const isChatroomAnswerCorrect = (
   submittedText: string,
@@ -5957,8 +5965,13 @@ export const isChatroomAnswerCorrect = (
     if (targetVariants.has(sub)) return true;
     for (const tgt of targetVariants) {
       if (tgt.length > 1) {
-        const regex = new RegExp(`(^|\\s)${tgt}(\\s|$)`, 'i');
-        if (regex.test(sub)) return true;
+        try {
+          const escaped = escapeRegExp(tgt);
+          const regex = new RegExp(`(^|\\s)${escaped}(\\s|$)`, 'i');
+          if (regex.test(sub)) return true;
+        } catch {
+          if (sub === tgt || (tgt.length >= 3 && sub.includes(tgt))) return true;
+        }
       }
     }
     return false;
@@ -5984,7 +5997,8 @@ export const evaluateAndProcessLiveAnswer = async (
     activePlanId?: string;
     role?: string;
   },
-  submittedAnswerText: string
+  submittedAnswerText: string,
+  isExplicitReplyToQuestion: boolean = false
 ): Promise<{
   isCorrect: boolean;
   isWinner: boolean;
@@ -5992,10 +6006,15 @@ export const evaluateAndProcessLiveAnswer = async (
   rank?: number;
   gpAwarded?: number;
   message?: string;
+  isAttemptConsumed?: boolean;
 }> => {
-  const lockKey = `${questionId}_${user.id}_${(user.name || user.username || '').toLowerCase()}`;
+  const normalizedUserName = (user.name || user.username || '')
+    .replace(/\s*(💎\s*\|\s*Moderator|🛡️|⭐|👑|⚡).*$/, '')
+    .toLowerCase()
+    .trim();
+  const lockKey = `${questionId}_${user.id}_${normalizedUserName}`;
   if (answerEvaluationLocks.has(lockKey)) {
-    return { isCorrect: false, isWinner: false };
+    return { isCorrect: false, isWinner: false, isAttemptConsumed: false };
   }
 
   try {
@@ -6004,14 +6023,14 @@ export const evaluateAndProcessLiveAnswer = async (
     const qRef = doc(db, 'chatroom_live_questions', questionId);
     const qSnap = await getDoc(qRef);
     if (!qSnap.exists()) {
-      return { isCorrect: false, isWinner: false };
+      return { isCorrect: false, isWinner: false, isAttemptConsumed: false };
     }
 
     const question = qSnap.data() as ChatroomLiveQuestion;
 
     // Check if question is active
     if (question.status !== 'active') {
-      return { isCorrect: false, isWinner: false, message: 'Question round has closed.' };
+      return { isCorrect: false, isWinner: false, isAttemptConsumed: false, message: 'Question round has closed.' };
     }
 
     const now = Date.now();
@@ -6025,7 +6044,7 @@ export const evaluateAndProcessLiveAnswer = async (
         const qMsgRef = doc(db, 'chatroom_live_messages', `msg_q_${question.id}`);
         await setDoc(qMsgRef, { 'competitionRef.status': 'closed', updatedAt: serverTimestamp() }, { merge: true });
       } catch {}
-      return { isCorrect: false, isWinner: false, message: 'Time expired for this question.' };
+      return { isCorrect: false, isWinner: false, isAttemptConsumed: false, message: 'Time expired for this question.' };
     }
 
     // Rule 2: Winner Limit Check (Admin programmed amount of winners)
@@ -6035,13 +6054,12 @@ export const evaluateAndProcessLiveAnswer = async (
         const qMsgRef = doc(db, 'chatroom_live_messages', `msg_q_${question.id}`);
         await setDoc(qMsgRef, { 'competitionRef.status': 'closed', updatedAt: serverTimestamp() }, { merge: true });
       } catch {}
-      return { isCorrect: false, isWinner: false, message: 'All winner slots have been claimed.' };
+      return { isCorrect: false, isWinner: false, isAttemptConsumed: false, message: 'All winner slots have been claimed.' };
     }
 
     // Rule 3: Single Attempt & Single Reward Per User (Scholars cannot reply twice per question)
-    const normalizedUserName = (user.name || user.username || '').toLowerCase().trim();
     const repliedUserIds = question.repliedUserIds || [];
-    const repliedUsernames = question.repliedUsernames || [];
+    const repliedUsernames = (question.repliedUsernames || []).map(u => u.toLowerCase().trim());
     const alreadyWon = currentWinners.some(
       w =>
         w.userId === user.id ||
@@ -6057,65 +6075,67 @@ export const evaluateAndProcessLiveAnswer = async (
         isCorrect: false,
         isWinner: false,
         alreadyWon: alreadyWon,
+        isAttemptConsumed: false,
         message: 'You have already submitted an answer for this question. Only 1 attempt is permitted.',
       };
     }
 
-    // Prepare target variants (correct answer + accepted alternatives + synonyms)
-    const targetVariants = new Set<string>();
-    getAnswerVariants(question.correctAnswer).forEach(v => targetVariants.add(v));
-    (question.acceptedAlternativeAnswers || []).forEach(alt => {
-      getAnswerVariants(alt).forEach(v => targetVariants.add(v));
-    });
-
-    const submissionVariants = getAnswerVariants(submittedAnswerText);
-
-    // Matching logic
-    const isMatch = submissionVariants.some(sub => {
-      if (targetVariants.has(sub)) return true;
-      for (const tgt of targetVariants) {
-        if (tgt.length > 1) {
-          const regex = new RegExp(`(^|\\s)${tgt}(\\s|$)`, 'i');
-          if (regex.test(sub)) return true;
-        }
-      }
-      return false;
-    });
+    // Authoritative Answer Correctness Check using robust synonyms and regex boundary matching
+    const isMatch = isChatroomAnswerCorrect(
+      submittedAnswerText,
+      question.correctAnswer,
+      question.acceptedAlternativeAnswers
+    );
 
     if (!isMatch) {
-      // Record user's single attempt so they cannot retry this question
-      await setDoc(
-        qRef,
-        {
-          totalSubmissionsCount: increment(1),
-          repliedUserIds: arrayUnion(user.id),
-          repliedUsernames: arrayUnion(normalizedUserName),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      return { isCorrect: false, isWinner: false };
+      // If scholar specifically clicked "Reply to Answer" to this question, record their 1 attempt as wrong
+      if (isExplicitReplyToQuestion) {
+        await setDoc(
+          qRef,
+          {
+            totalSubmissionsCount: increment(1),
+            repliedUserIds: arrayUnion(user.id),
+            repliedUsernames: arrayUnion(normalizedUserName),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        return { isCorrect: false, isWinner: false, isAttemptConsumed: true, message: 'Incorrect answer submitted.' };
+      }
+
+      // If scholar was simply chatting in the room without replying to the question card, do not mark wrong
+      return { isCorrect: false, isWinner: false, isAttemptConsumed: false };
     }
 
     // MATCH FOUND! Check if user is Premium/VIP or Free Scholar
     // Only Premium and VIP scholars (and staff/admins) receive cash GP rewards
-    let isUserVip = Boolean(
+    let isStaffOrAdmin = Boolean(
+      user.role === 'admin' ||
+      user.role === 'super_admin' ||
+      user.role === 'community_manager' ||
+      user.role === 'staff' ||
+      user.id === 'aGZBTsB4BBNvlY1A69hwfAb5DCJ3' ||
+      user.id === 'iH02BTcB4B0BV2YLA60WwFAi50CJ3' ||
+      user.id === 'grobax_arbiter' ||
+      (user.name && (
+        user.name.toLowerCase().includes('admin') ||
+        user.name.toLowerCase().includes('moderator') ||
+        user.name.toLowerCase().includes('staff') ||
+        user.name.toLowerCase().includes('arbiter') ||
+        user.name.toLowerCase().includes('barns')
+      ))
+    );
+
+    let isUserVip = isStaffOrAdmin || Boolean(
       user.isVip ||
       (user.membershipTier && (user.membershipTier.toLowerCase().includes('vip') || user.membershipTier.toLowerCase().includes('titan'))) ||
       user.gusTier === 'Titan' ||
       (user.subscriptionTier && (user.subscriptionTier.toLowerCase().includes('vip') || user.subscriptionTier.toLowerCase().includes('titan'))) ||
       (user.subscriptionPlan && (user.subscriptionPlan.toLowerCase().includes('vip') || user.subscriptionPlan.toLowerCase().includes('titan')))
     );
-    let isUserPremium = Boolean(user.isPremium || isUserVip);
-    let isStaffOrAdmin = Boolean(
-      user.role === 'admin' ||
-      user.role === 'super_admin' ||
-      user.role === 'community_manager' ||
-      user.role === 'staff' ||
-      (user.name && (user.name.toLowerCase().includes('admin') || user.name.toLowerCase().includes('moderator') || user.name.toLowerCase().includes('staff') || user.name.toLowerCase().includes('arbiter')))
-    );
+    let isUserPremium = isStaffOrAdmin || isUserVip || Boolean(user.isPremium);
 
-    // Perform deep Firestore database check of user's account for authoritative tier verification
+    // Authoritative Firestore database check of user's account for subscription tier verification
     try {
       const userSnap = await getDoc(doc(db, 'users', user.id));
       if (userSnap.exists()) {
@@ -6177,9 +6197,6 @@ export const evaluateAndProcessLiveAnswer = async (
           isUserPremium = true;
         } else if (dbIsPremium) {
           isUserPremium = true;
-        } else if (!isStaffOrAdmin && !user.isVip && !user.isPremium) {
-          isUserVip = false;
-          isUserPremium = false;
         }
       }
     } catch (uErr) {
@@ -6189,8 +6206,7 @@ export const evaluateAndProcessLiveAnswer = async (
     const isRewardEligible = isStaffOrAdmin || isUserVip || isUserPremium;
 
     // SCENARIO 1: FREE SCHOLAR
-    // Free users can participate and the system indicates they are correct, but does NOT reward them GP
-    // Free correct submissions also do NOT consume paid winner slots from Premium & VIP scholars
+    // Free users can participate and the system marks them correct, but cash GP is reserved for Premium/VIP
     if (!isRewardEligible) {
       const freeRecord = {
         userId: user.id,
@@ -6205,7 +6221,7 @@ export const evaluateAndProcessLiveAnswer = async (
         tier: 'free',
       };
 
-      // 1. Mark user attempt & correct answer on question doc (does not add to selectedWinners or decrement prize slots)
+      // 1. Mark user attempt & correct answer on question doc
       await setDoc(
         qRef,
         {
@@ -6234,9 +6250,7 @@ export const evaluateAndProcessLiveAnswer = async (
         console.warn('Notice syncing question message in live feed:', e);
       }
 
-      // 2. Direct message marking replaces verbose Arbiter chat spam (push notification still sent below)
-
-      // 3. Send real-time push notification indicating they are correct
+      // Send real-time push notification indicating they are correct
       try {
         await sendBroadcastNotificationToFirestore(
           {
@@ -6258,6 +6272,7 @@ export const evaluateAndProcessLiveAnswer = async (
         isCorrect: true,
         isWinner: false,
         gpAwarded: 0,
+        isAttemptConsumed: true,
         message: `🎯 Correct answer: "${submittedAnswerText.trim()}"! (Free Scholar: GP prizes are reserved for Premium & VIP scholars)`,
       };
     }
@@ -6321,7 +6336,7 @@ export const evaluateAndProcessLiveAnswer = async (
     // 2. Award exact GP to user's balance in Firestore
     try {
       const userRef = doc(db, 'users', user.id);
-      await setDoc(userRef, { gpBalance: increment(gpAward) }, { merge: true });
+      await setDoc(userRef, { gpBalance: increment(gpAward), updatedAt: serverTimestamp() }, { merge: true });
     } catch (e) {
       console.warn('Error incrementing user GP balance:', e);
     }
@@ -6347,7 +6362,21 @@ export const evaluateAndProcessLiveAnswer = async (
       console.warn('Error recording Live Q&A transaction:', e);
     }
 
-    // 4. Direct marking on scholar answer message replaces verbose Arbiter chat spam (push notification still sent below)
+    // 4. Dispatch instant UI event for immediate balance update in nav
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(
+          new CustomEvent('grobaax_gp_awarded', {
+            detail: {
+              userId: user.id,
+              gpAwarded: gpAward,
+              questionNumber: question.questionNumber,
+              winnerRank,
+            },
+          })
+        );
+      } catch {}
+    }
 
     // 5. Send real-time push notification directly to the winner
     try {
@@ -6372,11 +6401,12 @@ export const evaluateAndProcessLiveAnswer = async (
       isWinner: true,
       rank: winnerRank,
       gpAwarded: gpAward,
+      isAttemptConsumed: true,
       message: `🎉 Correct answer! You won +${gpAward} GP (Winner #${winnerRank} of ${maxWinners})`,
     };
   } catch (err) {
     console.error('Error evaluating live question answer:', err);
-    return { isCorrect: false, isWinner: false };
+    return { isCorrect: false, isWinner: false, isAttemptConsumed: false };
   } finally {
     // Release in-flight lock immediately so subsequent answers can be evaluated
     answerEvaluationLocks.delete(lockKey);
@@ -6388,6 +6418,7 @@ export const evaluateMessageForLiveQuestions = async (message: ChatroomLiveMessa
   try {
     const now = Date.now();
     let targetQuestionId = '';
+    let isExplicitReply = false;
 
     // 1. Check if replying to a question
     if (message.replyTo?.id) {
@@ -6398,11 +6429,13 @@ export const evaluateMessageForLiveQuestions = async (message: ChatroomLiveMessa
       const qSnap1 = await getDoc(qRef1);
       if (qSnap1.exists() && (qSnap1.data() as ChatroomLiveQuestion).status === 'active') {
         targetQuestionId = strippedId;
+        isExplicitReply = true;
       } else {
         const qRef2 = doc(db, 'chatroom_live_questions', rawId);
         const qSnap2 = await getDoc(qRef2);
         if (qSnap2.exists() && (qSnap2.data() as ChatroomLiveQuestion).status === 'active') {
           targetQuestionId = rawId;
+          isExplicitReply = true;
         }
       }
     }
@@ -6461,12 +6494,14 @@ export const evaluateMessageForLiveQuestions = async (message: ChatroomLiveMessa
           isPremium: message.isPremium,
           isVip: message.isVip,
           membershipTier: message.membershipTier,
+          role: message.role,
         },
-        message.messageText
+        message.messageText,
+        isExplicitReply
       );
 
-      // Persist the evaluation marking directly on the chat message
-      if (evalRes) {
+      // Persist the evaluation marking directly on the chat message if attempt was consumed
+      if (evalRes && evalRes.isAttemptConsumed) {
         try {
           const msgRef = doc(db, 'chatroom_live_messages', message.id);
           const evalStatus = evalRes.isCorrect ? 'correct' : 'wrong';

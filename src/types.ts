@@ -2323,6 +2323,7 @@ export interface ChatroomLiveMessage {
   isPremium: boolean;
   isVip?: boolean;
   membershipTier?: string;
+  role?: string;
   equippedBadge?: UserEquippedBadge;
   messageText: string;
   timestamp: number; // ms
