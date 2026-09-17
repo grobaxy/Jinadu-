@@ -1,0 +1,32 @@
+{
+  "settings": {
+    "freeDailyLimit": 2,
+    "premiumDailyLimit": 30,
+    "vipDailyLimit": "unlimited",
+    "updatedAt": "2026-09-17T18:14:54.468Z",
+    "updatedBy": "System Default"
+  },
+  "stats": {
+    "totalGenerated": 2,
+    "generatedToday": 2,
+    "generatedThisMonth": 2,
+    "freeGenerations": 1,
+    "premiumGenerations": 1,
+    "vipGenerations": 0,
+    "lastUpdated": "2026-09-17T18:22:02.778Z"
+  },
+  "dailyUsage": {
+    "test_user_uid_123_2026-09-17": {
+      "count": 1,
+      "tier": "premium",
+      "lastGeneratedAt": "2026-09-17T18:21:47.670Z"
+    },
+    "test_fallback_user_456_2026-09-17": {
+      "count": 1,
+      "tier": "free",
+      "lastGeneratedAt": "2026-09-17T18:22:02.778Z"
+    }
+  },
+  "monthTrackKey": "2026-09",
+  "todayTrackKey": "2026-09-17"
+}

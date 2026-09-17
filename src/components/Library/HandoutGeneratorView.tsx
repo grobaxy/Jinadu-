@@ -74,10 +74,11 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
 
   // Load User Quota
   const loadQuota = async () => {
-    if (!currentUser?.uid) return;
+    const effectiveUid = currentUser?.uid || currentUser?.id || userProfile?.id || userProfile?.uid;
+    if (!effectiveUid) return;
     setIsLoadingQuota(true);
     try {
-      const q = await fetchUserHandoutQuota(currentUser.uid, userTier, userProfile?.subscriptionExpiry);
+      const q = await fetchUserHandoutQuota(effectiveUid, userTier, userProfile?.subscriptionExpiry);
       setQuota(q);
     } catch (err) {
       console.warn('Quota load notice:', err);
@@ -88,7 +89,7 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
 
   useEffect(() => {
     loadQuota();
-  }, [currentUser?.uid, userTier, userProfile?.subscriptionExpiry]);
+  }, [currentUser?.uid, currentUser?.id, userProfile?.id, userTier, userProfile?.subscriptionExpiry]);
 
   // Pre-fill Institution from User Profile if available
   useEffect(() => {
@@ -231,9 +232,10 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
     setIsGenerating(true);
 
     try {
+      const effectiveUserId = currentUser?.uid || currentUser?.id || userProfile?.id || userProfile?.uid || 'student';
       const res = await generateHandoutViaApi({
-        userId: currentUser.uid,
-        userEmail: currentUser.email || '',
+        userId: effectiveUserId,
+        userEmail: currentUser.email || userProfile?.email || '',
         userDisplayName: userProfile?.name || currentUser.displayName || 'Student',
         tier: userTier,
         subscriptionExpiry: userProfile?.subscriptionExpiry,

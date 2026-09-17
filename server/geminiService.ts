@@ -36,55 +36,69 @@ export async function callGeminiApi(options: {
   }
 
   const ai = getAiClient();
-  // gemini-3.1-flash-lite is highly available and fast, while gemini-3.8-flash serves as powerful fallback/alternate
+  // High-availability candidate cascade prioritizing low-latency, resilient models
+  const defaultCandidateModels = [
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-3-flash-preview',
+    'gemini-3.6-flash',
+    'gemini-flash-latest',
+    'gemini-3.8-flash',
+  ];
+
   const models =
     options.candidateModels && options.candidateModels.length > 0
       ? options.candidateModels
-      : ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
+      : defaultCandidateModels;
 
   const timeoutMs = options.timeoutMs || 35000;
 
   for (const model of models) {
-    try {
-      const generatePromise = ai.models.generateContent({
-        model,
-        contents: options.prompt,
-        config: {
-          responseMimeType: (options.responseMimeType as any) || 'application/json',
-          temperature: options.temperature ?? 0.2,
-        },
-      });
+    // Attempt each candidate model up to 2 times with backoff on 503/429
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const generatePromise = ai.models.generateContent({
+          model,
+          contents: options.prompt,
+          config: {
+            responseMimeType: (options.responseMimeType as any) || 'application/json',
+            temperature: options.temperature ?? 0.2,
+          },
+        });
 
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms on ${model}`)), timeoutMs)
-      );
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms on ${model}`)), timeoutMs)
+        );
 
-      const response: any = await Promise.race([generatePromise, timeoutPromise]);
-      const text = response?.text;
-      if (text && text.trim().length > 0) {
-        return text.trim();
+        const response: any = await Promise.race([generatePromise, timeoutPromise]);
+        const text = response?.text;
+        if (text && text.trim().length > 0) {
+          return text.trim();
+        }
+      } catch (err: any) {
+        const errMsg = err?.message || String(err);
+        const isHighDemand =
+          errMsg.includes('503') ||
+          errMsg.includes('high demand') ||
+          errMsg.includes('UNAVAILABLE');
+
+        const isRateLimited = errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
+
+        if (isHighDemand || isRateLimited) {
+          if (attempt === 1) {
+            console.info(`[Gemini Service] Model ${model} returned ${isHighDemand ? '503 High Demand' : '429 Rate Limit'}. Backing off briefly and retrying...`);
+            await sleep(800 + Math.random() * 400);
+            continue;
+          } else {
+            console.info(`[Gemini Service] Model ${model} busy on retry. Cascading to next candidate...`);
+            break;
+          }
+        }
+
+        console.info(`[Gemini Service] Model ${model} request note:`, errMsg.slice(0, 150));
+        break; // Non-retryable error, advance to next model
       }
-    } catch (err: any) {
-      const errMsg = err?.message || String(err);
-      const isHighDemand =
-        errMsg.includes('503') ||
-        errMsg.includes('high demand') ||
-        errMsg.includes('UNAVAILABLE');
-
-      if (isHighDemand) {
-        console.info(`[Gemini Service] Model ${model} is experiencing high demand (503). Auto-failing over to next available candidate...`);
-        // Immediately failover to next model without delay
-        continue;
-      }
-
-      const isRateLimited = errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
-      if (isRateLimited) {
-        console.info(`[Gemini Service] Model ${model} rate limited (429). Auto-failing over...`);
-        await sleep(500);
-        continue;
-      }
-
-      console.info(`[Gemini Service] Model ${model} request note:`, errMsg.slice(0, 150));
     }
   }
 
