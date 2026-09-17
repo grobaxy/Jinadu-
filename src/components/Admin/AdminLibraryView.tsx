@@ -1,829 +1,396 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import {
-  FileText,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Trash2,
-  Eye,
   Sparkles,
   Sliders,
-  Building,
-  GraduationCap,
-  Calendar,
-  Layers,
-  Search,
-  Filter,
-  RefreshCw,
+  BarChart3,
+  CheckCircle2,
   AlertCircle,
-  ShieldCheck,
+  RefreshCw,
+  Zap,
   Crown,
-  ChevronRight,
-  ChevronLeft,
-  X,
-  Lock,
-  Bell,
+  Shield,
+  Clock,
+  Save,
+  RotateCcw,
+  Users,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { PastQuestion, PastQuestionSettings, PastQuestionStatus } from '../../types';
+import { HandoutDailyLimitConfig, HandoutAdminStats } from '../../types';
 import {
-  fetchAllPastQuestionsForAdmin,
-  moderatePastQuestion,
-  fetchPastQuestionSettings,
-  savePastQuestionSettings,
-  subscribeToAdminPastQuestions,
-  DEFAULT_PAST_QUESTION_SETTINGS,
-} from '../../lib/pastQuestionsService';
-import { PastQuestionViewerModal } from '../Library/PastQuestionViewerModal';
+  fetchHandoutSettings,
+  saveHandoutSettings,
+  fetchHandoutAdminStats,
+  DEFAULT_HANDOUT_SETTINGS,
+} from '../../lib/handoutService';
 
 export const AdminLibraryView: React.FC = () => {
   const { currentUser } = useApp();
 
-  // Active Admin Sub-tab
-  const [adminTab, setAdminTab] = useState<'moderation' | 'settings'>('moderation');
-  const [statusFilter, setStatusFilter] = useState<PastQuestionStatus | 'all'>('pending');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  // Settings state
+  const [settings, setSettings] = useState<HandoutDailyLimitConfig>(DEFAULT_HANDOUT_SETTINGS);
+  const [isVipUnlimited, setIsVipUnlimited] = useState<boolean>(true);
+  const [vipCustomLimit, setVipCustomLimit] = useState<number>(100);
 
-  // Moderation List & Loading
-  const [questions, setQuestions] = useState<PastQuestion[]>([]);
+  // Stats state
+  const [stats, setStats] = useState<HandoutAdminStats>({
+    totalGenerated: 0,
+    generatedToday: 0,
+    generatedThisMonth: 0,
+    freeGenerations: 0,
+    premiumGenerations: 0,
+    vipGenerations: 0,
+    lastUpdated: new Date().toISOString(),
+  });
+
+  // UI state
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Settings State
-  const [settings, setSettings] = useState<PastQuestionSettings>(DEFAULT_PAST_QUESTION_SETTINGS);
-  const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
-  const [isVipCustomNumber, setIsVipCustomNumber] = useState<boolean>(false);
-  const [vipCustomLimit, setVipCustomLimit] = useState<number>(20);
-
-  // Active Inspection / Modal
-  const [inspectQuestion, setInspectQuestion] = useState<PastQuestion | null>(null);
-  const [isViewerOpen, setIsViewerOpen] = useState<boolean>(false);
-  const [rejectionModal, setRejectionModal] = useState<{ isOpen: boolean; question: PastQuestion | null; reason: string }>({
-    isOpen: false,
-    question: null,
-    reason: '',
-  });
-  const [approvalModal, setApprovalModal] = useState<{ isOpen: boolean; question: PastQuestion | null; gpReward: number }>({
-    isOpen: false,
-    question: null,
-    gpReward: 50,
-  });
-
-  // Load Admin Data
-  const loadAdminData = async () => {
+  const loadData = async () => {
     setIsLoading(true);
     try {
-      const [allQuestions, appSettings] = await Promise.all([
-        fetchAllPastQuestionsForAdmin(),
-        fetchPastQuestionSettings(),
+      const [currentSettings, currentStats] = await Promise.all([
+        fetchHandoutSettings(),
+        fetchHandoutAdminStats(),
       ]);
-      setQuestions(allQuestions);
-      setSettings(appSettings);
-      if (typeof appSettings.vipDailyViewLimit === 'number') {
-        setIsVipCustomNumber(true);
-        setVipCustomLimit(appSettings.vipDailyViewLimit);
+
+      setSettings(currentSettings);
+      setStats(currentStats);
+
+      if (currentSettings.vipDailyLimit === 'unlimited') {
+        setIsVipUnlimited(true);
       } else {
-        setIsVipCustomNumber(false);
+        setIsVipUnlimited(false);
+        setVipCustomLimit(Number(currentSettings.vipDailyLimit) || 100);
       }
     } catch (err) {
-      console.warn('Error loading admin past questions data:', err);
+      console.warn('Error loading admin handout data:', err);
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchPastQuestionSettings().then((appSettings) => {
-      setSettings(appSettings);
-      if (typeof appSettings.vipDailyViewLimit === 'number') {
-        setIsVipCustomNumber(true);
-        setVipCustomLimit(appSettings.vipDailyViewLimit);
-      } else {
-        setIsVipCustomNumber(false);
-      }
-    });
-
-    const unsub = subscribeToAdminPastQuestions((allQuestions) => {
-      setQuestions(allQuestions);
-      setIsLoading(false);
-      setIsRefreshing(false);
-    });
-
-    return () => unsub();
+    loadData();
   }, []);
 
-  // Filtered Questions
-  const filteredQuestions = useMemo(() => {
-    let list = [...questions];
+  const handleSaveSettings = async () => {
+    setIsSaving(true);
+    setToastMessage(null);
 
-    if (statusFilter !== 'all') {
-      list = list.filter((q) => q.status === statusFilter);
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      list = list.filter(
-        (item) =>
-          item.courseCode.toLowerCase().includes(q) ||
-          item.courseTitle.toLowerCase().includes(q) ||
-          item.institutionName.toLowerCase().includes(q) ||
-          item.departmentName.toLowerCase().includes(q) ||
-          item.uploadedByName.toLowerCase().includes(q) ||
-          item.academicSession.toLowerCase().includes(q)
-      );
-    }
-
-    return list;
-  }, [questions, statusFilter, searchQuery]);
-
-  // Counts
-  const pendingCount = useMemo(() => questions.filter((q) => q.status === 'pending').length, [questions]);
-  const approvedCount = useMemo(() => questions.filter((q) => q.status === 'approved').length, [questions]);
-  const rejectedCount = useMemo(() => questions.filter((q) => q.status === 'rejected').length, [questions]);
-  const totalGpAwarded = useMemo(
-    () => questions.filter((q) => q.status === 'approved').reduce((sum, q) => sum + (q.gpAwarded || 50), 0),
-    [questions]
-  );
-
-  // Handle Approve
-  const handleApprove = async () => {
-    if (!approvalModal.question) return;
-    const reviewer = {
-      uid: currentUser?.uid || 'admin_sys',
-      name: currentUser?.fullName || currentUser?.username || 'Admin Moderator',
-    };
-
-    const res = await moderatePastQuestion(approvalModal.question.id, 'approve', reviewer, {
-      customGpReward: approvalModal.gpReward,
-    });
-
-    if (res.success) {
-      setActionMessage({ type: 'success', text: res.message });
-      setApprovalModal({ isOpen: false, question: null, gpReward: 50 });
-      loadAdminData();
-    } else {
-      setActionMessage({ type: 'error', text: res.error || 'Failed to approve' });
-    }
-  };
-
-  // Handle Reject
-  const handleReject = async () => {
-    if (!rejectionModal.question) return;
-    const reviewer = {
-      uid: currentUser?.uid || 'admin_sys',
-      name: currentUser?.fullName || currentUser?.username || 'Admin Moderator',
-    };
-
-    const res = await moderatePastQuestion(rejectionModal.question.id, 'reject', reviewer, {
-      rejectionReason: rejectionModal.reason || 'Does not meet academic verification standards or is illegible.',
-    });
-
-    if (res.success) {
-      setActionMessage({ type: 'success', text: res.message });
-      setRejectionModal({ isOpen: false, question: null, reason: '' });
-      loadAdminData();
-    } else {
-      setActionMessage({ type: 'error', text: res.error || 'Failed to reject' });
-    }
-  };
-
-  // Handle Delete
-  const handleDelete = async (questionId: string) => {
-    if (!window.confirm('Are you sure you want to permanently delete this past question document?')) {
-      return;
-    }
-    const reviewer = {
-      uid: currentUser?.uid || 'admin_sys',
-      name: currentUser?.fullName || currentUser?.username || 'Admin Moderator',
-    };
-    const res = await moderatePastQuestion(questionId, 'delete', reviewer);
-    if (res.success) {
-      setActionMessage({ type: 'success', text: 'Past question document deleted.' });
-      loadAdminData();
-    }
-  };
-
-  // Handle Save Settings
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingSettings(true);
     try {
-      const updated = await savePastQuestionSettings({
-        ...settings,
-        vipDailyViewLimit: isVipCustomNumber ? Number(vipCustomLimit) || 20 : 'unlimited',
-      });
+      const payload: Partial<HandoutDailyLimitConfig> = {
+        freeDailyLimit: Math.max(1, Number(settings.freeDailyLimit) || 2),
+        premiumDailyLimit: Math.max(1, Number(settings.premiumDailyLimit) || 30),
+        vipDailyLimit: isVipUnlimited ? 'unlimited' : Math.max(1, Number(vipCustomLimit) || 100),
+      };
+
+      const updated = await saveHandoutSettings(payload, currentUser?.displayName || 'Admin');
       setSettings(updated);
-      setActionMessage({ type: 'success', text: 'Past Question settings updated successfully!' });
-      setTimeout(() => setActionMessage(null), 4000);
+
+      setToastMessage({
+        type: 'success',
+        text: 'Handout generation limits successfully updated and live on server!',
+      });
+      setTimeout(() => setToastMessage(null), 3500);
     } catch (err: any) {
-      setActionMessage({ type: 'error', text: err?.message || 'Failed to save settings.' });
+      setToastMessage({
+        type: 'error',
+        text: err?.message || 'Failed to save handout settings.',
+      });
     } finally {
-      setIsSavingSettings(false);
+      setIsSaving(false);
+    }
+  };
+
+  const handleResetDefaults = () => {
+    if (window.confirm('Reset all handout generation limits to default values (Free: 2/day, Premium: 30/day, VIP: Unlimited)?')) {
+      setSettings({ ...DEFAULT_HANDOUT_SETTINGS });
+      setIsVipUnlimited(true);
     }
   };
 
   return (
-    <div id="admin-past-questions-view" className="space-y-6">
-      {/* Top Banner Header */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Academic Moderation Command Center
-              </span>
-              {pendingCount > 0 && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white animate-pulse">
-                  {pendingCount} Pending Review
-                </span>
-              )}
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-950 dark:text-white tracking-tight">
+              AI Handout System Administration
+            </h1>
+            <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+              Live Control
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Monitor real-time AI generation metrics, enforce subscription tiers, and configure daily generation allowances without touching code.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={loadData}
+          disabled={isLoading}
+          className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium transition flex items-center gap-1.5 self-start sm:self-auto"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh Data</span>
+        </button>
+      </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          className={`p-4 rounded-xl text-xs font-medium flex items-center gap-2 ${
+            toastMessage.type === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+              : 'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
+          }`}
+        >
+          {toastMessage.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+          ) : (
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+          )}
+          <span>{toastMessage.text}</span>
+        </div>
+      )}
+
+      {/* Usage Statistics Overview */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-amber-500" />
+          AI Generation Usage Analytics
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Total Generated */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Total Handouts Generated
+            </span>
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+              {stats.totalGenerated.toLocaleString()}
             </div>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-              Past Questions Library Management
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Review student uploads, verify curriculum accuracy, award GP bounties, and configure access limits.
-            </p>
+            <div className="text-[11px] text-slate-400 pt-1">All-time across all users</div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setIsRefreshing(true);
-                loadAdminData();
-              }}
-              disabled={isRefreshing}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-
-            {/* Sub-tab switcher */}
-            <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
-              <button
-                onClick={() => setAdminTab('moderation')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  adminTab === 'moderation' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Verification Queue ({pendingCount})
-              </button>
-              <button
-                onClick={() => setAdminTab('settings')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  adminTab === 'settings' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Settings & Limits
-              </button>
+          {/* Generated Today */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Generated Today
+            </span>
+            <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400">
+              {stats.generatedToday.toLocaleString()}
             </div>
+            <div className="text-[11px] text-slate-400 pt-1">Active daily requests</div>
+          </div>
+
+          {/* Generated This Month */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Generated This Month
+            </span>
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+              {stats.generatedThisMonth.toLocaleString()}
+            </div>
+            <div className="text-[11px] text-slate-400 pt-1">Monthly cumulative usage</div>
           </div>
         </div>
 
-        {/* Global Action Feedback */}
-        {actionMessage && (
-          <div
-            className={`mt-4 p-3 rounded-xl text-xs flex items-center gap-2 ${
-              actionMessage.type === 'success'
-                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                : 'bg-rose-50 text-rose-800 border border-rose-200'
-            }`}
-          >
-            {actionMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            )}
-            <span>{actionMessage.text}</span>
+        {/* Tier Distribution Breakdown */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs">
+              <Users className="w-4 h-4 text-slate-500" />
+              <span className="font-semibold text-slate-700 dark:text-slate-300">Free Tier Usage</span>
+            </div>
+            <span className="font-bold text-sm text-slate-900 dark:text-white">
+              {stats.freeGenerations}
+            </span>
           </div>
-        )}
+
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs">
+              <Zap className="w-4 h-4 text-amber-500" />
+              <span className="font-semibold text-slate-700 dark:text-slate-300">Premium Tier Usage</span>
+            </div>
+            <span className="font-bold text-sm text-amber-600 dark:text-amber-400">
+              {stats.premiumGenerations}
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs">
+              <Crown className="w-4 h-4 text-purple-500" />
+              <span className="font-semibold text-slate-700 dark:text-slate-300">VIP Tier Usage</span>
+            </div>
+            <span className="font-bold text-sm text-purple-600 dark:text-purple-400">
+              {stats.vipGenerations}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Dynamic Pending Moderation Real-Time Banner */}
-      {pendingCount > 0 && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
-              <Bell className="w-5 h-5 animate-bounce" />
-            </div>
-            <div>
-              <h4 className="text-xs font-black uppercase tracking-wider">
-                {pendingCount} Past Question{pendingCount > 1 ? 's' : ''} Awaiting Admin Verification
-              </h4>
-              <p className="text-[11px] text-amber-700/90 dark:text-amber-300/90 mt-0.5">
-                Scholars have submitted new past questions. Verify document authenticity to credit their GP wallets.
-              </p>
-            </div>
+      {/* Subscription Tier Allowance Configuration */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-7 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-200 dark:border-slate-800">
+          <div>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Sliders className="w-5 h-5 text-amber-500" />
+              Subscription Tier Daily Generation Limits
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              These limits are enforced server-side before the Google Gemini API is called, preventing unauthorized AI consumption.
+            </p>
           </div>
+
           <button
-            onClick={() => {
-              setAdminTab('moderation');
-              setStatusFilter('pending');
-            }}
-            className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold shrink-0 shadow-xs cursor-pointer transition"
+            type="button"
+            onClick={handleResetDefaults}
+            className="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium transition flex items-center gap-1.5 self-start sm:self-auto"
           >
-            Filter Pending ({pendingCount})
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset Defaults</span>
           </button>
         </div>
-      )}
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs">
-          <p className="text-xs font-semibold text-slate-500">Pending Review</p>
-          <div className="flex items-baseline justify-between mt-1">
-            <p className="text-2xl font-bold text-amber-600">{pendingCount}</p>
-            <Clock className="w-4 h-4 text-amber-400" />
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs">
-          <p className="text-xs font-semibold text-slate-500">Approved & Live</p>
-          <div className="flex items-baseline justify-between mt-1">
-            <p className="text-2xl font-bold text-emerald-600">{approvedCount}</p>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs">
-          <p className="text-xs font-semibold text-slate-500">Rejected Submissions</p>
-          <div className="flex items-baseline justify-between mt-1">
-            <p className="text-2xl font-bold text-rose-600">{rejectedCount}</p>
-            <XCircle className="w-4 h-4 text-rose-400" />
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs">
-          <p className="text-xs font-semibold text-slate-500">Total GP Awarded</p>
-          <div className="flex items-baseline justify-between mt-1">
-            <p className="text-2xl font-bold text-indigo-600">+{totalGpAwarded} GP</p>
-            <Sparkles className="w-4 h-4 text-amber-400" />
-          </div>
-        </div>
-      </div>
-
-      {/* TAB 1: MODERATION QUEUE */}
-      {adminTab === 'moderation' && (
-        <div className="space-y-4">
-          {/* Controls Bar */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
-            {/* Status Filter Pills */}
-            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 overflow-x-auto no-scrollbar">
-              <button
-                onClick={() => setStatusFilter('pending')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  statusFilter === 'pending'
-                    ? 'bg-amber-500 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Pending ({pendingCount})
-              </button>
-              <button
-                onClick={() => setStatusFilter('approved')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  statusFilter === 'approved'
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Approved ({approvedCount})
-              </button>
-              <button
-                onClick={() => setStatusFilter('rejected')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  statusFilter === 'rejected'
-                    ? 'bg-rose-600 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Rejected ({rejectedCount})
-              </button>
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  statusFilter === 'all'
-                    ? 'bg-slate-900 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                All ({questions.length})
-              </button>
-            </div>
-
-            {/* Search Input */}
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search course code, student, school..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </div>
-
-          {/* Questions Moderation List */}
-          {isLoading ? (
-            <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
-              <RefreshCw className="w-8 h-8 mx-auto text-indigo-600 animate-spin mb-2" />
-              <p className="text-xs text-slate-600">Loading submissions...</p>
-            </div>
-          ) : filteredQuestions.length === 0 ? (
-            <div className="text-center py-16 px-4 bg-white rounded-2xl border border-slate-200 shadow-2xs">
-              <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-400 mb-3" />
-              <h3 className="text-base font-bold text-slate-800">No Past Questions in Queue</h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                All submitted past examination papers in this status have been reviewed.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredQuestions.map((q) => (
-                <div
-                  key={q.id}
-                  className="p-5 bg-white rounded-2xl border border-slate-200 shadow-2xs hover:border-indigo-300 transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4"
-                >
-                  {/* Left: Info */}
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        {q.institutionCategory}
-                      </span>
-                      <h3 className="text-base font-bold text-slate-900">{q.courseCode}</h3>
-                      <span className="text-xs font-medium text-slate-600">— {q.courseTitle}</span>
-
-                      {q.status === 'pending' ? (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-amber-600" />
-                          Pending Review
-                        </span>
-                      ) : q.status === 'approved' ? (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          Approved (+{q.gpAwarded || 50} GP)
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                          Rejected
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-slate-600">
-                      <strong>{q.institutionName}</strong> • {q.facultyName} • {q.departmentName}
-                    </p>
-
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1">
-                      <span>Session: <strong>{q.academicSession}</strong></span>
-                      <span>•</span>
-                      <span>Semester: <strong>{q.semester}</strong></span>
-                      <span>•</span>
-                      <span>Level: <strong>{q.level}</strong></span>
-                      <span>•</span>
-                      <span>Exam: <strong>{q.examType || 'Main Exam'}</strong></span>
-                      <span>•</span>
-                      <span>Pages: <strong>{q.pagesCount || 1}</strong></span>
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-1 text-[11px] text-slate-400">
-                      <span>Uploaded by: <strong className="text-slate-700">{q.uploadedByName}</strong> ({q.uploadedByEmail || 'N/A'})</span>
-                      <span>•</span>
-                      <span>{new Date(q.uploadedAt).toLocaleString()}</span>
-                    </div>
-
-                    {q.rejectionReason && (
-                      <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 mt-2">
-                        <strong>Rejection Reason:</strong> {q.rejectionReason}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right: Actions */}
-                  <div className="flex flex-wrap items-center gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100 w-full lg:w-auto justify-end">
-                    {/* Inspect Document Preview */}
-                    <button
-                      onClick={() => {
-                        setInspectQuestion(q);
-                        setIsViewerOpen(true);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      Inspect Document
-                    </button>
-
-                    {/* Approve Button */}
-                    {q.status !== 'approved' && (
-                      <button
-                        onClick={() =>
-                          setApprovalModal({
-                            isOpen: true,
-                            question: q,
-                            gpReward: settings.uploadGpReward || 50,
-                          })
-                        }
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-colors"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Approve & Award GP
-                      </button>
-                    )}
-
-                    {/* Reject Button */}
-                    {q.status !== 'rejected' && (
-                      <button
-                        onClick={() =>
-                          setRejectionModal({
-                            isOpen: true,
-                            question: q,
-                            reason: '',
-                          })
-                        }
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-colors"
-                      >
-                        <XCircle className="w-3.5 h-3.5" />
-                        Reject
-                      </button>
-                    )}
-
-                    {/* Delete Button */}
-                    <button
-                      onClick={() => handleDelete(q.id)}
-                      className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                      title="Delete document permanently"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 2: SETTINGS & LIMITS */}
-      {adminTab === 'settings' && (
-        <form onSubmit={handleSaveSettings} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-6">
-          <div>
-            <h3 className="text-base font-bold text-slate-900">Past Question Quotas & Economy Configuration</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Set the GP bounty awarded to contributors and daily viewing limits across subscription tiers.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
-            {/* GP Bounty per approved contribution */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <label className="block text-xs font-bold text-slate-800 mb-1">
-                Upload Bounty (GP Reward Per Approved Past Question)
-              </label>
-              <p className="text-[11px] text-slate-500 mb-3">
-                Automatically credited to the student's wallet immediately upon moderator verification.
-              </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  max="1000"
-                  value={settings.uploadGpReward}
-                  onChange={(e) => setSettings({ ...settings, uploadGpReward: Number(e.target.value) })}
-                  className="w-32 px-3 py-2 text-sm font-bold text-indigo-600 bg-white rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-                <span className="text-xs font-semibold text-slate-700">GP per verified submission</span>
-              </div>
-            </div>
-
-            {/* Free Tier Daily View Limit */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <label className="block text-xs font-bold text-slate-800 mb-1">
-                Free Tier Daily Viewing Quota
-              </label>
-              <p className="text-[11px] text-slate-500 mb-3">
-                Maximum number of past examination question papers a free scholar can view per day (Default: 2).
-              </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="5000"
-                  value={settings.freeDailyViewLimit ?? ''}
-                  onChange={(e) => setSettings({ ...settings, freeDailyViewLimit: e.target.value === '' ? ('' as any) : Math.max(1, Number(e.target.value)) })}
-                  className="w-32 px-3 py-2 text-sm font-bold text-slate-800 bg-white rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-                <span className="text-xs font-semibold text-slate-700">past question views / day</span>
-              </div>
-            </div>
-
-            {/* Premium Tier Daily View Limit */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <label className="block text-xs font-bold text-slate-800 mb-1">
-                Premium Tier Daily Viewing Quota
-              </label>
-              <p className="text-[11px] text-slate-500 mb-3">
-                Daily quota for active Premium subscribers (Default: 10).
-              </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="10000"
-                  value={settings.premiumDailyViewLimit ?? ''}
-                  onChange={(e) => setSettings({ ...settings, premiumDailyViewLimit: e.target.value === '' ? ('' as any) : Math.max(1, Number(e.target.value)) })}
-                  className="w-32 px-3 py-2 text-sm font-bold text-indigo-600 bg-white rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-                <span className="text-xs font-semibold text-slate-700">views / day</span>
-              </div>
-            </div>
-
-            {/* VIP Tier View Quota */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 sm:col-span-2">
-              <label className="block text-xs font-bold text-slate-800 mb-1">
-                VIP Tier Viewing Limit
-              </label>
-              <p className="text-[11px] text-slate-500 mb-3">
-                Quota for top-tier VIP scholars. Typically unlimited.
-              </p>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="vipLimitRadio"
-                    checked={!isVipCustomNumber}
-                    onChange={() => setIsVipCustomNumber(false)}
-                    className="text-indigo-600"
-                  />
-                  Unlimited Views (Recommended)
-                </label>
-                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="vipLimitRadio"
-                    checked={isVipCustomNumber}
-                    onChange={() => setIsVipCustomNumber(true)}
-                    className="text-indigo-600"
-                  />
-                  Custom Numeric Cap:
-                </label>
-                {isVipCustomNumber && (
-                  <input
-                    type="number"
-                    min="1"
-                    value={vipCustomLimit}
-                    onChange={(e) => setVipCustomLimit(Number(e.target.value))}
-                    className="w-24 px-2 py-1 text-xs rounded-lg border border-slate-300"
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-200 flex justify-end">
-            <button
-              type="submit"
-              disabled={isSavingSettings}
-              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold shadow-sm transition-all"
-            >
-              {isSavingSettings ? 'Saving Settings...' : 'Save Configuration'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Approval & GP Bounty Modal */}
-      {approvalModal.isOpen && approvalModal.question && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {/* Free Tier Limit */}
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-800/40 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                Approve & Award GP Reward
-              </h3>
-              <button
-                onClick={() => setApprovalModal({ isOpen: false, question: null, gpReward: 50 })}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
-              <p><strong>Course:</strong> {approvalModal.question.courseCode} - {approvalModal.question.courseTitle}</p>
-              <p><strong>Institution:</strong> {approvalModal.question.institutionName}</p>
-              <p><strong>Session:</strong> {approvalModal.question.academicSession} ({approvalModal.question.semester})</p>
-              <p><strong>Contributor:</strong> {approvalModal.question.uploadedByName}</p>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                Free Tier
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
+                Default: 2
+              </span>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                GP Reward to Credit Contributor
+              <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">
+                Max Handouts / Day
               </label>
               <input
                 type="number"
-                min="0"
-                max="500"
-                value={approvalModal.gpReward}
+                min={1}
+                max={50}
+                value={settings.freeDailyLimit}
                 onChange={(e) =>
-                  setApprovalModal({ ...approvalModal, gpReward: Number(e.target.value) })
+                  setSettings({ ...settings, freeDailyLimit: Math.max(1, parseInt(e.target.value) || 1) })
                 }
-                className="w-full px-3 py-2 text-sm font-bold text-indigo-600 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
-              <p className="text-[11px] text-slate-500 mt-1">
-                Will be credited to {approvalModal.question.uploadedByName}'s wallet atomically with a completion log.
-              </p>
             </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setApprovalModal({ isOpen: false, question: null, gpReward: 50 })}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleApprove}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs"
-              >
-                Confirm Approval (+{approvalModal.gpReward} GP)
-              </button>
-            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Standard students without active subscription. When exhausted, the system guides them to upgrade.
+            </p>
           </div>
-        </div>
-      )}
 
-      {/* Rejection Modal */}
-      {rejectionModal.isOpen && rejectionModal.question && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 space-y-4">
+          {/* Premium Tier Limit */}
+          <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <XCircle className="w-5 h-5 text-rose-600" />
-                Reject Past Question Submission
-              </h3>
-              <button
-                onClick={() => setRejectionModal({ isOpen: false, question: null, reason: '' })}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5" /> Premium Tier
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold">
+                Default: 30
+              </span>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Feedback for Contributor (Required)
+              <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">
+                Max Handouts / Day
               </label>
-              <textarea
-                rows={3}
-                placeholder="e.g. The uploaded paper is blurry/illegible, please re-scan with good lighting."
-                value={rejectionModal.reason}
-                onChange={(e) => setRejectionModal({ ...rejectionModal, reason: e.target.value })}
-                className="w-full p-3 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-rose-500"
-                required
+              <input
+                type="number"
+                min={1}
+                max={200}
+                value={settings.premiumDailyLimit}
+                onChange={(e) =>
+                  setSettings({ ...settings, premiumDailyLimit: Math.max(1, parseInt(e.target.value) || 1) })
+                }
+                className="w-full px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Subscribers on Premium plans. Enables intensive daily academic research and exam preparation.
+            </p>
+          </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setRejectionModal({ isOpen: false, question: null, reason: '' })}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleReject}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs"
-              >
-                Confirm Rejection
-              </button>
+          {/* VIP Tier Limit */}
+          <div className="p-4 rounded-xl border border-purple-500/30 bg-purple-500/5 dark:bg-purple-500/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400 flex items-center gap-1">
+                <Crown className="w-3.5 h-3.5" /> VIP Tier
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold">
+                Unlimited / Custom
+              </span>
             </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Limit Mode</span>
+                <button
+                  type="button"
+                  onClick={() => setIsVipUnlimited(!isVipUnlimited)}
+                  className={`text-xs font-bold px-2 py-0.5 rounded-md transition ${
+                    isVipUnlimited
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {isVipUnlimited ? 'Unlimited' : 'Custom Number'}
+                </button>
+              </div>
+
+              {!isVipUnlimited ? (
+                <input
+                  type="number"
+                  min={10}
+                  max={500}
+                  value={vipCustomLimit}
+                  onChange={(e) => setVipCustomLimit(Math.max(10, parseInt(e.target.value) || 10))}
+                  className="w-full px-3 py-2 rounded-xl border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              ) : (
+                <div className="px-3 py-2 rounded-xl bg-purple-100 dark:bg-purple-950/40 text-purple-900 dark:text-purple-300 text-xs font-bold text-center">
+                  Unlimited Handouts Active
+                </div>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              VIP patrons with full unrestricted access to continuous AI synthesis.
+            </p>
           </div>
         </div>
-      )}
 
-      {/* Inspector In-App Viewer Modal */}
-      <PastQuestionViewerModal
-        question={inspectQuestion}
-        isOpen={isViewerOpen}
-        onClose={() => {
-          setIsViewerOpen(false);
-          setInspectQuestion(null);
-        }}
-        currentUser={currentUser}
-      />
+        {/* Save Bar */}
+        <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="text-xs text-slate-500 dark:text-slate-400">
+            {settings.updatedAt && (
+              <span>
+                Last updated on {new Date(settings.updatedAt).toLocaleDateString('en-GB')} by{' '}
+                <strong>{settings.updatedBy || 'Admin'}</strong>
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSaveSettings}
+            disabled={isSaving}
+            className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-sm"
+          >
+            <Save className="w-4 h-4" />
+            <span>{isSaving ? 'Saving Changes...' : 'Save & Enforce Limits'}</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

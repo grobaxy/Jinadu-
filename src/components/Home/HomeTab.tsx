@@ -201,13 +201,13 @@ export const HomeTab: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    Browse verified past examination questions, study outlines, lecture materials, and syllabus archives across Nigerian faculties.
+                    Generate study-grade, curriculum-aligned academic handouts, worked examples, and exam review questions tailored to your exact Nigerian tertiary institution.
                   </p>
                 </div>
               </div>
 
               <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-sky-600 dark:text-sky-400">
-                <span>Browse Past Questions</span>
+                <span>Generate Academic Handouts</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>

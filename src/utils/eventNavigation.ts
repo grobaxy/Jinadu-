@@ -80,7 +80,7 @@ export function resolveEventChannel(event: PlatformEventItem): EventTargetChanne
     if (event.targetTab === 'library' || (event.targetTab as string) === 'ai') {
       return {
         tab: 'library',
-        label: 'AI Past Questions Library',
+        label: 'AI Handout Library',
         actionText: 'Open Academic Library',
         badgeClass: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20',
       };

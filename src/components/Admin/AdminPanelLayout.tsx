@@ -161,7 +161,7 @@ export function AdminPanelLayout({ onReturnToUserApp }: AdminPanelLayoutProps) {
     {
       title: 'OPERATIONS & SYSTEM',
       items: [
-        { id: 'library' as AdminTabType, label: 'Past Questions Library', icon: BookOpen, badge: 'Vault' },
+        { id: 'library' as AdminTabType, label: 'AI Handout Library', icon: BookOpen, badge: 'AI' },
         { id: 'notifications' as AdminTabType, label: 'Notifications Dispatcher', icon: Bell },
         { id: 'contact' as AdminTabType, label: 'Contact Channels & Support', icon: Headphones, badge: 'Channels' },
         { id: 'settings' as AdminTabType, label: 'System Settings', icon: Settings },

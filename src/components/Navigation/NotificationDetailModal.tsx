@@ -214,7 +214,7 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
       case 'library':
         return {
           icon: <BookOpen className="w-5 h-5 text-teal-500 dark:text-teal-400" />,
-          label: 'Academic Past Questions Library',
+          label: 'AI Academic Handout Library',
           style: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20',
         };
       case 'vtu':

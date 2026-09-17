@@ -349,6 +349,99 @@ export interface LibraryGeneration {
   generationVersion: number;
 }
 
+// =========================================================================
+// GROBAAX AI HANDOUT GENERATION SYSTEM TYPES
+// =========================================================================
+
+export type HandoutInstitutionCategory = 'University' | 'Polytechnic' | 'College of Education';
+
+export interface HandoutReviewQuestion {
+  question: string;
+  type?: 'short_answer' | 'essay' | 'calculation' | 'conceptual';
+  modelAnswerOrHint?: string;
+}
+
+export interface HandoutDefinitionItem {
+  term: string;
+  definition: string;
+}
+
+export interface HandoutExampleItem {
+  title: string;
+  scenarioOrProblem: string;
+  explanationOrSolution: string;
+}
+
+export interface HandoutSectionModule {
+  title: string;
+  content: string;
+  bulletPoints?: string[];
+  formulas?: string[];
+  keyTakeaway?: string;
+}
+
+export interface GeneratedHandout {
+  id: string;
+  userId: string;
+  userEmail?: string;
+  userDisplayName?: string;
+
+  // Academic Context
+  institutionType: HandoutInstitutionCategory;
+  institution: string;
+  faculty: string;
+  department: string;
+  level: string;
+  course: string;
+  topic: string;
+  additionalInstruction?: string;
+
+  // Handout Content
+  title: string;
+  learningObjectives: string[];
+  introduction: string;
+  mainConcepts: string[];
+  sections: HandoutSectionModule[];
+  importantDefinitions: HandoutDefinitionItem[];
+  relevantExamples: HandoutExampleItem[];
+  practicalApplications: string[];
+  keyPointsToRemember: string[];
+  summary: string;
+  reviewQuestions: HandoutReviewQuestion[];
+
+  // Metadata
+  createdAt: string;
+  tierAtGeneration: 'free' | 'premium' | 'vip';
+  generationDurationMs?: number;
+}
+
+export interface HandoutDailyLimitConfig {
+  freeDailyLimit: number; // default: 2
+  premiumDailyLimit: number; // default: 30
+  vipDailyLimit: number | 'unlimited'; // default: 'unlimited'
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface HandoutUserQuotaInfo {
+  tier: 'free' | 'premium' | 'vip';
+  todayCount: number;
+  dailyLimit: number | 'unlimited';
+  remaining: number | 'unlimited';
+  canGenerate: boolean;
+  dateKey: string;
+}
+
+export interface HandoutAdminStats {
+  totalGenerated: number;
+  generatedToday: number;
+  generatedThisMonth: number;
+  freeGenerations: number;
+  premiumGenerations: number;
+  vipGenerations: number;
+  lastUpdated: string;
+}
+
 export type PastQuestionStatus = 'pending' | 'approved' | 'rejected';
 export type PastQuestionFileType = 'image' | 'pdf' | 'document';
 

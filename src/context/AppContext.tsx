@@ -61,10 +61,6 @@ import {
 } from '../lib/firebase';
 import { isPrimarySuperAdmin } from '../lib/adminPermissions';
 import {
-  isMockPastQuestion,
-  cleanupMockPastQuestionsFromFirestore,
-} from '../lib/pastQuestionsService';
-import {
   UserRole,
   ThemeMode,
   TabType,
@@ -2700,8 +2696,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cleanupMockMinimartProductsFromFirestore();
     }
 
-    // Clean up any mock past questions and sponsorships in background
-    cleanupMockPastQuestionsFromFirestore().catch(() => {});
+    // Clean up any mock sponsorships in background
     cleanupMockSponsorshipCampaignsFromFirestore().catch(() => {});
 
     // 1. Minimart Config Listener
@@ -3045,27 +3040,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     );
 
-    // Live Snapshot for Pending Past Questions (Admin moderation only - strictly skipped for regular students to conserve quota)
-    let unsubPastQuestions = () => {};
-    if (isUserAdmin) {
-      const pqQuery = query(
-        collection(db, 'past_questions'),
-        where('status', '==', 'pending'),
-        limit(20)
-      );
-      unsubPastQuestions = onSnapshot(
-        pqQuery,
-        (snap) => {
-          const loaded = snap.docs
-            .map((d) => ({ id: d.id, ...d.data() }))
-            .filter((d: any) => !isMockPastQuestion(d));
-          setPendingPastQuestions(loaded);
-        },
-        (err) => {
-          console.warn('Pending past questions live snapshot notice:', err);
-        }
-      );
-    }
+    // Past questions collection query removed (replaced by AI Handout generation library)
+    const unsubPastQuestions = () => {};
 
     return () => {
       unsubConfig();

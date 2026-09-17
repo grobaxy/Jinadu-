@@ -1,0 +1,714 @@
+import { jsPDF } from 'jspdf';
+import {
+  db,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+} from './firebase';
+import {
+  GeneratedHandout,
+  HandoutDailyLimitConfig,
+  HandoutUserQuotaInfo,
+  HandoutAdminStats,
+  HandoutInstitutionCategory,
+} from '../types';
+
+const HANDOUT_SETTINGS_DOC = 'handout_library_settings/config';
+const USER_HANDOUTS_COLLECTION = 'user_handouts';
+
+export const DEFAULT_HANDOUT_SETTINGS: HandoutDailyLimitConfig = {
+  freeDailyLimit: 2,
+  premiumDailyLimit: 30,
+  vipDailyLimit: 'unlimited',
+  updatedAt: new Date().toISOString(),
+  updatedBy: 'System Default',
+};
+
+export const DEFAULT_ADMIN_STATS: HandoutAdminStats = {
+  totalGenerated: 0,
+  generatedToday: 0,
+  generatedThisMonth: 0,
+  freeGenerations: 0,
+  premiumGenerations: 0,
+  vipGenerations: 0,
+  lastUpdated: new Date().toISOString(),
+};
+
+/**
+ * Fetch current user daily generation quota from server
+ */
+export async function fetchUserHandoutQuota(
+  userId: string,
+  tier: 'free' | 'premium' | 'vip' = 'free'
+): Promise<HandoutUserQuotaInfo> {
+  try {
+    const res = await fetch(`/api/library/quota?userId=${encodeURIComponent(userId)}&tier=${encodeURIComponent(tier)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.quota) {
+        return data.quota;
+      }
+    }
+  } catch (err) {
+    console.warn('[Handout Service] Could not fetch server quota, fallback to optimistic calculation:', err);
+  }
+
+  // Fallback estimation
+  const limitVal = tier === 'vip' ? 'unlimited' : tier === 'premium' ? 30 : 2;
+  return {
+    tier,
+    todayCount: 0,
+    dailyLimit: limitVal,
+    remaining: limitVal,
+    canGenerate: true,
+    dateKey: new Date().toISOString().split('T')[0],
+  };
+}
+
+/**
+ * Fetch global handout library settings
+ */
+export async function fetchHandoutSettings(): Promise<HandoutDailyLimitConfig> {
+  // 1. Try server API
+  try {
+    const res = await fetch('/api/library/settings');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.settings) {
+        return data.settings;
+      }
+    }
+  } catch {}
+
+  // 2. Try Firestore fallback
+  try {
+    const snap = await getDoc(doc(db, HANDOUT_SETTINGS_DOC));
+    if (snap.exists()) {
+      return { ...DEFAULT_HANDOUT_SETTINGS, ...snap.data() } as HandoutDailyLimitConfig;
+    }
+  } catch {}
+
+  // 3. Try LocalStorage
+  try {
+    const saved = localStorage.getItem('grobax_handout_settings');
+    if (saved) return JSON.parse(saved);
+  } catch {}
+
+  return DEFAULT_HANDOUT_SETTINGS;
+}
+
+/**
+ * Save global handout library settings (Admin)
+ */
+export async function saveHandoutSettings(
+  settings: Partial<HandoutDailyLimitConfig>,
+  updatedBy: string = 'Super Admin'
+): Promise<HandoutDailyLimitConfig> {
+  const payload: HandoutDailyLimitConfig = {
+    freeDailyLimit: Math.max(1, Number(settings.freeDailyLimit) || 2),
+    premiumDailyLimit: Math.max(1, Number(settings.premiumDailyLimit) || 30),
+    vipDailyLimit: settings.vipDailyLimit === 'unlimited' ? 'unlimited' : Math.max(1, Number(settings.vipDailyLimit) || 50),
+    updatedAt: new Date().toISOString(),
+    updatedBy,
+  };
+
+  // 1. Send to server
+  try {
+    await fetch('/api/library/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.warn('[Handout Service] Could not update server settings directly:', err);
+  }
+
+  // 2. Persist to Firestore
+  try {
+    await setDoc(doc(db, HANDOUT_SETTINGS_DOC), payload, { merge: true });
+  } catch (err) {
+    console.warn('[Handout Service] Firestore settings sync notice:', err);
+  }
+
+  // 3. LocalStorage
+  try {
+    localStorage.setItem('grobax_handout_settings', JSON.stringify(payload));
+  } catch {}
+
+  return payload;
+}
+
+/**
+ * Fetch Admin Handout Usage Stats
+ */
+export async function fetchHandoutAdminStats(): Promise<HandoutAdminStats> {
+  try {
+    const res = await fetch('/api/library/stats');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.stats) {
+        return data.stats;
+      }
+    }
+  } catch (err) {
+    console.warn('[Handout Service] Error fetching server stats:', err);
+  }
+
+  return DEFAULT_ADMIN_STATS;
+}
+
+/**
+ * Call Server-side Real Gemini API to generate handout
+ */
+export async function generateHandoutViaApi(params: {
+  userId: string;
+  userEmail?: string;
+  userDisplayName?: string;
+  tier: 'free' | 'premium' | 'vip';
+  institutionType: HandoutInstitutionCategory;
+  institution: string;
+  faculty: string;
+  department: string;
+  level: string;
+  course: string;
+  topic: string;
+  additionalInstruction?: string;
+}): Promise<{
+  success: boolean;
+  handout?: GeneratedHandout;
+  quota?: HandoutUserQuotaInfo;
+  error?: string;
+  limitReached?: boolean;
+}> {
+  try {
+    const res = await fetch('/api/library/generate-handout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      return {
+        success: false,
+        error: data.error || 'Failed to generate academic handout.',
+        limitReached: Boolean(data.limitReached),
+        quota: data.quota,
+      };
+    }
+
+    const handout: GeneratedHandout = data.handout;
+
+    // Save to Firestore user collection immediately
+    await saveGeneratedHandoutToUserStore(params.userId, handout);
+
+    return {
+      success: true,
+      handout,
+      quota: data.quota,
+    };
+  } catch (err: any) {
+    console.error('[Handout Service] Generate request network error:', err);
+    return {
+      success: false,
+      error: err?.message || 'Network error communicating with the AI handout service. Please try again.',
+    };
+  }
+}
+
+/**
+ * Save handout to user's private library in Firestore & localStorage
+ */
+export async function saveGeneratedHandoutToUserStore(
+  userId: string,
+  handout: GeneratedHandout
+): Promise<void> {
+  if (!userId || !handout || !handout.id) return;
+
+  // 1. Cache in localStorage for immediate offline retrieval
+  try {
+    const cacheKey = `grobax_user_handouts_${userId}`;
+    const raw = localStorage.getItem(cacheKey);
+    const existing: GeneratedHandout[] = raw ? JSON.parse(raw) : [];
+    const updated = [handout, ...existing.filter((h) => h.id !== handout.id)].slice(0, 100);
+    localStorage.setItem(cacheKey, JSON.stringify(updated));
+  } catch (e) {
+    console.warn('[Handout Service] Local cache write warning:', e);
+  }
+
+  // 2. Persist to Firestore
+  try {
+    await setDoc(doc(db, USER_HANDOUTS_COLLECTION, handout.id), {
+      ...handout,
+      userId,
+      savedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn('[Handout Service] Firestore handout save warning:', err);
+  }
+}
+
+/**
+ * Fetch all saved handouts belonging strictly to this user
+ */
+export async function fetchUserGeneratedHandouts(userId: string): Promise<GeneratedHandout[]> {
+  if (!userId) return [];
+
+  const cacheKey = `grobax_user_handouts_${userId}`;
+  let localHandouts: GeneratedHandout[] = [];
+
+  // Read local cache first
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (raw) {
+      localHandouts = JSON.parse(raw);
+    }
+  } catch {}
+
+  // Fetch from Firestore
+  try {
+    const q = query(
+      collection(db, USER_HANDOUTS_COLLECTION),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+
+    const snapshot = await getDocs(q);
+    const remoteHandouts: GeneratedHandout[] = [];
+
+    snapshot.forEach((docSnap) => {
+      remoteHandouts.push(docSnap.data() as GeneratedHandout);
+    });
+
+    if (remoteHandouts.length > 0) {
+      // Merge unique by ID
+      const map = new Map<string, GeneratedHandout>();
+      [...remoteHandouts, ...localHandouts].forEach((h) => {
+        if (h && h.id) map.set(h.id, h);
+      });
+
+      const merged = Array.from(map.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(merged));
+      } catch {}
+
+      return merged;
+    }
+  } catch (err) {
+    console.warn('[Handout Service] Firestore fetch handouts notice:', err);
+  }
+
+  return localHandouts;
+}
+
+/**
+ * Delete a user's generated handout
+ */
+export async function deleteUserGeneratedHandout(userId: string, handoutId: string): Promise<boolean> {
+  if (!userId || !handoutId) return false;
+
+  // Remove from local cache
+  try {
+    const cacheKey = `grobax_user_handouts_${userId}`;
+    const raw = localStorage.getItem(cacheKey);
+    if (raw) {
+      const parsed: GeneratedHandout[] = JSON.parse(raw);
+      const filtered = parsed.filter((h) => h.id !== handoutId);
+      localStorage.setItem(cacheKey, JSON.stringify(filtered));
+    }
+  } catch {}
+
+  // Remove from Firestore
+  try {
+    await deleteDoc(doc(db, USER_HANDOUTS_COLLECTION, handoutId));
+    return true;
+  } catch (err) {
+    console.warn('[Handout Service] Firestore delete handout error:', err);
+    return true;
+  }
+}
+
+/**
+ * Export Generated Handout to a clean, professional academic PDF
+ */
+export function exportHandoutToPdf(handout: GeneratedHandout): void {
+  try {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 16;
+    const contentWidth = pageWidth - margin * 2;
+    let y = 18;
+
+    const checkPageBreak = (spaceNeeded: number) => {
+      if (y + spaceNeeded > 275) {
+        doc.addPage();
+        y = 18;
+      }
+    };
+
+    // Header Banner
+    doc.setFillColor(15, 23, 42); // slate-900
+    doc.rect(margin, y, contentWidth, 22, 'F');
+
+    doc.setTextColor(245, 158, 11); // amber-500
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('GROBAAX AI ACADEMIC HANDOUT LIBRARY', margin + 6, y + 7);
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13);
+    doc.text(handout.course, margin + 6, y + 15);
+
+    y += 28;
+
+    // Academic Metadata Table
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Institution: ${handout.institution} (${handout.institutionType})`, margin, y);
+    y += 5;
+    doc.text(`Faculty / Dept: ${handout.faculty} • ${handout.department}`, margin, y);
+    y += 5;
+    doc.text(`Level: ${handout.level} | Date: ${new Date(handout.createdAt).toLocaleDateString('en-GB')}`, margin, y);
+    y += 8;
+
+    // Title
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    const titleLines = doc.splitTextToSize(handout.title, contentWidth);
+    doc.text(titleLines, margin, y);
+    y += titleLines.length * 7 + 4;
+
+    // Topic subtitle
+    doc.setTextColor(2, 132, 199); // sky-600
+    doc.setFontSize(11);
+    doc.text(`Topic: ${handout.topic}`, margin, y);
+    y += 8;
+
+    // Learning Objectives
+    if (handout.learningObjectives && handout.learningObjectives.length > 0) {
+      checkPageBreak(30);
+      doc.setFillColor(241, 245, 249); // slate-100
+      doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F');
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('LEARNING OBJECTIVES', margin + 4, y + 4.5);
+      y += 10;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(51, 65, 85);
+      handout.learningObjectives.forEach((obj, idx) => {
+        const lines = doc.splitTextToSize(`${idx + 1}. ${obj}`, contentWidth - 6);
+        checkPageBreak(lines.length * 5 + 2);
+        doc.text(lines, margin + 2, y);
+        y += lines.length * 5 + 2;
+      });
+      y += 4;
+    }
+
+    // Introduction
+    if (handout.introduction) {
+      checkPageBreak(30);
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F');
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('1. INTRODUCTION & THEORETICAL BACKGROUND', margin + 4, y + 4.5);
+      y += 10;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.setTextColor(30, 41, 59);
+      const introLines = doc.splitTextToSize(handout.introduction, contentWidth);
+      checkPageBreak(introLines.length * 5 + 4);
+      doc.text(introLines, margin, y);
+      y += introLines.length * 5 + 6;
+    }
+
+    // Main Sections / Chapters
+    if (handout.sections && handout.sections.length > 0) {
+      handout.sections.forEach((sec, idx) => {
+        checkPageBreak(35);
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F');
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text(`${idx + 2}. ${sec.title.toUpperCase()}`, margin + 4, y + 4.5);
+        y += 10;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9.5);
+        doc.setTextColor(30, 41, 59);
+        const contentLines = doc.splitTextToSize(sec.content, contentWidth);
+        checkPageBreak(contentLines.length * 5 + 4);
+        doc.text(contentLines, margin, y);
+        y += contentLines.length * 5 + 4;
+
+        // Bullet points
+        if (sec.bulletPoints && sec.bulletPoints.length > 0) {
+          sec.bulletPoints.forEach((bp) => {
+            const bpLines = doc.splitTextToSize(`• ${bp}`, contentWidth - 4);
+            checkPageBreak(bpLines.length * 4.5 + 2);
+            doc.text(bpLines, margin + 4, y);
+            y += bpLines.length * 4.5 + 2;
+          });
+          y += 2;
+        }
+
+        // Formulas
+        if (sec.formulas && sec.formulas.length > 0) {
+          sec.formulas.forEach((form) => {
+            checkPageBreak(12);
+            doc.setFillColor(248, 250, 252);
+            doc.rect(margin + 4, y, contentWidth - 8, 8, 'F');
+            doc.setFont('courier', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(2, 132, 199);
+            doc.text(form, margin + 8, y + 5.5);
+            y += 10;
+          });
+        }
+
+        // Key takeaway
+        if (sec.keyTakeaway) {
+          checkPageBreak(12);
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(8.5);
+          doc.setTextColor(71, 85, 105);
+          const tkLines = doc.splitTextToSize(`Key Takeaway: ${sec.keyTakeaway}`, contentWidth - 6);
+          doc.text(tkLines, margin + 4, y);
+          y += tkLines.length * 4.5 + 4;
+        }
+      });
+    }
+
+    // Important Definitions
+    if (handout.importantDefinitions && handout.importantDefinitions.length > 0) {
+      checkPageBreak(30);
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F');
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('IMPORTANT ACADEMIC DEFINITIONS', margin + 4, y + 4.5);
+      y += 10;
+
+      handout.importantDefinitions.forEach((item) => {
+        checkPageBreak(18);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`• ${item.term}:`, margin + 2, y);
+        y += 4.5;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(51, 65, 85);
+        const defLines = doc.splitTextToSize(item.definition, contentWidth - 8);
+        doc.text(defLines, margin + 6, y);
+        y += defLines.length * 4.5 + 4;
+      });
+    }
+
+    // Worked Examples / Case Studies
+    if (handout.relevantExamples && handout.relevantExamples.length > 0) {
+      checkPageBreak(30);
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F');
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('WORKED EXAMPLES & CASE SCENARIOS', margin + 4, y + 4.5);
+      y += 10;
+
+      handout.relevantExamples.forEach((ex, idx) => {
+        checkPageBreak(25);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(180, 83, 9); // amber-700
+        doc.text(`Example ${idx + 1}: ${ex.title}`, margin + 2, y);
+        y += 5;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(30, 41, 59);
+        const scenLines = doc.splitTextToSize(`Problem: ${ex.scenarioOrProblem}`, contentWidth - 4);
+        checkPageBreak(scenLines.length * 4.5 + 2);
+        doc.text(scenLines, margin + 4, y);
+        y += scenLines.length * 4.5 + 3;
+
+        const solLines = doc.splitTextToSize(`Solution / Explanation:\n${ex.explanationOrSolution}`, contentWidth - 4);
+        checkPageBreak(solLines.length * 4.5 + 4);
+        doc.text(solLines, margin + 4, y);
+        y += solLines.length * 4.5 + 6;
+      });
+    }
+
+    // Summary
+    if (handout.summary) {
+      checkPageBreak(25);
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F');
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('ACADEMIC SUMMARY', margin + 4, y + 4.5);
+      y += 10;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.setTextColor(30, 41, 59);
+      const sumLines = doc.splitTextToSize(handout.summary, contentWidth);
+      checkPageBreak(sumLines.length * 5 + 4);
+      doc.text(sumLines, margin, y);
+      y += sumLines.length * 5 + 6;
+    }
+
+    // Self-Assessment & Review Questions
+    if (handout.reviewQuestions && handout.reviewQuestions.length > 0) {
+      checkPageBreak(30);
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F');
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('SELF-ASSESSMENT & EXAM REVIEW QUESTIONS', margin + 4, y + 4.5);
+      y += 10;
+
+      handout.reviewQuestions.forEach((q, idx) => {
+        checkPageBreak(20);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        const qLines = doc.splitTextToSize(`Q${idx + 1}: ${q.question}`, contentWidth - 4);
+        doc.text(qLines, margin + 2, y);
+        y += qLines.length * 4.5 + 2;
+
+        if (q.modelAnswerOrHint) {
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(8.5);
+          doc.setTextColor(71, 85, 105);
+          const hLines = doc.splitTextToSize(`Marking Scheme / Hint: ${q.modelAnswerOrHint}`, contentWidth - 6);
+          checkPageBreak(hLines.length * 4 + 2);
+          doc.text(hLines, margin + 4, y);
+          y += hLines.length * 4 + 4;
+        }
+      });
+    }
+
+    // Footer on all pages
+    const totalPages = doc.internal.pages.length - 1;
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(
+        `Grobaax AI Handout Library • ${handout.course} • Page ${i} of ${totalPages}`,
+        pageWidth / 2,
+        287,
+        { align: 'center' }
+      );
+    }
+
+    const cleanFilename = `${handout.course.replace(/[^a-zA-Z0-9]/g, '_')}_${handout.topic.replace(/[^a-zA-Z0-9]/g, '_')}_Handout.pdf`;
+    doc.save(cleanFilename);
+  } catch (err) {
+    console.error('[Handout Service] PDF export error:', err);
+  }
+}
+
+/**
+ * Copy full formatted academic handout to clipboard
+ */
+export async function copyHandoutToClipboard(handout: GeneratedHandout): Promise<boolean> {
+  try {
+    let text = `# ${handout.title.toUpperCase()}\n`;
+    text += `Course: ${handout.course} | Level: ${handout.level}\n`;
+    text += `Institution: ${handout.institution} (${handout.institutionType})\n`;
+    text += `Faculty: ${handout.faculty} | Dept: ${handout.department}\n`;
+    text += `Topic: ${handout.topic}\n\n`;
+
+    text += `## LEARNING OBJECTIVES\n`;
+    handout.learningObjectives.forEach((obj, idx) => {
+      text += `${idx + 1}. ${obj}\n`;
+    });
+    text += `\n## INTRODUCTION\n${handout.introduction}\n\n`;
+
+    handout.sections.forEach((sec, idx) => {
+      text += `## ${idx + 1}. ${sec.title.toUpperCase()}\n${sec.content}\n\n`;
+      if (sec.bulletPoints && sec.bulletPoints.length > 0) {
+        sec.bulletPoints.forEach((bp) => {
+          text += `- ${bp}\n`;
+        });
+        text += '\n';
+      }
+      if (sec.formulas && sec.formulas.length > 0) {
+        sec.formulas.forEach((f) => {
+          text += `Equation: ${f}\n`;
+        });
+        text += '\n';
+      }
+      if (sec.keyTakeaway) {
+        text += `Key Takeaway: ${sec.keyTakeaway}\n\n`;
+      }
+    });
+
+    if (handout.importantDefinitions.length > 0) {
+      text += `## IMPORTANT DEFINITIONS\n`;
+      handout.importantDefinitions.forEach((d) => {
+        text += `* **${d.term}**: ${d.definition}\n`;
+      });
+      text += '\n';
+    }
+
+    if (handout.relevantExamples.length > 0) {
+      text += `## WORKED EXAMPLES & CASE STUDIES\n`;
+      handout.relevantExamples.forEach((ex, idx) => {
+        text += `### Example ${idx + 1}: ${ex.title}\n`;
+        text += `Problem: ${ex.scenarioOrProblem}\n`;
+        text += `Solution: ${ex.explanationOrSolution}\n\n`;
+      });
+    }
+
+    text += `## SUMMARY\n${handout.summary}\n\n`;
+
+    if (handout.reviewQuestions.length > 0) {
+      text += `## REVIEW QUESTIONS\n`;
+      handout.reviewQuestions.forEach((q, idx) => {
+        text += `${idx + 1}. ${q.question}\n`;
+        if (q.modelAnswerOrHint) {
+          text += `   Model Answer/Hint: ${q.modelAnswerOrHint}\n`;
+        }
+      });
+    }
+
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    console.error('[Handout Service] Copy text failed:', err);
+    return false;
+  }
+}
