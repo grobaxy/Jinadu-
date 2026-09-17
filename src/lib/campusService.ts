@@ -19,6 +19,7 @@ import {
   onSnapshot,
   addDoc,
   serverTimestamp,
+  isSubscriptionExpired,
 } from './firebase';
 
 /**
@@ -66,22 +67,20 @@ export function formatCampusWhatsAppNumber(phone: string): string {
   return cleaned;
 }
 
-// User subscription tier resolver - Strict & Accurate
+// User subscription tier resolver - Strict & Accurate (Expired subscriptions automatically revert to Free)
 export function resolveUserSubscriptionTier(user: any): 'free' | 'premium' | 'vip' {
   if (!user) return 'free';
   if (user.role === 'admin' || user.role === 'super_admin' || user.isSuperAdmin || user.isAdmin) return 'vip';
   if (user.role === 'community_manager') return 'vip';
 
-  // Check expiration first
-  if (user.subscriptionExpiry) {
-    try {
-      const expTime = new Date(user.subscriptionExpiry).getTime();
-      if (!isNaN(expTime) && expTime <= Date.now() && !user.isSuperAdmin && user.role !== 'admin') {
-        return 'free';
-      }
-    } catch {
-      // ignore
-    }
+  // Check expiration first - if expired, all benefits, limits, and perks expire immediately back to free
+  if (isSubscriptionExpired(user)) {
+    return 'free';
+  }
+
+  // If user is explicitly not subscribed or marked as free
+  if (user.isSubscribed === false && !user.isPremium && !user.isVip) {
+    return 'free';
   }
 
   const membership = (user.membershipTier || '').toLowerCase().trim();
@@ -100,6 +99,11 @@ export function resolveUserSubscriptionTier(user: any): 'free' | 'premium' | 'vi
     plan === 'free' ||
     plan === 'plan_free' ||
     plan === 'free_starter';
+
+  // If user is not marked as subscribed and has no active plan
+  if (user.isSubscribed === false && !user.isSuperAdmin && user.role !== 'admin') {
+    return 'free';
+  }
 
   // 1. VIP Check
   if (
@@ -152,13 +156,23 @@ export function resolveUserSubscriptionTier(user: any): 'free' | 'premium' | 'vi
 // Helper to determine if user qualifies for blue verified badge
 export function isUserBlueBadge(user: any): boolean {
   if (!user) return false;
-  // If explicitly assigned blue badge/verified
-  if (user.hasBlueBadge || user.isVerified || user.verifiedBadge || user.blueBadge) return true;
   // Staff & community managers qualify
   if (user.role === 'admin' || user.role === 'super_admin' || user.isSuperAdmin || user.isAdmin || user.role === 'community_manager') return true;
+
+  // Check if subscription has expired - if expired, all perks including blue verification from subscriptions expire
+  if (isSubscriptionExpired(user)) {
+    // Only explicitly manual/permanent admin-assigned verifications remain
+    if (user.isManualVerified && !user.subscriptionVerified) return true;
+    return false;
+  }
+
   // Active Premium / VIP subscribers qualify
   const tier = resolveUserSubscriptionTier(user);
   if (tier === 'premium' || tier === 'vip') return true;
+
+  // If explicitly assigned blue badge/verified
+  if (user.hasBlueBadge || user.isVerified || user.verifiedBadge || user.blueBadge) return true;
+
   // Check equipped badge
   if (user.equippedBadge?.id?.toLowerCase().includes('verified') || user.equippedBadge?.name?.toLowerCase().includes('verified')) {
     return true;

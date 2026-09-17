@@ -46,10 +46,12 @@ export const DEFAULT_ADMIN_STATS: HandoutAdminStats = {
  */
 export async function fetchUserHandoutQuota(
   userId: string,
-  tier: 'free' | 'premium' | 'vip' = 'free'
+  tier: 'free' | 'premium' | 'vip' = 'free',
+  subscriptionExpiry?: string | null
 ): Promise<HandoutUserQuotaInfo> {
   try {
-    const res = await fetch(`/api/library/quota?userId=${encodeURIComponent(userId)}&tier=${encodeURIComponent(tier)}`);
+    const expiryParam = subscriptionExpiry ? `&subscriptionExpiry=${encodeURIComponent(subscriptionExpiry)}` : '';
+    const res = await fetch(`/api/library/quota?userId=${encodeURIComponent(userId)}&tier=${encodeURIComponent(tier)}${expiryParam}`);
     if (res.ok) {
       const data = await res.json();
       if (data && data.success && data.quota) {
@@ -172,6 +174,7 @@ export async function generateHandoutViaApi(params: {
   userEmail?: string;
   userDisplayName?: string;
   tier: 'free' | 'premium' | 'vip';
+  subscriptionExpiry?: string | null;
   institutionType: HandoutInstitutionCategory;
   institution: string;
   faculty: string;

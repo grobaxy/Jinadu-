@@ -58,6 +58,7 @@ import {
   cleanupMockSponsorshipCampaignsFromFirestore,
   assignRepresentativeInFirestore,
   removeRepresentativeInFirestore,
+  isSubscriptionExpired,
 } from '../lib/firebase';
 import { isPrimarySuperAdmin } from '../lib/adminPermissions';
 import {
@@ -630,12 +631,13 @@ export const checkIsUserSubscribed = (user: UserProfile | null | undefined): boo
 
   if (isStaffOrAdmin) return true;
 
-  // Check if subscription has expired
-  if (user.subscriptionExpiry) {
-    const expiryTime = new Date(user.subscriptionExpiry).getTime();
-    if (!isNaN(expiryTime) && expiryTime <= Date.now()) {
-      return false; // Expired - all benefits paused
-    }
+  // Check if subscription has expired - if expired, all benefits revoked and user is automatically free
+  if (isSubscriptionExpired(user)) {
+    return false;
+  }
+
+  if ((user as any).isExpired === true || (user as any).isSubscribed === false) {
+    return false;
   }
 
   // Active plan ID present and valid
@@ -731,15 +733,24 @@ export const resolveUserSubscriptionStatus = (user: Partial<UserProfile> | null 
     };
   }
 
-  const isExpired = user.subscriptionExpiry
-    ? new Date(user.subscriptionExpiry).getTime() <= Date.now()
-    : false;
+  const isExpired = isSubscriptionExpired(user);
 
   if (isExpired) {
     // When expired, all benefits, badges, and VIP/premium privileges are automatically removed
     return {
       isSubscribed: false,
       isExpired: true,
+      effectiveTier: 'Free Scholar',
+      tierType: 'free',
+      isPremium: false,
+    };
+  }
+
+  // If user is explicitly not subscribed
+  if (user.isSubscribed === false && !user.isPremium && !user.isVip) {
+    return {
+      isSubscribed: false,
+      isExpired: false,
       effectiveTier: 'Free Scholar',
       tierType: 'free',
       isPremium: false,
@@ -1088,6 +1099,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   const resolvedUsername = data.username || (isPrevMock ? (user.displayName ? user.displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 20) : (user.email ? user.email.split('@')[0] : `scholar_${user.uid.substring(0, 5)}`)) : prev.username);
                   const resolvedAvatar = data.profileImage || data.avatar || user.photoURL || (isPrevMock ? `https://api.dicebear.com/7.x/bottts/svg?seed=${user.uid}` : prev.avatar);
                   const resolvedRole = data.role || (isSuper ? 'admin' : (isPrevMock ? 'student' : prev.role));
+                  const userIsExpired = !isSuper && isSubscriptionExpired(data);
+
+                  // If user subscription is expired, update Firestore if needed to clean up any stale active flags
+                  if (
+                    userIsExpired &&
+                    (data.isSubscribed ||
+                      data.isPremium ||
+                      data.isVip ||
+                      (data.membershipTier && !data.membershipTier.toLowerCase().includes('free')) ||
+                      (data.subscriptionTier && !data.subscriptionTier.toLowerCase().includes('free')) ||
+                      data.activePlanId)
+                  ) {
+                    try {
+                      updateDoc(doc(db, 'users', user.uid), {
+                        isSubscribed: false,
+                        isPremium: false,
+                        isVip: false,
+                        membershipTier: 'Free Scholar',
+                        subscriptionTier: 'Free Scholar',
+                        activePlanId: '',
+                        planId: '',
+                        subscriptionPlan: '',
+                        'subscription.status': 'expired',
+                      }).catch(() => {});
+                    } catch {}
+                  }
 
                   const nextUser = {
                     ...prev,
@@ -1125,50 +1162,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     gusTier: data.gusTier || (isSuper ? 'Grandmaster' : (isPrevMock ? 'Scholar' : prev.gusTier)),
                     walletAddress: data.walletAddress || prev.walletAddress || `0x${user.uid.substring(0, 10)}`,
                     activePlanId: isSuper ? 'plan_titan_naira' : (
-                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                      userIsExpired
                         ? ''
                         : (data.activePlanId || prev.activePlanId || '')
                     ),
                     membershipTier: isSuper ? 'Grobaax Titan Annual VIP' : (
-                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                      userIsExpired
                         ? 'Free Scholar'
                         : (data.membershipTier || data.subscriptionTier || prev.membershipTier || 'Free Scholar')
                     ),
                     subscriptionTier: isSuper ? 'Grobaax Titan Annual VIP' : (
-                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                      userIsExpired
                         ? 'Free Scholar'
                         : (data.subscriptionTier || data.membershipTier || prev.subscriptionTier || 'Free Scholar')
                     ),
                     subscriptionPlan: isSuper ? 'Grobaax Titan Annual VIP' : (
-                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                      userIsExpired
                         ? ''
                         : (data.subscriptionPlan || data.membershipTier || prev.subscriptionPlan || '')
                     ),
                     planId: isSuper ? 'plan_titan_naira' : (
-                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                      userIsExpired
                         ? ''
                         : (data.planId || data.activePlanId || prev.planId || '')
                     ),
                     tier: isSuper ? 'Grobaax Titan Annual VIP' : (
-                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                      userIsExpired
                         ? 'Free Scholar'
                         : (data.tier || data.membershipTier || prev.tier || 'Free Scholar')
                     ),
                     plan: isSuper ? 'Grobaax Titan Annual VIP' : (
-                      data.subscriptionExpiry && new Date(data.subscriptionExpiry).getTime() <= Date.now()
+                      userIsExpired
                         ? ''
                         : (data.plan || data.membershipTier || prev.plan || '')
                     ),
                     isSubscribed: isSuper || Boolean(
-                      (!data.subscriptionExpiry || new Date(data.subscriptionExpiry).getTime() > Date.now()) &&
+                      !userIsExpired &&
                       (data.isSubscribed || data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free')) || (data.membershipTier && !data.membershipTier.toLowerCase().includes('free') && data.membershipTier.toLowerCase() !== 'starter scholar') || prev.isSubscribed)
                     ),
                     isPremium: isSuper || Boolean(
-                      (!data.subscriptionExpiry || new Date(data.subscriptionExpiry).getTime() > Date.now()) &&
+                      !userIsExpired &&
                       (data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free')) || (data.membershipTier && !data.membershipTier.toLowerCase().includes('free') && data.membershipTier.toLowerCase() !== 'starter scholar') || prev.isPremium)
                     ),
                     isVip: isSuper || Boolean(
-                      (!data.subscriptionExpiry || new Date(data.subscriptionExpiry).getTime() > Date.now()) &&
+                      !userIsExpired &&
                       (data.isVip === true ||
                        (data.membershipTier && (data.membershipTier.toLowerCase().includes('vip') || data.membershipTier.toLowerCase().includes('titan') || data.membershipTier.toLowerCase().includes('annual'))) ||
                        (data.activePlanId && (data.activePlanId.toLowerCase().includes('titan') || data.activePlanId.toLowerCase().includes('vip'))) ||
@@ -1177,11 +1214,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                        prev.isVip)
                     ),
                     verified: isSuper || Boolean(
-                      data.verified ||
-                      data.isVip ||
-                      data.isPremium ||
-                      prev.verified ||
-                      (data.activePlanId && !data.activePlanId.toLowerCase().includes('free'))
+                      data.manualVerified ||
+                      data.role === 'admin' ||
+                      data.role === 'super_admin' ||
+                      (!userIsExpired && (data.verified || data.isVip || data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free'))))
                     ),
                     subscriptionExpiry: isSuper ? '2099-12-31T23:59:59.999Z' : (data.subscriptionExpiry || prev.subscriptionExpiry || ''),
                     subscription: isSuper ? {
@@ -1194,7 +1230,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                       startDate: '2025-01-01T00:00:00.000Z',
                       expiryDate: '2099-12-31T23:59:59.999Z',
                       status: 'active',
-                    } : (data.subscription || prev.subscription || undefined),
+                    } : (userIsExpired && data.subscription ? { ...data.subscription, status: 'expired' } : (data.subscription || prev.subscription || undefined)),
                     privacy: data.privacy || prev.privacy || {
                       showInstitution: true,
                       showFaculty: true,

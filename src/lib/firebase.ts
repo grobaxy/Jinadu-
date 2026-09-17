@@ -1054,11 +1054,48 @@ export const isEmailAvailable = async (email: string, currentUid?: string): Prom
   }
 };
 
-// Helper to determine if a subscription has expired
-export const isSubscriptionExpired = (subscriptionExpiry?: string | null): boolean => {
-  if (!subscriptionExpiry) return false;
-  const expiryTime = new Date(subscriptionExpiry).getTime();
-  return !isNaN(expiryTime) && expiryTime <= Date.now();
+// Helper to determine if a subscription has expired (supports ISO string or user profile object)
+export const isSubscriptionExpired = (target?: any): boolean => {
+  if (!target) return false;
+  if (typeof target === 'object') {
+    if (
+      target.role === 'admin' ||
+      target.role === 'super_admin' ||
+      target.isSuperAdmin ||
+      target.isAdmin ||
+      target.role === 'community_manager'
+    ) {
+      return false;
+    }
+    if (target.isExpired === true) return true;
+    if (
+      target.subscription &&
+      (target.subscription.status === 'expired' ||
+        target.subscription.status === 'inactive' ||
+        target.subscription.status === 'cancelled')
+    ) {
+      return true;
+    }
+    const expiry =
+      target.subscriptionExpiry ||
+      target.subscription?.expiryDate ||
+      target.subscription?.expiresAt ||
+      target.subscription?.subscriptionExpiry ||
+      target.expiryDate ||
+      target.expiresAt;
+
+    if (!expiry) return false;
+    const expiryTime = new Date(expiry).getTime();
+    return !isNaN(expiryTime) && expiryTime <= Date.now();
+  }
+
+  if (typeof target === 'string') {
+    if (!target.trim()) return false;
+    const expiryTime = new Date(target).getTime();
+    return !isNaN(expiryTime) && expiryTime <= Date.now();
+  }
+
+  return false;
 };
 
 // Get Institutions filtered by category

@@ -77,7 +77,7 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
     if (!currentUser?.uid) return;
     setIsLoadingQuota(true);
     try {
-      const q = await fetchUserHandoutQuota(currentUser.uid, userTier);
+      const q = await fetchUserHandoutQuota(currentUser.uid, userTier, userProfile?.subscriptionExpiry);
       setQuota(q);
     } catch (err) {
       console.warn('Quota load notice:', err);
@@ -88,7 +88,7 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
 
   useEffect(() => {
     loadQuota();
-  }, [currentUser?.uid, userTier]);
+  }, [currentUser?.uid, userTier, userProfile?.subscriptionExpiry]);
 
   // Pre-fill Institution from User Profile if available
   useEffect(() => {
@@ -236,6 +236,7 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
         userEmail: currentUser.email || '',
         userDisplayName: userProfile?.name || currentUser.displayName || 'Student',
         tier: userTier,
+        subscriptionExpiry: userProfile?.subscriptionExpiry,
         institutionType: selectedCategory,
         institution: selectedInstitution,
         faculty: selectedFaculty,
@@ -309,9 +310,12 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
                 ) : (
                   <span>
                     <strong className="text-amber-600 dark:text-amber-400">
-                      {quota ? quota.remaining : '...'}
+                      {quota ? quota.todayCount : 0}
                     </strong>{' '}
-                    / {quota ? quota.dailyLimit : (userTier === 'premium' ? 30 : 2)} left today
+                    / {quota ? quota.dailyLimit : (userTier === 'premium' ? 30 : 2)}
+                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400 ml-1.5">
+                      ({quota ? quota.remaining : (userTier === 'premium' ? 30 : 2)} left)
+                    </span>
                   </span>
                 )}
               </div>

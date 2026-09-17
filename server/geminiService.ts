@@ -36,52 +36,58 @@ export async function callGeminiApi(options: {
   }
 
   const ai = getAiClient();
-  const models = options.candidateModels && options.candidateModels.length > 0
-    ? options.candidateModels
-    : ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+  // gemini-3.1-flash-lite is highly available and fast, while gemini-3.8-flash serves as powerful fallback/alternate
+  const models =
+    options.candidateModels && options.candidateModels.length > 0
+      ? options.candidateModels
+      : ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
 
   const timeoutMs = options.timeoutMs || 35000;
 
   for (const model of models) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const generatePromise = ai.models.generateContent({
-          model,
-          contents: options.prompt,
-          config: {
-            responseMimeType: (options.responseMimeType as any) || 'application/json',
-            temperature: options.temperature ?? 0.2,
-          },
-        });
+    try {
+      const generatePromise = ai.models.generateContent({
+        model,
+        contents: options.prompt,
+        config: {
+          responseMimeType: (options.responseMimeType as any) || 'application/json',
+          temperature: options.temperature ?? 0.2,
+        },
+      });
 
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms on ${model}`)), timeoutMs)
-        );
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms on ${model}`)), timeoutMs)
+      );
 
-        const response: any = await Promise.race([generatePromise, timeoutPromise]);
-        const text = response?.text;
-        if (text && text.trim().length > 0) {
-          return text.trim();
-        }
-      } catch (err: any) {
-        const errMsg = err?.message || String(err);
-        console.warn(`[Gemini Service] Model ${model} attempt ${attempt} warning:`, errMsg);
-        const isTransient =
-          errMsg.includes('503') ||
-          errMsg.includes('429') ||
-          errMsg.includes('high demand') ||
-          errMsg.includes('UNAVAILABLE') ||
-          errMsg.includes('RESOURCE_EXHAUSTED') ||
-          errMsg.includes('Timeout');
-
-        if (isTransient && attempt < 2) {
-          await sleep(500 * attempt);
-        } else {
-          break;
-        }
+      const response: any = await Promise.race([generatePromise, timeoutPromise]);
+      const text = response?.text;
+      if (text && text.trim().length > 0) {
+        return text.trim();
       }
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      const isHighDemand =
+        errMsg.includes('503') ||
+        errMsg.includes('high demand') ||
+        errMsg.includes('UNAVAILABLE');
+
+      if (isHighDemand) {
+        console.info(`[Gemini Service] Model ${model} is experiencing high demand (503). Auto-failing over to next available candidate...`);
+        // Immediately failover to next model without delay
+        continue;
+      }
+
+      const isRateLimited = errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
+      if (isRateLimited) {
+        console.info(`[Gemini Service] Model ${model} rate limited (429). Auto-failing over...`);
+        await sleep(500);
+        continue;
+      }
+
+      console.info(`[Gemini Service] Model ${model} request note:`, errMsg.slice(0, 150));
     }
   }
 
+  console.error('[Gemini Service] All candidate models exhausted without successful response.');
   return null;
 }

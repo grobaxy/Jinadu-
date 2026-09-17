@@ -212,8 +212,18 @@ libraryRouter.get('/quota', (req: Request, res: Response) => {
     checkAndRollCounters();
     const userId = String(req.query.userId || '');
     const tierRaw = String(req.query.tier || 'free').toLowerCase();
-    const tier: 'free' | 'premium' | 'vip' =
+    const expiryRaw = String(req.query.expiry || req.query.subscriptionExpiry || '');
+
+    let tier: 'free' | 'premium' | 'vip' =
       tierRaw === 'vip' ? 'vip' : tierRaw === 'premium' ? 'premium' : 'free';
+
+    // If subscription is expired, force free tier
+    if (expiryRaw) {
+      const expTime = new Date(expiryRaw).getTime();
+      if (!isNaN(expTime) && expTime <= Date.now()) {
+        tier = 'free';
+      }
+    }
 
     if (!userId) {
       return res.status(400).json({ success: false, error: 'User ID is required.' });
@@ -254,6 +264,7 @@ libraryRouter.post('/generate-handout', async (req: Request, res: Response) => {
     userEmail,
     userDisplayName,
     tier = 'free',
+    subscriptionExpiry = '',
     institutionType = 'University',
     institution,
     faculty,
@@ -285,12 +296,20 @@ libraryRouter.post('/generate-handout', async (req: Request, res: Response) => {
   }
 
   // 3. Determine user's subscription tier
-  const normalizedTier: 'free' | 'premium' | 'vip' =
+  let normalizedTier: 'free' | 'premium' | 'vip' =
     String(tier).toLowerCase() === 'vip'
       ? 'vip'
       : String(tier).toLowerCase() === 'premium'
       ? 'premium'
       : 'free';
+
+  // If subscription is expired, automatically revert to free
+  if (subscriptionExpiry) {
+    const expTime = new Date(subscriptionExpiry).getTime();
+    if (!isNaN(expTime) && expTime <= Date.now()) {
+      normalizedTier = 'free';
+    }
+  }
 
   checkAndRollCounters();
   const dateKey = getTodayKey();
@@ -445,7 +464,7 @@ Ensure all JSON strings are properly escaped. Return RAW VALID JSON ONLY with no
       prompt,
       responseMimeType: 'application/json',
       temperature: 0.2,
-      candidateModels: ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'],
+      candidateModels: ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'],
       timeoutMs: 40000,
     });
 
