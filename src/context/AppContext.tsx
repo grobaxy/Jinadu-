@@ -109,6 +109,7 @@ import {
   PRIMARY_SUPER_ADMIN_UID,
   PlatformEventStatus,
   PLATFORM_EVENT_CATEGORIES,
+  sortSubscriptionPlans,
 } from '../types';
 import { verifyPaystackTransaction } from '../lib/paystackService';
 import { resolveEventChannel } from '../utils/eventNavigation';
@@ -855,10 +856,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = typeof window !== 'undefined' ? localStorage.getItem('grobax_saved_subscription_plans') : null;
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return sortSubscriptionPlans(parsed);
       }
     } catch {}
-    return DEFAULT_SUBSCRIPTION_PLANS;
+    return sortSubscriptionPlans(DEFAULT_SUBSCRIPTION_PLANS);
   });
 
   // Active Subscription Plan Sensor state (tracks background polling for Paystack payments)
@@ -2829,10 +2830,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               updatedAt: data.updatedAt || new Date().toISOString(),
             });
           });
-          loaded.sort((a, b) => (a.displayOrder || 1) - (b.displayOrder || 1));
-          setSubscriptionPlans(loaded);
+          const sorted = sortSubscriptionPlans(loaded);
+          setSubscriptionPlans(sorted);
           try {
-            localStorage.setItem('grobax_saved_subscription_plans', JSON.stringify(loaded));
+            localStorage.setItem('grobax_saved_subscription_plans', JSON.stringify(sorted));
             const freeP = loaded.find(p => p.planId === 'plan_free_scholar' || p.id === 'plan_free_scholar');
             if (freeP) {
               localStorage.setItem('grobax_saved_free_scholar_plan', JSON.stringify(freeP));
@@ -5895,7 +5896,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isAuthReady, runSubscriptionSensorCheck]);
 
   const activeSubscriptionPlans = useMemo(
-    () => subscriptionPlans.filter(p => p.active !== false && p.planId !== 'plan_free_scholar' && p.id !== 'plan_free_scholar' && p.priceNaira > 0),
+    () => sortSubscriptionPlans(subscriptionPlans.filter(p => p.active !== false && p.planId !== 'plan_free_scholar' && p.id !== 'plan_free_scholar' && p.priceNaira > 0)),
     [subscriptionPlans]
   );
 

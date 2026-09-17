@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { UserRole, ThemeMode, BadgeStoreItem, SubscriptionPlan, PRIMARY_SUPER_ADMIN_UID } from '../../types';
+import { UserRole, ThemeMode, BadgeStoreItem, SubscriptionPlan, PRIMARY_SUPER_ADMIN_UID, sortSubscriptionPlans } from '../../types';
 import { isPrimarySuperAdmin } from '../../lib/adminPermissions';
 import { UserBadgeItem } from '../ui/UserBadgeItem';
 import { BadgePurchaseModal } from './BadgePurchaseModal';
@@ -2646,9 +2646,10 @@ export const WalletModal: React.FC = () => {
                   </div>
 
                   {/* Firestore Admin Synced Paid Plans */}
-                  {(activeSubscriptionPlans.length > 0 ? activeSubscriptionPlans : subscriptionPlans)
-                    .filter(p => p.active !== false && p.planId !== 'plan_free_scholar' && p.id !== 'plan_free_scholar' && p.priceNaira > 0)
-                    .map((plan) => {
+                  {sortSubscriptionPlans(
+                    (activeSubscriptionPlans.length > 0 ? activeSubscriptionPlans : subscriptionPlans)
+                      .filter(p => p.active !== false && p.planId !== 'plan_free_scholar' && p.id !== 'plan_free_scholar' && p.priceNaira > 0)
+                  ).map((plan) => {
                     const isPlanExpired = !isSuper && currentUser.subscriptionExpiry
                       ? new Date(currentUser.subscriptionExpiry).getTime() <= Date.now()
                       : false;

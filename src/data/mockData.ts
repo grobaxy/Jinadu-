@@ -1331,22 +1331,6 @@ export const MOCK_UPGRADE_PLANS: UpgradePlan[] = [
     badgeLabel: 'Current Plan',
   },
   {
-    id: 'plan_vip',
-    name: 'VIP SCHOLAR',
-    price: '₦5,000',
-    period: 'per month',
-    features: [
-      'Everything in Free Plan',
-      '+20% Bonus GP Earn Rate in GUS & Champions League',
-      'Display up to 3 Equipped Profile Badges',
-      'Exclusive VIP Badge & Priority Support',
-      'Unlimited Replays of Past Matches',
-    ],
-    isCurrent: false,
-    active: true,
-    badgeLabel: 'POPULAR',
-  },
-  {
     id: 'plan_premium',
     name: 'TITAN PREMIUM',
     price: '₦15,000',
@@ -1362,6 +1346,22 @@ export const MOCK_UPGRADE_PLANS: UpgradePlan[] = [
     isCurrent: false,
     active: true,
     badgeLabel: 'PRO TITAN',
+  },
+  {
+    id: 'plan_vip',
+    name: 'VIP SCHOLAR',
+    price: '₦5,000',
+    period: 'per month',
+    features: [
+      'Everything in Free Plan',
+      '+20% Bonus GP Earn Rate in GUS & Champions League',
+      'Display up to 3 Equipped Profile Badges',
+      'Exclusive VIP Badge & Priority Support',
+      'Unlimited Replays of Past Matches',
+    ],
+    isCurrent: false,
+    active: true,
+    badgeLabel: 'POPULAR',
   },
 ];
 

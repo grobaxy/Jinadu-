@@ -99,6 +99,44 @@ export interface SubscriptionPlan {
   updatedAt: string;
 }
 
+/**
+ * Authoritative sort for subscription plans:
+ * 1. Free Scholar (₦0 / Lifetime)
+ * 2. Premium (₦349 / 30 Days) - rendered ABOVE VIP
+ * 3. VIP (₦599 / 30 Days) - rendered BELOW Premium
+ */
+export const getSubscriptionPlanTierRank = (p: SubscriptionPlan): number => {
+  const name = (p.name || '').toLowerCase();
+  const id = (p.id || p.planId || '').toLowerCase();
+  const tier = (p.targetTier || p.tierType || '').toLowerCase();
+
+  // Tier 0: Free Scholar
+  if (id.includes('free') || name.includes('free') || (p.priceNaira ?? 0) === 0) {
+    return 0;
+  }
+  // Tier 2: VIP / Titan (Top tier - rendered below Premium in ascending list)
+  if (tier === 'vip' || id.includes('vip') || name.includes('vip') || name.includes('titan')) {
+    return 2;
+  }
+  // Tier 1: Premium / Pro / Basic / Starter (Mid tier - rendered above VIP)
+  return 1;
+};
+
+export const sortSubscriptionPlans = (plans: SubscriptionPlan[]): SubscriptionPlan[] => {
+  return [...plans].sort((a, b) => {
+    const rankA = getSubscriptionPlanTierRank(a);
+    const rankB = getSubscriptionPlanTierRank(b);
+    if (rankA !== rankB) {
+      return rankA - rankB; // rank 1 (Premium) comes before rank 2 (VIP)
+    }
+    // If same tier rank, sort by priceNaira ascending (e.g. ₦349 before ₦599)
+    if ((a.priceNaira ?? 0) !== (b.priceNaira ?? 0)) {
+      return (a.priceNaira ?? 0) - (b.priceNaira ?? 0);
+    }
+    return (a.displayOrder || 1) - (b.displayOrder || 1);
+  });
+};
+
 export interface UserSubscriptionRecord {
   id: string;
   subscriptionId: string;

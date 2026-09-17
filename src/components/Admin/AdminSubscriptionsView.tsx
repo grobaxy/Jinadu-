@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SubscriptionPlan, UserSubscriptionRecord, PRIMARY_SUPER_ADMIN_UID } from '../../types';
+import { SubscriptionPlan, UserSubscriptionRecord, PRIMARY_SUPER_ADMIN_UID, sortSubscriptionPlans } from '../../types';
 import { grobaxDataService } from '../../lib/dataAccess';
 import { logManagerActivity } from '../../lib/adminPermissions';
 import { useApp, DEFAULT_SUBSCRIPTION_PLANS, DEFAULT_FREE_SCHOLAR_PLAN } from '../../context/AppContext';
@@ -31,10 +31,10 @@ export function AdminSubscriptionsView() {
       const saved = localStorage.getItem('grobax_saved_subscription_plans');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return sortSubscriptionPlans(parsed);
       }
     } catch {}
-    return DEFAULT_SUBSCRIPTION_PLANS;
+    return sortSubscriptionPlans(DEFAULT_SUBSCRIPTION_PLANS);
   };
 
   const [plans, setPlans] = useState<SubscriptionPlan[]>(getInitialPlans);
@@ -80,10 +80,11 @@ export function AdminSubscriptionsView() {
           seedInitialPlans();
         } else if (loadedPlans.length > 0) {
           hasCheckedInitialSeed.current = true;
-          setPlans(loadedPlans);
+          const sorted = sortSubscriptionPlans(loadedPlans);
+          setPlans(sorted);
           setLoading(false);
           try {
-            localStorage.setItem('grobax_saved_subscription_plans', JSON.stringify(loadedPlans));
+            localStorage.setItem('grobax_saved_subscription_plans', JSON.stringify(sorted));
           } catch {}
         } else {
           setLoading(false);
@@ -520,13 +521,15 @@ export function AdminSubscriptionsView() {
     }
   };
 
-  const filteredPlans = plans
-    .filter((p) => p.planId !== 'plan_free_scholar' && p.id !== 'plan_free_scholar' && p.priceNaira > 0)
-    .filter((p) =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.shortDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.planId.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+  const filteredPlans = sortSubscriptionPlans(
+    plans
+      .filter((p) => p.planId !== 'plan_free_scholar' && p.id !== 'plan_free_scholar' && p.priceNaira > 0)
+      .filter((p) =>
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.shortDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.planId.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+  );
 
   return (
     <div className="space-y-6">
