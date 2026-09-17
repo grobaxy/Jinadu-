@@ -307,8 +307,16 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
           <span className="flex items-center gap-1.5 font-medium text-slate-300">
             <Clock className="w-3.5 h-3.5 text-blue-400" /> Received: {notification.timestamp}
           </span>
-          <span className="flex items-center gap-1 font-bold text-blue-400">
-            <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" /> Official Broadcast
+          <span className="flex items-center gap-1 font-bold">
+            {notification.targetUserId || notification.userId ? (
+              <span className="text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Direct Award
+              </span>
+            ) : (
+              <span className="text-blue-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" /> Official Broadcast
+              </span>
+            )}
           </span>
         </div>
 

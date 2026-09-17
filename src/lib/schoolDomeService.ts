@@ -1605,10 +1605,11 @@ export async function endSchoolDomeSeasonAndDistributePrize(
               source: 'School Dome Prize',
             });
 
-            // C. Send congratulatory in-app notification
+            // C. Send congratulatory in-app notification strictly targeted to the winner
             await setDoc(notifDoc, {
               id: notifDoc.id,
               userId: uId,
+              targetUserId: uId,
               title: '🏆 School Dome Champion Prize Credited!',
               message: `Congratulations! You survived as a champion in ${seasonData.title}! Your equal share of ${prizePerWinner.toLocaleString()} GP has been deposited directly into your wallet.`,
               type: 'dome',

@@ -4881,13 +4881,33 @@ export const sendBroadcastNotificationToFirestore = async (
   adminName?: string
 ): Promise<string> => {
   try {
+    const targetUid = notifData.targetUserId || notifData.userId || null;
+    const lowerTitle = (notifData.title || '').toLowerCase();
+    const lowerMsg = (notifData.message || '').toLowerCase();
+    const isPrizeDeposit =
+      lowerTitle.includes('prize distributed') ||
+      lowerTitle.includes('prize credited') ||
+      lowerTitle.includes('champion prize') ||
+      lowerTitle.includes('prize split') ||
+      lowerMsg.includes('deposited directly into your wallet') ||
+      lowerMsg.includes('gp has been deposited') ||
+      lowerMsg.includes('deposited into your wallet') ||
+      lowerMsg.includes('equal share of') ||
+      lowerMsg.includes('equal split of');
+
+    // Prize distribution notifications MUST ONLY be sent to the specific user the GP is credited to!
+    if (isPrizeDeposit && !targetUid) {
+      console.warn('[Firebase] Blocked broadcast of prize distribution notification without specific target user.');
+      return '';
+    }
+
     const docRef = await addDoc(collection(db, 'notifications'), {
       title: notifData.title,
       message: notifData.message,
       type: notifData.type || 'announcement',
       targetRole: notifData.targetRole || 'ALL',
-      userId: notifData.userId || notifData.targetUserId || null,
-      targetUserId: notifData.targetUserId || notifData.userId || null,
+      userId: targetUid,
+      targetUserId: targetUid,
       excludeUserId: notifData.excludeUserId || null,
       actionUrl: notifData.actionUrl || '',
       isRead: false,

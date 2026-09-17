@@ -2096,10 +2096,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               };
             });
 
+            // Cleanup: Any prize distribution notification in Firestore that was saved without a target user is invalid and must be purged
+            snapshot.docs.forEach((docSnap) => {
+              const dData = docSnap.data();
+              const lowerT = (dData?.title || '').toLowerCase();
+              const lowerM = (dData?.message || '').toLowerCase();
+              const isPrize =
+                lowerT.includes('prize distributed') ||
+                lowerT.includes('prize credited') ||
+                lowerT.includes('champion prize') ||
+                lowerT.includes('prize split') ||
+                lowerM.includes('deposited directly into your wallet') ||
+                lowerM.includes('gp has been deposited') ||
+                lowerM.includes('equal share of') ||
+                lowerM.includes('equal split of');
+              if (isPrize && !dData.targetUserId && !dData.userId) {
+                deleteDoc(docSnap.ref).catch(() => {});
+              }
+            });
+
             // Filter strictly for this specific user so User A and User B receive isolated notifications
             const userScopedNotifs = rawNotifs.filter((notif) => {
               // Exclude creator if set
               if (notif.excludeUserId && notif.excludeUserId === currentUid) return false;
+
+              const lowerTitle = (notif.title || '').toLowerCase();
+              const lowerMsg = (notif.message || '').toLowerCase();
+
+              const isPrizeNotification =
+                lowerTitle.includes('prize distributed') ||
+                lowerTitle.includes('prize credited') ||
+                lowerTitle.includes('champion prize') ||
+                lowerTitle.includes('prize split') ||
+                lowerTitle.includes('prize won') ||
+                lowerMsg.includes('deposited directly into your wallet') ||
+                lowerMsg.includes('gp has been deposited') ||
+                lowerMsg.includes('deposited into your wallet') ||
+                lowerMsg.includes('equal share of') ||
+                lowerMsg.includes('equal split of');
+
+              // CRITICAL: School Dome prize split & wallet deposit notifications MUST ONLY go to the users that the GP is distributed to!
+              if (isPrizeNotification) {
+                const target = notif.targetUserId || notif.userId;
+                if (!target) return false; // Strictly discard untargeted broadcasts
+                return target === currentUid || target === currentUser.username || target === currentUser.id;
+              }
 
               // If targeted to a specific user ID
               if (notif.targetUserId || notif.userId) {
@@ -2108,8 +2149,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
 
               // Filter out legacy or untargeted personal upgrade / account activity items
-              const lowerTitle = (notif.title || '').toLowerCase();
-              const lowerMsg = (notif.message || '').toLowerCase();
               if (
                 lowerTitle.includes('upgraded to') ||
                 lowerMsg.includes('membership has been upgraded') ||
@@ -2146,7 +2185,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (cached) {
                 const parsed = JSON.parse(cached);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                  setNotifications(parsed);
+                  const cleaned = parsed.filter((notif: any) => {
+                    const lowerTitle = (notif.title || '').toLowerCase();
+                    const lowerMsg = (notif.message || '').toLowerCase();
+                    const isPrize =
+                      lowerTitle.includes('prize distributed') ||
+                      lowerTitle.includes('prize credited') ||
+                      lowerTitle.includes('champion prize') ||
+                      lowerTitle.includes('prize split') ||
+                      lowerMsg.includes('deposited directly into your wallet') ||
+                      lowerMsg.includes('gp has been deposited');
+                    if (isPrize) {
+                      const target = notif.targetUserId || notif.userId;
+                      return target === currentUid || target === currentUser.username || target === currentUser.id;
+                    }
+                    return true;
+                  });
+                  setNotifications(cleaned);
                   return;
                 }
               }
@@ -2161,7 +2216,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (cached) {
               const parsed = JSON.parse(cached);
               if (Array.isArray(parsed) && parsed.length > 0) {
-                setNotifications(parsed);
+                const cleaned = parsed.filter((notif: any) => {
+                  const lowerTitle = (notif.title || '').toLowerCase();
+                  const lowerMsg = (notif.message || '').toLowerCase();
+                  const isPrize =
+                    lowerTitle.includes('prize distributed') ||
+                    lowerTitle.includes('prize credited') ||
+                    lowerTitle.includes('champion prize') ||
+                    lowerTitle.includes('prize split') ||
+                    lowerMsg.includes('deposited directly into your wallet') ||
+                    lowerMsg.includes('gp has been deposited');
+                  if (isPrize) {
+                    const target = notif.targetUserId || notif.userId;
+                    return target === currentUid || target === currentUser.username || target === currentUser.id;
+                  }
+                  return true;
+                });
+                setNotifications(cleaned);
                 return;
               }
             }
@@ -5101,7 +5172,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sendNotification = async (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'isRead'>) => {
     const currentUid = firebaseUser?.uid || currentUser.id;
-    const resolvedTargetUid = notif.targetUserId || notif.userId || (notif.type === 'system' || notif.type === 'wallet' ? currentUid : undefined);
+    const lowerTitle = (notif.title || '').toLowerCase();
+    const lowerMsg = (notif.message || '').toLowerCase();
+    const isPrizeNotification =
+      lowerTitle.includes('prize distributed') ||
+      lowerTitle.includes('prize credited') ||
+      lowerTitle.includes('champion prize') ||
+      lowerTitle.includes('prize split') ||
+      lowerMsg.includes('deposited directly into your wallet') ||
+      lowerMsg.includes('gp has been deposited') ||
+      lowerMsg.includes('equal share of') ||
+      lowerMsg.includes('equal split of');
+
+    const resolvedTargetUid =
+      notif.targetUserId ||
+      notif.userId ||
+      (isPrizeNotification || notif.type === 'system' || notif.type === 'wallet' ? currentUid : undefined);
+
+    // Safeguard: Never broadcast prize distribution notifications to all users
+    if (isPrizeNotification && !resolvedTargetUid) {
+      console.warn('Blocked broadcast of untargeted prize distribution notification');
+      return;
+    }
+
     const newNotif: NotificationItem = {
       ...notif,
       id: 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -5114,23 +5207,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications(prev => [newNotif, ...prev]);
 
     // Also persist targeted or broadcast notification to Firestore
-    try {
-      await sendBroadcastNotificationToFirestore(
-        {
-          title: notif.title,
-          message: notif.message,
-          type: notif.type,
-          targetRole: notif.targetRole,
-          userId: resolvedTargetUid,
-          targetUserId: resolvedTargetUid,
-          excludeUserId: notif.excludeUserId,
-          actionUrl: notif.actionUrl,
-        },
-        currentUid,
-        currentUser.name
-      );
-    } catch (err) {
-      console.warn('sendNotification firestore notice:', err);
+    if (resolvedTargetUid || (!isPrizeNotification && (notif.type === 'announcement' || notif.type === 'dome' || notif.type === 'league' || notif.type === 'gus'))) {
+      try {
+        await sendBroadcastNotificationToFirestore(
+          {
+            title: notif.title,
+            message: notif.message,
+            type: notif.type,
+            targetRole: notif.targetRole,
+            userId: resolvedTargetUid,
+            targetUserId: resolvedTargetUid,
+            excludeUserId: notif.excludeUserId,
+            actionUrl: notif.actionUrl,
+          },
+          currentUid,
+          currentUser.name
+        );
+      } catch (err) {
+        console.warn('sendNotification firestore notice:', err);
+      }
     }
   };
 
@@ -5186,12 +5281,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         setTransactions((prev) => [newTx, ...prev.filter((t) => t.id !== txId)]);
 
-        // Push in-app notification
-        sendNotification({
+        // Push in-app notification strictly for this winner only (never broadcast to all users)
+        const winnerNotifId = `notif_dome_prize_${currentUid}_${detail.seasonNumber || 1}_${Date.now()}`;
+        const winnerNotif: NotificationItem = {
+          id: winnerNotifId,
           title: '🏆 School Dome Prize Distributed!',
           message: `Congratulations! ${prize.toLocaleString()} GP has been deposited directly into your wallet!`,
           type: 'dome',
           actionUrl: 'school_dome_results',
+          userId: currentUid,
+          targetUserId: currentUid,
+          timestamp: 'Just now',
+          isRead: false,
+          createdAtMs: Date.now(),
+        };
+
+        setNotifications((prev) => {
+          if (prev.some((n) => n.id === winnerNotifId)) return prev;
+          return [winnerNotif, ...prev];
         });
       }
     };
