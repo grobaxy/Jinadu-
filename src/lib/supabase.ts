@@ -520,7 +520,7 @@ export function subscribeToSupabase<T = any>(
       if (options?.filterDocId) {
         const single = await getDocFromSupabase<T>(tableName, options.filterDocId);
         if (!isCancelled) {
-          if (single) onData([single]);
+          onData(single ? [single] : []);
         }
       } else {
         const list = await queryDocsFromSupabase<T>(tableName, options);
@@ -541,7 +541,10 @@ export function subscribeToSupabase<T = any>(
   if (!inMemoryTableSubscribers.has(table)) {
     inMemoryTableSubscribers.set(table, new Set());
   }
-  const subscriberCb = () => {
+  const subscriberCb = (payload?: any) => {
+    if (options?.filterDocId && payload?.docId && payload.docId !== options.filterDocId) {
+      return;
+    }
     fetchAndNotify();
   };
   inMemoryTableSubscribers.get(table)!.add(subscriberCb);
@@ -556,7 +559,11 @@ export function subscribeToSupabase<T = any>(
         schema: 'public',
         table: table,
       },
-      () => {
+      (changePayload: any) => {
+        const changedDocId = changePayload?.new?.id || changePayload?.old?.id;
+        if (options?.filterDocId && changedDocId && changedDocId !== options.filterDocId) {
+          return;
+        }
         fetchAndNotify();
       }
     )
@@ -587,6 +594,9 @@ export function subscribeToSupabase<T = any>(
         detail.table === tableName ||
         normalizeTableName(detail.table || '') === table
       ) {
+        if (options?.filterDocId && detail.docId && detail.docId !== options.filterDocId) {
+          return;
+        }
         fetchAndNotify();
       }
     };

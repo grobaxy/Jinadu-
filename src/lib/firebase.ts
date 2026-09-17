@@ -1653,6 +1653,7 @@ export const ensureUserInFirestore = async (
     // Cache to localStorage
     try {
       localStorage.setItem(`grobax_user_profile_${uid}`, JSON.stringify(profileData));
+      localStorage.setItem('grobax_cached_user_profile', JSON.stringify({ ...profileData, id: uid }));
     } catch (e) {}
 
     return {

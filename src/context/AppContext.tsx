@@ -840,7 +840,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const cached = typeof window !== 'undefined' ? localStorage.getItem('grobax_cached_user_profile') : null;
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (parsed && parsed.id) return parsed;
+        if (parsed && parsed.id && parsed.id !== 'user_student') {
+          if (auth.currentUser && auth.currentUser.uid !== parsed.id) {
+            return MOCK_USERS.student;
+          }
+          return parsed;
+        }
       }
     } catch {}
     return MOCK_USERS.student;
@@ -1006,11 +1011,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsAuthModalOpen(true);
   };
 
+  const clearLocalUserCaches = () => {
+    try {
+      if (typeof window === 'undefined') return;
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (
+          key &&
+          (key.startsWith('grobax_user_profile_') ||
+           key.startsWith('grobax_academic_completed_') ||
+           key.startsWith('grobax_daily_qa_') ||
+           key.startsWith('grobax_read_notifs_') ||
+           key.startsWith('grobax_cached_user_profile') ||
+           key.startsWith('grobax_saved_wallet_txs') ||
+           key.startsWith('grobax_saved_notifications') ||
+           key.startsWith('grobax_saved_withdrawals') ||
+           key.startsWith('grobax_active_handout_') ||
+           key.startsWith('grobax_last_viewed_handout_') ||
+           key.startsWith('grobax_handout_library_cache_'))
+        ) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch (e) {
+      console.warn('Cache clearance notice:', e);
+    }
+  };
+
   const login = (profile: UserProfile) => {
     setCurrentUser(profile);
     if (profile.role) {
       setRoleState(profile.role);
     }
+    try {
+      localStorage.setItem('grobax_cached_user_profile', JSON.stringify(profile));
+      if (profile.id) {
+        localStorage.setItem(`grobax_user_profile_${profile.id}`, JSON.stringify(profile));
+      }
+    } catch {}
   };
 
   const setTheme = (newTheme: ThemeMode) => {
@@ -1024,6 +1064,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFirebaseUser(null);
       setCurrentUser(MOCK_USERS.student);
       setRoleState('student');
+      setTransactions([]);
+      setNotifications([]);
+      setWithdrawals([]);
+      clearLocalUserCaches();
     } catch (err) {
       console.error('Logout error:', err);
     }
@@ -1042,11 +1086,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFirebaseUser(user);
 
       if (user) {
+        // If switching from another active user on the same device, immediately flush previous user lists
+        setCurrentUser(prev => {
+          if (prev.id && prev.id !== 'user_student' && prev.id !== user.uid) {
+            setTransactions([]);
+            setNotifications([]);
+            setWithdrawals([]);
+            try {
+              localStorage.removeItem('grobax_cached_user_profile');
+              localStorage.removeItem('grobax_saved_notifications');
+              localStorage.removeItem('grobax_saved_wallet_txs');
+              localStorage.removeItem('grobax_saved_withdrawals');
+            } catch {}
+            return MOCK_USERS.student;
+          }
+          return prev;
+        });
+
         // Guarantee user document exists in Firestore and is fully populated
         try {
           const profileDoc = await ensureUserInFirestore(user);
           setCurrentUser(profileDoc);
           setRoleState(profileDoc.role || 'student');
+          try {
+            localStorage.setItem('grobax_cached_user_profile', JSON.stringify(profileDoc));
+            localStorage.setItem(`grobax_user_profile_${user.uid}`, JSON.stringify(profileDoc));
+          } catch {}
+
           if (profileDoc.dailyQaUsage?.date && profileDoc.dailyQaUsage?.count !== undefined) {
             try {
               localStorage.setItem(`grobax_daily_qa_${user.uid}_${profileDoc.dailyQaUsage.date}`, String(profileDoc.dailyQaUsage.count));
@@ -1081,24 +1147,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
 
                 setCurrentUser(prev => {
-                  const isPrevMock = prev.id === 'user_student' || (prev.id && prev.id !== user.uid);
+                  const isSameUser = prev.id === user.uid;
                   const isSuper =
                     isPrimarySuperAdmin(user.uid, user.email || data.email) ||
                     user.email === 'grobaxycompany@gmail.com' ||
                     data.email === 'grobaxycompany@gmail.com' ||
-                    user.uid === PRIMARY_SUPER_ADMIN_UID ||
-                    data.role === 'admin' ||
-                    data.role === 'super_admin' ||
-                    data.role === 'SUPER_ADMIN' ||
-                    data.role === 'ADMIN';
+                    user.uid === PRIMARY_SUPER_ADMIN_UID;
                   const fallbackName = user.displayName || (user.email ? user.email.split('@')[0] : 'Scholar');
                   
-                  const resolvedName = data.fullName || data.name || (isPrevMock ? fallbackName : prev.name);
-                  const resolvedFullName = data.fullName || data.name || (isPrevMock ? fallbackName : prev.fullName);
-                  const resolvedEmail = data.email || user.email || (isPrevMock ? '' : prev.email);
-                  const resolvedUsername = data.username || (isPrevMock ? (user.displayName ? user.displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 20) : (user.email ? user.email.split('@')[0] : `scholar_${user.uid.substring(0, 5)}`)) : prev.username);
-                  const resolvedAvatar = data.profileImage || data.avatar || user.photoURL || (isPrevMock ? `https://api.dicebear.com/7.x/bottts/svg?seed=${user.uid}` : prev.avatar);
-                  const resolvedRole = data.role || (isSuper ? 'admin' : (isPrevMock ? 'student' : prev.role));
+                  const resolvedName = data.fullName || data.name || (isSameUser ? prev.name : fallbackName);
+                  const resolvedFullName = data.fullName || data.name || (isSameUser ? prev.fullName : fallbackName);
+                  const resolvedEmail = data.email || user.email || (isSameUser ? prev.email : '');
+                  const resolvedUsername = data.username || (isSameUser ? prev.username : (user.displayName ? user.displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 20) : (user.email ? user.email.split('@')[0] : `scholar_${user.uid.substring(0, 5)}`)));
+                  const resolvedAvatar = data.profileImage || data.avatar || user.photoURL || (isSameUser ? prev.avatar : `https://api.dicebear.com/7.x/bottts/svg?seed=${user.uid}`);
+                  const resolvedRole = data.role || (isSuper ? 'admin' : (isSameUser ? prev.role : 'student'));
                   const userIsExpired = !isSuper && isSubscriptionExpired(data);
 
                   // If user subscription is expired, update Firestore if needed to clean up any stale active flags
@@ -1126,8 +1188,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     } catch {}
                   }
 
-                  const nextUser = {
-                    ...prev,
+                  const nextUser: UserProfile = {
+                    ...(isSameUser ? prev : MOCK_USERS.student),
                     ...data,
                     id: user.uid,
                     uid: user.uid,
@@ -1140,69 +1202,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     role: resolvedRole,
                     accountStatus: data.accountStatus || 'active',
                     academicProfileCompleted,
-                    institution: data.institutionName || data.institution || (isSuper ? 'Grobaax Systems Administration' : (isPrevMock ? '' : prev.institution)),
-                    institutionName: data.institutionName || data.institution || (isSuper ? 'Grobaax Systems Administration' : (isPrevMock ? '' : prev.institutionName)),
-                    institutionCategory: data.institutionCategory || prev.institutionCategory || 'University',
-                    faculty: data.facultyName || data.faculty || (isSuper ? 'HQ Overseer' : (isPrevMock ? '' : prev.faculty)),
-                    facultyName: data.facultyName || data.faculty || (isSuper ? 'HQ Overseer' : (isPrevMock ? '' : prev.facultyName)),
-                    facultyId: data.facultyId || prev.facultyId || '',
-                    department: data.departmentName || data.department || (isSuper ? 'HQ Overseer' : (isPrevMock ? '' : prev.department)),
-                    departmentName: data.departmentName || data.department || (isSuper ? 'HQ Overseer' : (isPrevMock ? '' : prev.departmentName)),
-                    departmentId: data.departmentId || prev.departmentId || '',
-                    level: data.level || (isSuper ? 'Executive Level' : (isPrevMock ? '100 Level' : prev.level)),
+                    institution: data.institutionName || data.institution || (isSuper ? 'Grobaax Systems Administration' : (isSameUser ? prev.institution : '')),
+                    institutionName: data.institutionName || data.institution || (isSuper ? 'Grobaax Systems Administration' : (isSameUser ? prev.institutionName : '')),
+                    institutionCategory: data.institutionCategory || (isSameUser ? prev.institutionCategory : 'University'),
+                    faculty: data.facultyName || data.faculty || (isSuper ? 'HQ Overseer' : (isSameUser ? prev.faculty : '')),
+                    facultyName: data.facultyName || data.faculty || (isSuper ? 'HQ Overseer' : (isSameUser ? prev.facultyName : '')),
+                    facultyId: data.facultyId || (isSameUser ? prev.facultyId : ''),
+                    department: data.departmentName || data.department || (isSuper ? 'HQ Overseer' : (isSameUser ? prev.department : '')),
+                    departmentName: data.departmentName || data.department || (isSuper ? 'HQ Overseer' : (isSameUser ? prev.departmentName : '')),
+                    departmentId: data.departmentId || (isSameUser ? prev.departmentId : ''),
+                    level: data.level || (isSuper ? 'Executive Level' : (isSameUser ? prev.level : '100 Level')),
                     gpBalance: data.gpBalance !== undefined && !isNaN(Number(data.gpBalance))
                       ? Number(data.gpBalance)
-                      : (typeof prev.gpBalance === 'number' && prev.gpBalance > 0
+                      : (isSameUser && typeof prev.gpBalance === 'number' && prev.gpBalance > 0
                           ? prev.gpBalance
                           : (isSuper ? 100000 : 0)),
-                    grbxTokens: data.grbxTokens !== undefined ? Number(data.grbxTokens) : (isPrevMock ? 0 : prev.grbxTokens),
-                    stakedTokens: data.stakedTokens !== undefined ? Number(data.stakedTokens) : (isPrevMock ? 0 : prev.stakedTokens),
-                    reputationPoints: data.reputationPoints !== undefined ? Number(data.reputationPoints) : (isPrevMock ? 100 : prev.reputationPoints),
-                    gusRank: data.gusRank !== undefined ? Number(data.gusRank) : (isPrevMock ? 0 : prev.gusRank),
-                    gusTier: data.gusTier || (isSuper ? 'Grandmaster' : (isPrevMock ? 'Scholar' : prev.gusTier)),
-                    walletAddress: data.walletAddress || prev.walletAddress || `0x${user.uid.substring(0, 10)}`,
+                    grbxTokens: data.grbxTokens !== undefined ? Number(data.grbxTokens) : (isSameUser ? prev.grbxTokens : 0),
+                    stakedTokens: data.stakedTokens !== undefined ? Number(data.stakedTokens) : (isSameUser ? prev.stakedTokens : 0),
+                    reputationPoints: data.reputationPoints !== undefined ? Number(data.reputationPoints) : (isSameUser ? prev.reputationPoints : 100),
+                    gusRank: data.gusRank !== undefined ? Number(data.gusRank) : (isSameUser ? prev.gusRank : 0),
+                    gusTier: data.gusTier || (isSuper ? 'Grandmaster' : (isSameUser ? prev.gusTier : 'Scholar')),
+                    walletAddress: data.walletAddress || (isSameUser ? prev.walletAddress : `0x${user.uid.substring(0, 10)}`),
                     activePlanId: isSuper ? 'plan_titan_naira' : (
                       userIsExpired
                         ? ''
-                        : (data.activePlanId || prev.activePlanId || '')
+                        : (data.activePlanId || (isSameUser ? prev.activePlanId : '') || '')
                     ),
                     membershipTier: isSuper ? 'Grobaax Titan Annual VIP' : (
                       userIsExpired
                         ? 'Free Scholar'
-                        : (data.membershipTier || data.subscriptionTier || prev.membershipTier || 'Free Scholar')
+                        : (data.membershipTier || data.subscriptionTier || (isSameUser ? prev.membershipTier : 'Free Scholar') || 'Free Scholar')
                     ),
                     subscriptionTier: isSuper ? 'Grobaax Titan Annual VIP' : (
                       userIsExpired
                         ? 'Free Scholar'
-                        : (data.subscriptionTier || data.membershipTier || prev.subscriptionTier || 'Free Scholar')
+                        : (data.subscriptionTier || data.membershipTier || (isSameUser ? prev.subscriptionTier : 'Free Scholar') || 'Free Scholar')
                     ),
                     subscriptionPlan: isSuper ? 'Grobaax Titan Annual VIP' : (
                       userIsExpired
                         ? ''
-                        : (data.subscriptionPlan || data.membershipTier || prev.subscriptionPlan || '')
+                        : (data.subscriptionPlan || data.membershipTier || (isSameUser ? prev.subscriptionPlan : '') || '')
                     ),
                     planId: isSuper ? 'plan_titan_naira' : (
                       userIsExpired
                         ? ''
-                        : (data.planId || data.activePlanId || prev.planId || '')
+                        : (data.planId || data.activePlanId || (isSameUser ? prev.planId : '') || '')
                     ),
                     tier: isSuper ? 'Grobaax Titan Annual VIP' : (
                       userIsExpired
                         ? 'Free Scholar'
-                        : (data.tier || data.membershipTier || prev.tier || 'Free Scholar')
+                        : (data.tier || data.membershipTier || (isSameUser ? prev.tier : 'Free Scholar') || 'Free Scholar')
                     ),
                     plan: isSuper ? 'Grobaax Titan Annual VIP' : (
                       userIsExpired
                         ? ''
-                        : (data.plan || data.membershipTier || prev.plan || '')
+                        : (data.plan || data.membershipTier || (isSameUser ? prev.plan : '') || '')
                     ),
                     isSubscribed: isSuper || Boolean(
                       !userIsExpired &&
-                      (data.isSubscribed || data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free')) || (data.membershipTier && !data.membershipTier.toLowerCase().includes('free') && data.membershipTier.toLowerCase() !== 'starter scholar') || prev.isSubscribed)
+                      (data.isSubscribed || data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free')) || (data.membershipTier && !data.membershipTier.toLowerCase().includes('free') && data.membershipTier.toLowerCase() !== 'starter scholar') || (isSameUser && prev.isSubscribed))
                     ),
                     isPremium: isSuper || Boolean(
                       !userIsExpired &&
-                      (data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free')) || (data.membershipTier && !data.membershipTier.toLowerCase().includes('free') && data.membershipTier.toLowerCase() !== 'starter scholar') || prev.isPremium)
+                      (data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free')) || (data.membershipTier && !data.membershipTier.toLowerCase().includes('free') && data.membershipTier.toLowerCase() !== 'starter scholar') || (isSameUser && prev.isPremium))
                     ),
                     isVip: isSuper || Boolean(
                       !userIsExpired &&
@@ -1211,7 +1273,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                        (data.activePlanId && (data.activePlanId.toLowerCase().includes('titan') || data.activePlanId.toLowerCase().includes('vip'))) ||
                        (data.subscriptionTier && (data.subscriptionTier.toLowerCase().includes('vip') || data.subscriptionTier.toLowerCase().includes('titan'))) ||
                        data.gusTier === 'Titan' ||
-                       prev.isVip)
+                       (isSameUser && prev.isVip))
                     ),
                     verified: isSuper || Boolean(
                       data.manualVerified ||
@@ -1219,7 +1281,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                       data.role === 'super_admin' ||
                       (!userIsExpired && (data.verified || data.isVip || data.isPremium || (data.activePlanId && !data.activePlanId.toLowerCase().includes('free'))))
                     ),
-                    subscriptionExpiry: isSuper ? '2099-12-31T23:59:59.999Z' : (data.subscriptionExpiry || prev.subscriptionExpiry || ''),
+                    subscriptionExpiry: isSuper ? '2099-12-31T23:59:59.999Z' : (data.subscriptionExpiry || (isSameUser ? prev.subscriptionExpiry : '') || ''),
                     subscription: isSuper ? {
                       planId: 'plan_titan_naira',
                       name: 'Grobaax Titan Annual VIP',
@@ -1230,8 +1292,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                       startDate: '2025-01-01T00:00:00.000Z',
                       expiryDate: '2099-12-31T23:59:59.999Z',
                       status: 'active',
-                    } : (userIsExpired && data.subscription ? { ...data.subscription, status: 'expired' } : (data.subscription || prev.subscription || undefined)),
-                    privacy: data.privacy || prev.privacy || {
+                    } : (userIsExpired && data.subscription ? { ...data.subscription, status: 'expired' } : (data.subscription || (isSameUser ? prev.subscription : undefined))),
+                    privacy: data.privacy || (isSameUser ? prev.privacy : undefined) || {
                       showInstitution: true,
                       showFaculty: true,
                       showDepartment: true,
@@ -1241,10 +1303,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                       levelVisibility: 'Public',
                       showAcademicInfoOnPosts: true,
                     },
-                    badges: data.badges || prev.badges || [],
-                    purchasedBadgeIds: data.purchasedBadgeIds || prev.purchasedBadgeIds || [],
-                    dailyQaUsage: data.dailyQaUsage || prev.dailyQaUsage || undefined,
+                    badges: data.badges || (isSameUser ? prev.badges : []) || [],
+                    purchasedBadgeIds: data.purchasedBadgeIds || (isSameUser ? prev.purchasedBadgeIds : []) || [],
+                    dailyQaUsage: data.dailyQaUsage || (isSameUser ? prev.dailyQaUsage : undefined),
                   };
+
+                  try {
+                    localStorage.setItem('grobax_cached_user_profile', JSON.stringify(nextUser));
+                    localStorage.setItem(`grobax_user_profile_${user.uid}`, JSON.stringify(nextUser));
+                  } catch {}
 
                   return nextUser;
                 });
@@ -1272,6 +1339,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setFirebaseUser(null);
         setCurrentUser(MOCK_USERS.student);
         setRoleState('student');
+        setTransactions([]);
+        setNotifications([]);
+        setWithdrawals([]);
+        clearLocalUserCaches();
         setIsAuthReady(true);
       }
     });

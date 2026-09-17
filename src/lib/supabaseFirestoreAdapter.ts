@@ -392,7 +392,7 @@ export function onSnapshot(
     return subscribeToSupabase(
       target.collection,
       (items) => {
-        const item = items.find((i) => i.id === target.id) || items[0];
+        const item = items.find((i) => i.id === target.id || (i as any).uid === target.id);
         const exists = Boolean(item);
         onNext({
           id: target.id,
