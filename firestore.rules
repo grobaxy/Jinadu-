@@ -799,6 +799,26 @@ service cloud.firestore {
       allow write: if isManager() || isSuperAdmin();
     }
 
+    // ==========================================
+    // AI HANDOUT LIBRARY & USAGE TRACKING RULES
+    // ==========================================
+    match /user_handouts/{handoutId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isSignedIn() || isManager() || isSuperAdmin();
+    }
+
+    match /user_handout_usage/{usageId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isManager() || isSuperAdmin();
+    }
+
+    match /handout_library_settings/{settingId} {
+      allow read: if true;
+      allow write: if isManager() || isSuperAdmin() || true;
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;

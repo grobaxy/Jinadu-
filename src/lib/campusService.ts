@@ -78,17 +78,33 @@ export function resolveUserSubscriptionTier(user: any): 'free' | 'premium' | 'vi
     return 'free';
   }
 
-  // If user is explicitly not subscribed or marked as free
-  if (user.isSubscribed === false && !user.isPremium && !user.isVip) {
-    return 'free';
-  }
-
   const membership = (user.membershipTier || '').toLowerCase().trim();
   const subTier = (user.subscriptionTier || '').toLowerCase().trim();
   const plan = (user.subscriptionPlan || user.planId || user.tier || user.activePlanId || user.plan || '').toLowerCase().trim();
   const planName = (user.planNameSnapshot || user.subscription?.name || user.subscription?.planId || '').toLowerCase().trim();
+  const targetTier = (user.targetTier || user.tierType || '').toLowerCase().trim();
 
-  // If explicitly marked as free / starter / empty, return free immediately
+  // 1. VIP Check (Check before free checks so active VIP accounts are always granted VIP limits)
+  const isVipCandidate = Boolean(
+    user.isVip ||
+    targetTier === 'vip' ||
+    membership.includes('vip') ||
+    membership.includes('titan') ||
+    subTier.includes('vip') ||
+    subTier.includes('titan') ||
+    plan.includes('vip') ||
+    plan.includes('titan') ||
+    planName.includes('vip') ||
+    planName.includes('titan') ||
+    plan.includes('annual') ||
+    planName.includes('annual')
+  );
+
+  if (isVipCandidate) {
+    return 'vip';
+  }
+
+  // If explicitly marked as free / starter / empty
   const isExplicitlyFree =
     membership === 'free' ||
     membership === 'free scholar' ||
@@ -100,47 +116,38 @@ export function resolveUserSubscriptionTier(user: any): 'free' | 'premium' | 'vi
     plan === 'plan_free' ||
     plan === 'free_starter';
 
-  // If user is not marked as subscribed and has no active plan
-  if (user.isSubscribed === false && !user.isSuperAdmin && user.role !== 'admin') {
+  // If user is explicitly free and not flagged as premium
+  if (isExplicitlyFree && !user.isPremium && !user.isSubscribed) {
     return 'free';
   }
 
-  // 1. VIP Check
-  if (
-    user.isVip ||
-    membership.includes('vip') ||
-    membership.includes('titan') ||
-    subTier.includes('vip') ||
-    subTier.includes('titan') ||
-    plan.includes('vip') ||
-    plan.includes('titan') ||
-    planName.includes('vip') ||
-    planName.includes('titan') ||
-    plan.includes('annual') ||
-    planName.includes('annual')
-  ) {
-    return 'vip';
-  }
-
-  if (isExplicitlyFree && !user.isPremium) {
+  // If user is explicitly marked as not subscribed and has no active premium flag
+  if (user.isSubscribed === false && !user.isPremium) {
     return 'free';
   }
 
   // 2. Premium Check (Do NOT treat generic 'scholar' as premium)
   const isPremiumCandidate = Boolean(
     user.isPremium ||
+    targetTier === 'premium' ||
     (user.isSubscribed && !isExplicitlyFree) ||
     membership.includes('premium') ||
     membership.includes('pro') ||
     membership.includes('champion') ||
+    membership.includes('master') ||
     subTier.includes('premium') ||
     subTier.includes('pro') ||
     subTier.includes('champion') ||
+    subTier.includes('master') ||
     plan.includes('premium') ||
     plan.includes('pro') ||
+    plan.includes('champion') ||
+    plan.includes('master') ||
     plan.includes('basic_naira') ||
     planName.includes('premium') ||
     planName.includes('pro') ||
+    planName.includes('champion') ||
+    planName.includes('master') ||
     planName.includes('basic monthly')
   );
 

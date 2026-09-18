@@ -11,6 +11,8 @@ import {
   where,
   orderBy,
   limit,
+  serverTimestamp,
+  arrayUnion,
 } from './firebase';
 import {
   GeneratedHandout,
@@ -22,6 +24,7 @@ import {
 
 const HANDOUT_SETTINGS_DOC = 'handout_library_settings/config';
 const USER_HANDOUTS_COLLECTION = 'user_handouts';
+const USER_HANDOUT_USAGE_COLLECTION = 'user_handout_usage';
 
 export const DEFAULT_HANDOUT_SETTINGS: HandoutDailyLimitConfig = {
   freeDailyLimit: 2,
@@ -42,35 +45,225 @@ export const DEFAULT_ADMIN_STATS: HandoutAdminStats = {
 };
 
 /**
- * Fetch current user daily generation quota from server
+ * Get date key formatted in Nigeria WAT (UTC+1) / standard ISO YYYY-MM-DD
+ */
+export function getHandoutDateKey(d: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Lagos',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  } catch {
+    return d.toISOString().split('T')[0];
+  }
+}
+
+/**
+ * Determine daily limit based on user subscription tier
+ */
+export function getLimitForHandoutTier(
+  tier: 'free' | 'premium' | 'vip',
+  settings?: HandoutDailyLimitConfig
+): number | 'unlimited' {
+  const cfg = settings || DEFAULT_HANDOUT_SETTINGS;
+  if (tier === 'vip') {
+    return cfg.vipDailyLimit === 'unlimited' ? 'unlimited' : Math.max(1, Number(cfg.vipDailyLimit) || 100);
+  }
+  if (tier === 'premium') {
+    return Math.max(1, Number(cfg.premiumDailyLimit) || 30);
+  }
+  return Math.max(1, Number(cfg.freeDailyLimit) || 2);
+}
+
+/**
+ * Record a successful handout generation in Firestore & LocalStorage
+ */
+export async function recordHandoutGenerationUsage(
+  userId: string,
+  tier: 'free' | 'premium' | 'vip',
+  topic?: string
+): Promise<HandoutUserQuotaInfo> {
+  const dateKey = getHandoutDateKey();
+  const docId = `${userId}_${dateKey}`;
+  const localKey = `grobax_handout_usage_${userId}_${dateKey}`;
+
+  // 1. Read existing local count
+  let localCount = 0;
+  try {
+    const cached = localStorage.getItem(localKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.dateKey === dateKey) {
+        localCount = Math.max(0, Number(parsed.count) || 0);
+      }
+    }
+  } catch {}
+
+  const newCount = localCount + 1;
+
+  // 2. Optimistic write to LocalStorage
+  try {
+    localStorage.setItem(
+      localKey,
+      JSON.stringify({
+        userId,
+        dateKey,
+        count: newCount,
+        tier,
+        lastGeneratedAt: new Date().toISOString(),
+        recentTopic: topic || '',
+      })
+    );
+  } catch {}
+
+  // 3. Persist to Firestore
+  let firestoreCount = newCount;
+  try {
+    const usageRef = doc(db, USER_HANDOUT_USAGE_COLLECTION, docId);
+    const snap = await getDoc(usageRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      firestoreCount = Math.max(newCount, (Number(data.count) || 0) + 1);
+    }
+
+    const payload: any = {
+      userId,
+      dateKey,
+      count: firestoreCount,
+      tier,
+      lastGeneratedAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+    };
+    if (topic) {
+      payload.recentTopics = arrayUnion(topic);
+    }
+
+    await setDoc(usageRef, payload, { merge: true });
+
+    // Sync back to local storage if Firestore had higher
+    if (firestoreCount > newCount) {
+      try {
+        localStorage.setItem(
+          localKey,
+          JSON.stringify({
+            userId,
+            dateKey,
+            count: firestoreCount,
+            tier,
+            lastGeneratedAt: new Date().toISOString(),
+            recentTopic: topic || '',
+          })
+        );
+      } catch {}
+    }
+  } catch (err) {
+    console.warn('[Handout Service] Firestore usage save warning:', err);
+  }
+
+  const authoritativeCount = Math.max(newCount, firestoreCount);
+  const dailyLimit = getLimitForHandoutTier(tier);
+  const remaining = dailyLimit === 'unlimited' ? 'unlimited' : Math.max(0, dailyLimit - authoritativeCount);
+  const canGenerate = dailyLimit === 'unlimited' ? true : authoritativeCount < dailyLimit;
+
+  return {
+    tier,
+    todayCount: authoritativeCount,
+    dailyLimit,
+    remaining,
+    canGenerate,
+    dateKey,
+  };
+}
+
+/**
+ * Fetch current user daily generation quota from Firestore, Server & LocalStorage
  */
 export async function fetchUserHandoutQuota(
   userId: string,
   tier: 'free' | 'premium' | 'vip' = 'free',
   subscriptionExpiry?: string | null
 ): Promise<HandoutUserQuotaInfo> {
+  const dateKey = getHandoutDateKey();
+  const docId = `${userId}_${dateKey}`;
+  const localKey = `grobax_handout_usage_${userId}_${dateKey}`;
+
+  // 1. Read local storage cache
+  let localCount = 0;
+  try {
+    const cached = localStorage.getItem(localKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.dateKey === dateKey) {
+        localCount = Math.max(0, Number(parsed.count) || 0);
+      }
+    }
+  } catch {}
+
+  // 2. Read from Firestore
+  let firestoreCount = 0;
+  try {
+    const snap = await getDoc(doc(db, USER_HANDOUT_USAGE_COLLECTION, docId));
+    if (snap.exists()) {
+      const data = snap.data();
+      firestoreCount = Math.max(0, Number(data.count) || 0);
+    }
+  } catch (err) {
+    console.warn('[Handout Service] Firestore quota read notice:', err);
+  }
+
+  // 3. Query Server API
+  let serverCount = 0;
+  let serverQuota: HandoutUserQuotaInfo | null = null;
+  const knownCountSoFar = Math.max(firestoreCount, localCount);
+
   try {
     const expiryParam = subscriptionExpiry ? `&subscriptionExpiry=${encodeURIComponent(subscriptionExpiry)}` : '';
-    const res = await fetch(`/api/library/quota?userId=${encodeURIComponent(userId)}&tier=${encodeURIComponent(tier)}${expiryParam}`);
+    const res = await fetch(
+      `/api/library/quota?userId=${encodeURIComponent(userId)}&tier=${encodeURIComponent(tier)}${expiryParam}&todayCount=${knownCountSoFar}`
+    );
     if (res.ok) {
       const data = await res.json();
       if (data && data.success && data.quota) {
-        return data.quota;
+        serverQuota = data.quota;
+        serverCount = Math.max(0, Number(data.quota.todayCount) || 0);
       }
     }
   } catch (err) {
-    console.warn('[Handout Service] Could not fetch server quota, fallback to optimistic calculation:', err);
+    console.warn('[Handout Service] Could not fetch server quota, using Firestore/local count:', err);
   }
 
-  // Fallback estimation
-  const limitVal = tier === 'vip' ? 'unlimited' : tier === 'premium' ? 30 : 2;
+  // Authoritative count is the highest recorded usage across all storages
+  const authoritativeCount = Math.max(serverCount, firestoreCount, localCount);
+
+  // Sync to local cache if changed
+  if (authoritativeCount > localCount) {
+    try {
+      localStorage.setItem(
+        localKey,
+        JSON.stringify({
+          userId,
+          dateKey,
+          count: authoritativeCount,
+          tier,
+          lastGeneratedAt: new Date().toISOString(),
+        })
+      );
+    } catch {}
+  }
+
+  const dailyLimit = serverQuota?.dailyLimit || getLimitForHandoutTier(tier);
+  const remaining = dailyLimit === 'unlimited' ? 'unlimited' : Math.max(0, dailyLimit - authoritativeCount);
+  const canGenerate = dailyLimit === 'unlimited' ? true : authoritativeCount < dailyLimit;
+
   return {
     tier,
-    todayCount: 0,
-    dailyLimit: limitVal,
-    remaining: limitVal,
-    canGenerate: true,
-    dateKey: new Date().toISOString().split('T')[0],
+    todayCount: authoritativeCount,
+    dailyLimit,
+    remaining,
+    canGenerate,
+    dateKey,
   };
 }
 
@@ -191,10 +384,34 @@ export async function generateHandoutViaApi(params: {
   limitReached?: boolean;
 }> {
   try {
+    // 1. Quota Pre-Check: Prevent unnecessary generation if user has reached daily allowance
+    const currentQuota = await fetchUserHandoutQuota(
+      params.userId,
+      params.tier,
+      params.subscriptionExpiry
+    );
+
+    if (!currentQuota.canGenerate) {
+      const upgradeMsg =
+        params.tier === 'free'
+          ? 'You have used your 2 free AI handouts for today. Upgrade to Premium to generate up to 30 handouts daily, or VIP for unlimited access.'
+          : 'You have reached your daily allowance of 30 handouts for today. Upgrade to VIP for unlimited handout generations.';
+      return {
+        success: false,
+        limitReached: true,
+        error: upgradeMsg,
+        quota: currentQuota,
+      };
+    }
+
+    // 2. Call backend generation endpoint with synchronized count
     const res = await fetch('/api/library/generate-handout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
+      body: JSON.stringify({
+        ...params,
+        currentKnownTodayCount: currentQuota.todayCount,
+      }),
     });
 
     const data = await res.json();
@@ -204,19 +421,26 @@ export async function generateHandoutViaApi(params: {
         success: false,
         error: data.error || 'Failed to generate academic handout.',
         limitReached: Boolean(data.limitReached),
-        quota: data.quota,
+        quota: data.quota || currentQuota,
       };
     }
 
     const handout: GeneratedHandout = data.handout;
 
-    // Save to Firestore user collection immediately
+    // 3. Increment & save usage in Firestore and localStorage immediately
+    const updatedQuota = await recordHandoutGenerationUsage(
+      params.userId,
+      params.tier,
+      handout.topic
+    );
+
+    // 4. Save handout to Firestore & local cache
     await saveGeneratedHandoutToUserStore(params.userId, handout);
 
     return {
       success: true,
       handout,
-      quota: data.quota,
+      quota: updatedQuota || data.quota,
     };
   } catch (err: any) {
     console.error('[Handout Service] Generate request network error:', err);

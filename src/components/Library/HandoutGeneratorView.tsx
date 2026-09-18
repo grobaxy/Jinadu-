@@ -40,19 +40,48 @@ import {
 } from '../../lib/handoutService';
 import { resolveUserSubscriptionTier } from '../../lib/campusService';
 
+export interface HandoutPrefillData {
+  category?: HandoutInstitutionCategory;
+  institution?: string;
+  faculty?: string;
+  department?: string;
+  level?: string;
+  course?: string;
+  topic?: string;
+}
+
 interface HandoutGeneratorViewProps {
   onHandoutGenerated: (handout: GeneratedHandout) => void;
+  initialPrefill?: HandoutPrefillData | null;
+  onClearPrefill?: () => void;
 }
 
 export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
   onHandoutGenerated,
+  initialPrefill,
+  onClearPrefill,
 }) => {
   const { currentUser, userProfile, isUserSubscribed, openWalletModal } = useApp();
 
+  // Combine user info for robust tier resolution
+  const mergedUser = useMemo(() => {
+    return { ...(userProfile || {}), ...(currentUser || {}) };
+  }, [userProfile, currentUser]);
+
   // Resolved user subscription tier
   const userTier: 'free' | 'premium' | 'vip' = useMemo(() => {
-    return resolveUserSubscriptionTier(userProfile);
-  }, [userProfile]);
+    return resolveUserSubscriptionTier(mergedUser);
+  }, [mergedUser]);
+
+  const effectiveUserId = useMemo(() => {
+    return (
+      currentUser?.id ||
+      currentUser?.uid ||
+      userProfile?.id ||
+      userProfile?.uid ||
+      'student'
+    );
+  }, [currentUser?.id, currentUser?.uid, userProfile?.id, userProfile?.uid]);
 
   // Academic Hierarchy Selection States
   const [selectedCategory, setSelectedCategory] = useState<HandoutInstitutionCategory>('University');
@@ -74,11 +103,14 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
 
   // Load User Quota
   const loadQuota = async () => {
-    const effectiveUid = currentUser?.uid || currentUser?.id || userProfile?.id || userProfile?.uid;
-    if (!effectiveUid) return;
+    if (!effectiveUserId) return;
     setIsLoadingQuota(true);
     try {
-      const q = await fetchUserHandoutQuota(effectiveUid, userTier, userProfile?.subscriptionExpiry);
+      const q = await fetchUserHandoutQuota(
+        effectiveUserId,
+        userTier,
+        mergedUser?.subscriptionExpiry || userProfile?.subscriptionExpiry
+      );
       setQuota(q);
     } catch (err) {
       console.warn('Quota load notice:', err);
@@ -89,7 +121,7 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
 
   useEffect(() => {
     loadQuota();
-  }, [currentUser?.uid, currentUser?.id, userProfile?.id, userTier, userProfile?.subscriptionExpiry]);
+  }, [effectiveUserId, userTier, mergedUser?.subscriptionExpiry]);
 
   // Pre-fill Institution from User Profile if available
   useEffect(() => {
@@ -108,6 +140,19 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
       }
     }
   }, [userProfile?.institution, selectedCategory]);
+
+  // Handle incoming prefill from Explore Search or Syllabus Click
+  useEffect(() => {
+    if (initialPrefill) {
+      if (initialPrefill.category) setSelectedCategory(initialPrefill.category);
+      if (initialPrefill.institution) setSelectedInstitution(initialPrefill.institution);
+      if (initialPrefill.faculty) setSelectedFaculty(initialPrefill.faculty);
+      if (initialPrefill.department) setSelectedDepartment(initialPrefill.department);
+      if (initialPrefill.level) setSelectedLevel(initialPrefill.level);
+      if (initialPrefill.course) setCourseInput(initialPrefill.course);
+      if (initialPrefill.topic) setTopicInput(initialPrefill.topic);
+    }
+  }, [initialPrefill]);
 
   // Available Institutions for selected category
   const availableInstitutions = useMemo(() => {
@@ -232,13 +277,12 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
     setIsGenerating(true);
 
     try {
-      const effectiveUserId = currentUser?.uid || currentUser?.id || userProfile?.id || userProfile?.uid || 'student';
       const res = await generateHandoutViaApi({
         userId: effectiveUserId,
-        userEmail: currentUser.email || userProfile?.email || '',
-        userDisplayName: userProfile?.name || currentUser.displayName || 'Student',
+        userEmail: currentUser?.email || userProfile?.email || '',
+        userDisplayName: userProfile?.name || currentUser?.displayName || 'Student',
         tier: userTier,
-        subscriptionExpiry: userProfile?.subscriptionExpiry,
+        subscriptionExpiry: mergedUser?.subscriptionExpiry || userProfile?.subscriptionExpiry,
         institutionType: selectedCategory,
         institution: selectedInstitution,
         faculty: selectedFaculty,
@@ -290,9 +334,19 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
                 <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
                   AI Academic Handout Generator
                 </h2>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                  {userTier.toUpperCase()} TIER
-                </span>
+                {userTier === 'vip' ? (
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                    VIP TITAN • UNLIMITED
+                  </span>
+                ) : userTier === 'premium' ? (
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+                    PREMIUM • 30 / DAY
+                  </span>
+                ) : (
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                    FREE SCHOLAR • 2 / DAY
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                 Generate study-grade, syllabus-aligned handouts tailored to your exact Nigerian institution curriculum.
@@ -333,11 +387,48 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
                 <span>Upgrade</span>
               </button>
             )}
+
+            {userTier === 'premium' && (
+              <button
+                type="button"
+                onClick={() => openWalletModal('upgrade')}
+                className="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm"
+              >
+                <Zap className="w-3.5 h-3.5 fill-current" />
+                <span>Get VIP</span>
+              </button>
+            )}
           </div>
         </div>
 
+        {/* Limit Reached Warning Alert */}
+        {quota && !quota.canGenerate && (
+          <div className="mt-3.5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-rose-800 dark:text-rose-200">
+            <div className="flex items-start sm:items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5 sm:mt-0" />
+              <div>
+                <span className="font-bold">
+                  Daily Handout Allowance Reached ({quota.todayCount}/{quota.dailyLimit}).
+                </span>
+                <p className="text-rose-700/80 dark:text-rose-300/80 mt-0.5">
+                  {userTier === 'free'
+                    ? 'Free accounts have a limit of 2 handouts/day. Upgrade to Premium for 30 daily handouts, or VIP for unlimited access!'
+                    : 'Premium scholars have a limit of 30 handouts/day. Upgrade to VIP Titan for unlimited daily generations!'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => openWalletModal('upgrade')}
+              className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition shrink-0 self-start sm:self-auto shadow-sm"
+            >
+              {userTier === 'free' ? 'Upgrade to Premium (30/day) →' : 'Upgrade to VIP (Unlimited) →'}
+            </button>
+          </div>
+        )}
+
         {/* Free Tier Callout if Remaining is Low */}
-        {userTier === 'free' && quota && typeof quota.remaining === 'number' && quota.remaining <= 1 && (
+        {userTier === 'free' && quota && quota.canGenerate && typeof quota.remaining === 'number' && quota.remaining <= 1 && (
           <div className="mt-3 pt-3 border-t border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-300">
             <span className="flex items-center gap-1.5">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -625,17 +716,31 @@ export const HandoutGeneratorView: React.FC<HandoutGeneratorViewProps> = ({
 
           {/* Submit Action Button */}
           {!isGenerating && (
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handleGenerate}
-                disabled={isGenerating || (quota && !quota.canGenerate)}
-                className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm sm:text-base transition shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 group"
-              >
-                <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                <span>Generate Academic Handout</span>
-                <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-              </button>
+            <div className="pt-2 space-y-2">
+              {quota && !quota.canGenerate ? (
+                <button
+                  type="button"
+                  onClick={() => openWalletModal('upgrade')}
+                  className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-sm sm:text-base transition shadow-md shadow-amber-500/20 flex items-center justify-center gap-2"
+                >
+                  <Crown className="w-5 h-5" />
+                  <span>
+                    Daily Limit Reached ({quota.todayCount}/{quota.dailyLimit}) • Upgrade to Continue
+                  </span>
+                  <ArrowRight className="w-4 h-4 ml-1" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={isGenerating}
+                  className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm sm:text-base transition shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 group"
+                >
+                  <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                  <span>Generate Academic Handout</span>
+                  <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                </button>
+              )}
             </div>
           )}
         </div>

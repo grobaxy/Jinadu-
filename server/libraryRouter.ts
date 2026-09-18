@@ -213,6 +213,7 @@ libraryRouter.get('/quota', (req: Request, res: Response) => {
     const userId = String(req.query.userId || '');
     const tierRaw = String(req.query.tier || 'free').toLowerCase();
     const expiryRaw = String(req.query.expiry || req.query.subscriptionExpiry || '');
+    const clientKnownTodayCount = Math.max(0, Number(req.query.todayCount) || 0);
 
     let tier: 'free' | 'premium' | 'vip' =
       tierRaw === 'vip' ? 'vip' : tierRaw === 'premium' ? 'premium' : 'free';
@@ -230,9 +231,21 @@ libraryRouter.get('/quota', (req: Request, res: Response) => {
     }
 
     const dateKey = getTodayKey();
-    const todayCount = getUserTodayCount(userId, dateKey);
-    const dailyLimit = getLimitForTier(tier, state.settings);
+    let todayCount = getUserTodayCount(userId, dateKey);
 
+    // Reconcile if client/Firestore has a higher verified count
+    if (clientKnownTodayCount > todayCount) {
+      todayCount = clientKnownTodayCount;
+      const key = `${userId}_${dateKey}`;
+      state.dailyUsage[key] = {
+        count: todayCount,
+        tier,
+        lastGeneratedAt: new Date().toISOString(),
+      };
+      saveState();
+    }
+
+    const dailyLimit = getLimitForTier(tier, state.settings);
     const canGenerate = dailyLimit === 'unlimited' ? true : todayCount < dailyLimit;
     const remaining = dailyLimit === 'unlimited' ? 'unlimited' : Math.max(0, dailyLimit - todayCount);
 
@@ -753,6 +766,7 @@ libraryRouter.post('/generate-handout', async (req: Request, res: Response) => {
     userDisplayName,
     tier = 'free',
     subscriptionExpiry = '',
+    currentKnownTodayCount = 0,
     institutionType = 'University',
     institution,
     faculty,
@@ -801,7 +815,19 @@ libraryRouter.post('/generate-handout', async (req: Request, res: Response) => {
 
   checkAndRollCounters();
   const dateKey = getTodayKey();
-  const currentCount = getUserTodayCount(userId, dateKey);
+  let currentCount = getUserTodayCount(userId, dateKey);
+
+  // Reconcile with verified client/Firestore count if higher
+  if (Number(currentKnownTodayCount) > currentCount) {
+    currentCount = Number(currentKnownTodayCount);
+    state.dailyUsage[`${userId}_${dateKey}`] = {
+      count: currentCount,
+      tier: normalizedTier,
+      lastGeneratedAt: new Date().toISOString(),
+    };
+    saveState();
+  }
+
   const dailyLimit = getLimitForTier(normalizedTier, state.settings);
 
   // 4. Server-Side Daily Limit Check
@@ -815,10 +841,14 @@ libraryRouter.post('/generate-handout', async (req: Request, res: Response) => {
       success: false,
       limitReached: true,
       error: upgradePrompt,
-      tier: normalizedTier,
-      todayCount: currentCount,
-      dailyLimit,
-      remaining: 0,
+      quota: {
+        tier: normalizedTier,
+        todayCount: currentCount,
+        dailyLimit,
+        remaining: 0,
+        canGenerate: false,
+        dateKey,
+      },
     });
   }
 
@@ -1077,7 +1107,7 @@ Ensure all JSON strings are properly escaped. Return RAW VALID JSON ONLY with no
 
     // 9. Increment user's successful generation count ONLY now!
     const usageKey = `${userId}_${dateKey}`;
-    const newCount = (state.dailyUsage[usageKey]?.count || 0) + 1;
+    const newCount = Math.max(currentCount, (state.dailyUsage[usageKey]?.count || 0)) + 1;
     state.dailyUsage[usageKey] = {
       count: newCount,
       tier: normalizedTier,

@@ -1375,6 +1375,8 @@ export function searchCurriculumDirectory(
 }
 
 // Backward compatibility helper
+export const ALL_ACADEMIC_FACULTIES = ACADEMIC_CURRICULUM_DATA;
+
 export const ACADEMIC_FACULTIES_DATA = ACADEMIC_CURRICULUM_DATA.map((fac) => ({
   faculty: fac.faculty,
   iconName: fac.iconName,
@@ -1500,3 +1502,5 @@ export const POPULAR_TOPIC_SUGGESTIONS = [
     categoryBadge: 'Petroleum & Mining Institute',
   },
 ];
+
+export const SUGGESTED_SEARCH_TOPICS = POPULAR_TOPIC_SUGGESTIONS;

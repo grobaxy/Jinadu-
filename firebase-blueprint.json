@@ -678,6 +678,29 @@
           ]
         }
       ]
+    },
+    "user_handouts": {
+      "indexes": [
+        {
+          "fields": [
+            { "fieldPath": "userId", "order": "ASCENDING" },
+            { "fieldPath": "createdAt", "order": "DESCENDING" }
+          ]
+        }
+      ]
+    },
+    "user_handout_usage": {
+      "indexes": [
+        {
+          "fields": [
+            { "fieldPath": "userId", "order": "ASCENDING" },
+            { "fieldPath": "dateKey", "order": "ASCENDING" }
+          ]
+        }
+      ]
+    },
+    "handout_library_settings": {
+      "indexes": []
     }
   }
 }

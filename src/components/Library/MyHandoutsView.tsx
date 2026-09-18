@@ -37,11 +37,13 @@ export const MyHandoutsView: React.FC<MyHandoutsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
 
+  const effectiveUserId = currentUser?.uid || currentUser?.id;
+
   const loadHandouts = async () => {
-    if (!currentUser?.uid) return;
+    if (!effectiveUserId) return;
     setIsLoading(true);
     try {
-      const items = await fetchUserGeneratedHandouts(currentUser.uid);
+      const items = await fetchUserGeneratedHandouts(effectiveUserId);
       setHandouts(items);
     } catch (err) {
       console.warn('Error fetching saved handouts:', err);
@@ -52,13 +54,13 @@ export const MyHandoutsView: React.FC<MyHandoutsViewProps> = ({
 
   useEffect(() => {
     loadHandouts();
-  }, [currentUser?.uid]);
+  }, [effectiveUserId]);
 
   const handleDelete = async (e: React.MouseEvent, handoutId: string) => {
     e.stopPropagation();
-    if (!currentUser?.uid) return;
+    if (!effectiveUserId) return;
     if (window.confirm('Are you sure you want to delete this handout from your library?')) {
-      await deleteUserGeneratedHandout(currentUser.uid, handoutId);
+      await deleteUserGeneratedHandout(effectiveUserId, handoutId);
       setHandouts((prev) => prev.filter((h) => h.id !== handoutId));
     }
   };
