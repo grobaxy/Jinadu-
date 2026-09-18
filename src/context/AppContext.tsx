@@ -837,11 +837,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     try {
+      const activeUid = auth.currentUser?.uid;
+      if (activeUid) {
+        const userSpecific = typeof window !== 'undefined' ? localStorage.getItem(`grobax_user_profile_${activeUid}`) : null;
+        if (userSpecific) {
+          const parsed = JSON.parse(userSpecific);
+          if (parsed && (parsed.id === activeUid || parsed.uid === activeUid)) {
+            return parsed;
+          }
+        }
+      }
       const cached = typeof window !== 'undefined' ? localStorage.getItem('grobax_cached_user_profile') : null;
       if (cached) {
         const parsed = JSON.parse(cached);
         if (parsed && parsed.id && parsed.id !== 'user_student') {
-          if (auth.currentUser && auth.currentUser.uid !== parsed.id) {
+          if (activeUid && activeUid !== parsed.id && activeUid !== parsed.uid) {
             return MOCK_USERS.student;
           }
           return parsed;
@@ -1106,12 +1116,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Guarantee user document exists in Firestore and is fully populated
         try {
           const profileDoc = await ensureUserInFirestore(user);
-          setCurrentUser(profileDoc);
-          setRoleState(profileDoc.role || 'student');
-          try {
-            localStorage.setItem('grobax_cached_user_profile', JSON.stringify(profileDoc));
-            localStorage.setItem(`grobax_user_profile_${user.uid}`, JSON.stringify(profileDoc));
-          } catch {}
+          if (!auth.currentUser || auth.currentUser.uid === user.uid) {
+            setCurrentUser(profileDoc);
+            setRoleState(profileDoc.role || 'student');
+            try {
+              localStorage.setItem('grobax_cached_user_profile', JSON.stringify(profileDoc));
+              localStorage.setItem(`grobax_user_profile_${user.uid}`, JSON.stringify(profileDoc));
+            } catch {}
+          }
 
           if (profileDoc.dailyQaUsage?.date && profileDoc.dailyQaUsage?.count !== undefined) {
             try {

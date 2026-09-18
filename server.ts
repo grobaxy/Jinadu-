@@ -93,27 +93,18 @@ async function startServer() {
           expiresIn = parseInt(params.get('expires_in') || '3600', 10);
         }
 
-        // Store directly in Supabase local storage if tokens are found
-        if (accessToken) {
-          try {
-            const storageKey = 'sb-rsnmxdyqrmkjsfxwypek-auth-token';
-            const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
-            const tokenData = {
-              access_token: accessToken,
-              refresh_token: refreshToken,
-              expires_in: expiresIn,
-              expires_at: expiresAt,
-              token_type: 'bearer',
-              user: null
-            };
-            localStorage.setItem(storageKey, JSON.stringify(tokenData));
-          } catch(e) {}
+        // Parse code if present in search (PKCE flow)
+        let code = null;
+        if (search) {
+          const sParams = new URLSearchParams(search.replace(/^\?/, ''));
+          code = sParams.get('code');
         }
 
         const payload = {
           type: 'SUPABASE_AUTH_SUCCESS',
           hash: hash,
           search: search,
+          code: code,
           accessToken: accessToken,
           refreshToken: refreshToken,
           timestamp: Date.now()

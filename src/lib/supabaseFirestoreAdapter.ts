@@ -505,44 +505,6 @@ export const db: any = {
 let cachedCurrentUser: any = null;
 const authListeners = new Set<(user: any) => void>();
 
-// Check local storage for initial user or session and parse incoming tokens from URL
-if (typeof window !== 'undefined') {
-  try {
-    // 1. If loaded with #access_token=... in the URL, immediately capture session
-    const currentHash = window.location.hash || '';
-    if (currentHash && currentHash.includes('access_token=')) {
-      const hashParams = new URLSearchParams(currentHash.replace(/^#/, ''));
-      const aToken = hashParams.get('access_token');
-      const rToken = hashParams.get('refresh_token');
-      if (aToken) {
-        supabase.auth.setSession({
-          access_token: aToken,
-          refresh_token: rToken || '',
-        }).then(({ data, error }) => {
-          if (!error && data?.user) {
-            handleSupabaseUser(data.user);
-          }
-        });
-        try {
-          window.history.replaceState(null, '', window.location.pathname + window.location.search);
-        } catch (_) {}
-      }
-    }
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (data?.session?.user) {
-        handleSupabaseUser(data.session.user);
-      }
-    });
-
-    supabase.auth.onAuthStateChange((_event, session) => {
-      handleSupabaseUser(session?.user || null);
-    });
-  } catch (e) {
-    console.warn('[Supabase Auth] Init listener notice:', e);
-  }
-}
-
 function handleSupabaseUser(rawUser: any) {
   if (!rawUser) {
     cachedCurrentUser = null;
@@ -581,6 +543,55 @@ function handleSupabaseUser(rawUser: any) {
   };
 
   authListeners.forEach((listener) => listener(cachedCurrentUser));
+}
+
+// Check local storage for initial user or session and parse incoming tokens from URL
+if (typeof window !== 'undefined') {
+  // Synchronously restore cachedCurrentUser from Supabase storage so auth.currentUser is instantly available
+  try {
+    const rawToken = localStorage.getItem('sb-rsnmxdyqrmkjsfxwypek-auth-token');
+    if (rawToken) {
+      const parsed = JSON.parse(rawToken);
+      if (parsed?.user?.id) {
+        handleSupabaseUser(parsed.user);
+      }
+    }
+  } catch (_) {}
+
+  try {
+    // 1. If loaded with #access_token=... in the URL, immediately capture session
+    const currentHash = window.location.hash || '';
+    if (currentHash && currentHash.includes('access_token=')) {
+      const hashParams = new URLSearchParams(currentHash.replace(/^#/, ''));
+      const aToken = hashParams.get('access_token');
+      const rToken = hashParams.get('refresh_token');
+      if (aToken) {
+        supabase.auth.setSession({
+          access_token: aToken,
+          refresh_token: rToken || '',
+        }).then(({ data, error }) => {
+          if (!error && data?.user) {
+            handleSupabaseUser(data.user);
+          }
+        });
+        try {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
+      }
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (data?.session?.user) {
+        handleSupabaseUser(data.session.user);
+      }
+    });
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      handleSupabaseUser(session?.user || null);
+    });
+  } catch (e) {
+    console.warn('[Supabase Auth] Init listener notice:', e);
+  }
 }
 
 export const auth: any = {
@@ -751,6 +762,15 @@ export const signInWithGoogle = async (): Promise<any> => {
     throw new Error('Google sign-in is only available in browser environments.');
   }
 
+  // 1. Capture current user ID (if any) before sign-in begins
+  // This ensures we NEVER resolve the OAuth promise with the previous stale session
+  const initialUserId = cachedCurrentUser?.uid || cachedCurrentUser?.id || null;
+
+  // Clear any existing OAuth event before starting
+  try {
+    localStorage.removeItem('grobaax_oauth_event');
+  } catch (_) {}
+
   const origin = window.location.origin;
   const redirectUrl = `${origin}/auth/callback`;
 
@@ -790,54 +810,77 @@ export const signInWithGoogle = async (): Promise<any> => {
       if (pollTimer) clearInterval(pollTimer);
     };
 
-    const finishWithSession = async (hash?: string, search?: string) => {
+    const finishWithSession = async (
+      hash?: string,
+      search?: string,
+      explicitCode?: string,
+      explicitAccessToken?: string,
+      explicitRefreshToken?: string
+    ) => {
       if (resolved) return;
       try {
-        if (hash) {
+        console.log('[Google Auth] finishWithSession triggered:', {
+          hasHash: Boolean(hash),
+          hasSearch: Boolean(search),
+          hasCode: Boolean(explicitCode),
+          hasAccessToken: Boolean(explicitAccessToken),
+        });
+
+        // 1. Direct tokens or extracted from hash
+        let aToken = explicitAccessToken;
+        let rToken = explicitRefreshToken;
+        if (!aToken && hash) {
           const params = new URLSearchParams(hash.replace(/^#/, ''));
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-          if (accessToken && refreshToken) {
-            const { data: sData, error: sErr } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            if (!sErr && sData.user) {
-              handleSupabaseUser(sData.user);
-              resolved = true;
-              cleanup();
-              resolve(cachedCurrentUser);
-              return;
-            }
+          aToken = params.get('access_token') || undefined;
+          rToken = params.get('refresh_token') || undefined;
+        }
+
+        if (aToken) {
+          const { data: sData, error: sErr } = await supabase.auth.setSession({
+            access_token: aToken,
+            refresh_token: rToken || '',
+          });
+          if (!sErr && sData?.user) {
+            handleSupabaseUser(sData.user);
+            resolved = true;
+            cleanup();
+            resolve(cachedCurrentUser);
+            return;
           }
         }
 
-        if (search) {
+        // 2. PKCE code flow from search or explicit code
+        let code = explicitCode;
+        if (!code && search) {
           const params = new URLSearchParams(search.replace(/^\?/, ''));
-          const code = params.get('code');
-          if (code) {
-            const { data: sData, error: sErr } = await supabase.auth.exchangeCodeForSession(code);
-            if (!sErr && sData.user) {
-              handleSupabaseUser(sData.user);
-              resolved = true;
-              cleanup();
-              resolve(cachedCurrentUser);
-              return;
-            }
+          code = params.get('code') || undefined;
+        }
+
+        if (code) {
+          const { data: sData, error: sErr } = await supabase.auth.exchangeCodeForSession(code);
+          if (!sErr && sData?.user) {
+            handleSupabaseUser(sData.user);
+            resolved = true;
+            cleanup();
+            resolve(cachedCurrentUser);
+            return;
           }
         }
 
-        // Check active Supabase session
+        // 3. Check active Supabase session (must be valid session)
         const { data: curr } = await supabase.auth.getSession();
         if (curr?.session?.user) {
-          handleSupabaseUser(curr.session.user);
-          resolved = true;
-          cleanup();
-          resolve(cachedCurrentUser);
-          return;
+          // If we had a prior user, only accept if the session user ID has changed or if explicitly triggered
+          if (!initialUserId || curr.session.user.id !== initialUserId || explicitCode || aToken) {
+            handleSupabaseUser(curr.session.user);
+            resolved = true;
+            cleanup();
+            resolve(cachedCurrentUser);
+            return;
+          }
         }
 
-        // Check localStorage direct token
+        // 4. Check localStorage direct token if available
         try {
           const localToken = localStorage.getItem('sb-rsnmxdyqrmkjsfxwypek-auth-token');
           if (localToken) {
@@ -847,7 +890,7 @@ export const signInWithGoogle = async (): Promise<any> => {
                 access_token: parsed.access_token,
                 refresh_token: parsed.refresh_token,
               });
-              if (!sErr && sData.user) {
+              if (!sErr && sData?.user && (!initialUserId || sData.user.id !== initialUserId)) {
                 handleSupabaseUser(sData.user);
                 resolved = true;
                 cleanup();
@@ -858,14 +901,21 @@ export const signInWithGoogle = async (): Promise<any> => {
           }
         } catch (_) {}
       } catch (err) {
-        console.warn('[Supabase OAuth] Session extraction warning:', err);
+        console.warn('[Supabase OAuth] Session extraction notice:', err);
       }
     };
 
     // 1. PostMessage handler from popup
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'SUPABASE_AUTH_SUCCESS') {
-        finishWithSession(event.data.hash, event.data.search);
+        console.log('[Google Auth] Received SUPABASE_AUTH_SUCCESS via postMessage');
+        finishWithSession(
+          event.data.hash,
+          event.data.search,
+          event.data.code,
+          event.data.accessToken,
+          event.data.refreshToken
+        );
       }
     };
     window.addEventListener('message', handleMessage);
@@ -876,7 +926,14 @@ export const signInWithGoogle = async (): Promise<any> => {
         try {
           const parsed = JSON.parse(event.newValue);
           if (parsed?.type === 'SUPABASE_AUTH_SUCCESS') {
-            finishWithSession(parsed.hash, parsed.search);
+            console.log('[Google Auth] Received SUPABASE_AUTH_SUCCESS via storage event');
+            finishWithSession(
+              parsed.hash,
+              parsed.search,
+              parsed.code,
+              parsed.accessToken,
+              parsed.refreshToken
+            );
           } else if (parsed?.access_token) {
             finishWithSession();
           }
@@ -892,7 +949,14 @@ export const signInWithGoogle = async (): Promise<any> => {
         bc = new BroadcastChannel('grobaax_oauth_channel');
         bc.onmessage = (event: MessageEvent) => {
           if (event.data?.type === 'SUPABASE_AUTH_SUCCESS') {
-            finishWithSession(event.data.hash, event.data.search);
+            console.log('[Google Auth] Received SUPABASE_AUTH_SUCCESS via BroadcastChannel');
+            finishWithSession(
+              event.data.hash,
+              event.data.search,
+              event.data.code,
+              event.data.accessToken,
+              event.data.refreshToken
+            );
           }
         };
       }
@@ -923,14 +987,32 @@ export const signInWithGoogle = async (): Promise<any> => {
     }
 
     // Monitor session state and popup closed state
-    // On mobile devices, popup.closed is often true immediately because the OS handles it as a separate tab/intent.
-    // Therefore, we only treat popup.closed as cancellation after a generous 40s grace period.
     const pollTimer = setInterval(async () => {
       if (resolved) return;
 
-      // Always check if session exists first
+      // Check if localStorage was populated by popup (e.g., if storage event didn't trigger)
+      try {
+        const stored = localStorage.getItem('grobaax_oauth_event');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.type === 'SUPABASE_AUTH_SUCCESS' && parsed.timestamp >= startTime) {
+            console.log('[Google Auth] Found grobaax_oauth_event during poll');
+            finishWithSession(
+              parsed.hash,
+              parsed.search,
+              parsed.code,
+              parsed.accessToken,
+              parsed.refreshToken
+            );
+            return;
+          }
+        }
+      } catch (_) {}
+
+      // Check active Supabase session ONLY if user is new or changed
       const { data: curr } = await supabase.auth.getSession();
-      if (curr?.session?.user) {
+      if (curr?.session?.user && (!initialUserId || curr.session.user.id !== initialUserId)) {
+        console.log('[Google Auth] New session user detected in poll:', curr.session.user.id);
         handleSupabaseUser(curr.session.user);
         resolved = true;
         cleanup();
@@ -950,7 +1032,7 @@ export const signInWithGoogle = async (): Promise<any> => {
           reject(cancelErr);
         }
       }
-    }, 1200);
+    }, 1000);
 
     // Safety timeout: 4 minutes
     setTimeout(() => {
