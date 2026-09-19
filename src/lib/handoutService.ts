@@ -414,14 +414,32 @@ export async function generateHandoutViaApi(params: {
       }),
     });
 
-    const data = await res.json();
+    let data: any = null;
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        console.warn('[Handout Service] Failed to parse JSON response:', jsonErr);
+      }
+    } else {
+      const rawText = await res.text();
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        // The server or gateway returned HTML or non-JSON
+        data = null;
+      }
+    }
 
-    if (!res.ok || !data.success) {
+    if (!data || !res.ok || !data.success) {
       return {
         success: false,
-        error: data.error || 'Failed to generate academic handout.',
-        limitReached: Boolean(data.limitReached),
-        quota: data.quota || currentQuota,
+        error:
+          data?.error ||
+          'The AI academic service is temporarily busy. Your daily allowance was not deducted. Please try again.',
+        limitReached: Boolean(data?.limitReached),
+        quota: data?.quota || currentQuota,
       };
     }
 

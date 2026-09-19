@@ -26,6 +26,7 @@ export async function callGeminiApi(options: {
   prompt: string;
   responseMimeType?: string;
   temperature?: number;
+  maxOutputTokens?: number;
   candidateModels?: string[];
   timeoutMs?: number;
 }): Promise<string | null> {
@@ -36,15 +37,12 @@ export async function callGeminiApi(options: {
   }
 
   const ai = getAiClient();
-  // High-availability candidate cascade prioritizing low-latency, resilient models
+  // High-availability candidate cascade prioritizing fast, available models
   const defaultCandidateModels = [
     'gemini-3.1-flash-lite',
-    'gemini-3.5-flash-lite',
-    'gemini-flash-lite-latest',
-    'gemini-3-flash-preview',
-    'gemini-3.6-flash',
     'gemini-flash-latest',
     'gemini-3.8-flash',
+    'gemini-3.1-pro-preview',
   ];
 
   const models =
@@ -52,7 +50,7 @@ export async function callGeminiApi(options: {
       ? options.candidateModels
       : defaultCandidateModels;
 
-  const timeoutMs = options.timeoutMs || 35000;
+  const timeoutMs = options.timeoutMs || 45000;
 
   for (const model of models) {
     // Attempt each candidate model up to 2 times with backoff on 503/429
@@ -64,6 +62,7 @@ export async function callGeminiApi(options: {
           config: {
             responseMimeType: (options.responseMimeType as any) || 'application/json',
             temperature: options.temperature ?? 0.2,
+            maxOutputTokens: options.maxOutputTokens ?? 8192,
           },
         });
 

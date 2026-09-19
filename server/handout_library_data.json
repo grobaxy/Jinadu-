@@ -7,13 +7,14 @@
     "updatedBy": "System Default"
   },
   "stats": {
-    "totalGenerated": 2,
-    "generatedToday": 0,
-    "generatedThisMonth": 2,
-    "freeGenerations": 1,
+    "totalGenerated": 3,
+    "generatedToday": 1,
+    "generatedThisMonth": 3,
+    "freeGenerations": 2,
     "premiumGenerations": 1,
     "vipGenerations": 0,
-    "lastUpdated": "2026-09-17T18:22:02.778Z"
+    "failedGenerations": 1,
+    "lastUpdated": "2026-09-19T07:24:52.475Z"
   },
   "dailyUsage": {
     "test_user_uid_123_2026-09-17": {
@@ -30,8 +31,13 @@
       "count": 1,
       "tier": "free",
       "lastGeneratedAt": "2026-09-18T07:11:38.369Z"
+    },
+    "test_verification_scholar_2026-09-19": {
+      "count": 1,
+      "tier": "free",
+      "lastGeneratedAt": "2026-09-19T07:24:52.475Z"
     }
   },
   "monthTrackKey": "2026-09",
-  "todayTrackKey": "2026-09-18"
+  "todayTrackKey": "2026-09-19"
 }

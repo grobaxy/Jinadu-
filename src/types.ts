@@ -439,6 +439,7 @@ export interface HandoutAdminStats {
   freeGenerations: number;
   premiumGenerations: number;
   vipGenerations: number;
+  failedGenerations?: number;
   lastUpdated: string;
 }
 

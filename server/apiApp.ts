@@ -105,9 +105,9 @@ async function callGeminiWithFailover(options: {
   const ai = getAi();
   const models = options.candidateModels && options.candidateModels.length > 0
     ? options.candidateModels
-    : ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.7-flash'];
+    : ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
 
-  const timeoutMs = options.timeoutMs || 12000;
+  const timeoutMs = options.timeoutMs || 25000;
 
   for (const model of models) {
     for (let attempt = 1; attempt <= 2; attempt++) {

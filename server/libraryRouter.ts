@@ -3,6 +3,12 @@ import fs from 'fs';
 import path from 'path';
 import { callGeminiApi } from './geminiService';
 import {
+  retrieveAcademicKnowledge,
+  saveCustomAcademicDocument,
+  listRegisteredAcademicDocuments,
+  AcademicDocumentRecord,
+} from './academicKnowledgeBase';
+import {
   HandoutDailyLimitConfig,
   HandoutAdminStats,
   HandoutUserQuotaInfo,
@@ -18,9 +24,13 @@ export const libraryRouter = Router();
 
 const DATA_FILE = path.join(process.cwd(), 'server', 'handout_library_data.json');
 
+interface ExtendedHandoutAdminStats extends HandoutAdminStats {
+  failedGenerations: number;
+}
+
 interface HandoutLibraryState {
   settings: HandoutDailyLimitConfig;
-  stats: HandoutAdminStats;
+  stats: ExtendedHandoutAdminStats;
   // Key format: `${userId}_${dateKey}`
   dailyUsage: Record<string, { count: number; tier: 'free' | 'premium' | 'vip'; lastGeneratedAt: string }>;
   monthTrackKey: string; // YYYY-MM
@@ -35,13 +45,14 @@ const DEFAULT_SETTINGS: HandoutDailyLimitConfig = {
   updatedBy: 'System Default',
 };
 
-const DEFAULT_STATS: HandoutAdminStats = {
+const DEFAULT_STATS: ExtendedHandoutAdminStats = {
   totalGenerated: 0,
   generatedToday: 0,
   generatedThisMonth: 0,
   freeGenerations: 0,
   premiumGenerations: 0,
   vipGenerations: 0,
+  failedGenerations: 0,
   lastUpdated: new Date().toISOString(),
 };
 
@@ -70,7 +81,11 @@ function loadState() {
       if (parsed && typeof parsed === 'object') {
         state = {
           settings: { ...DEFAULT_SETTINGS, ...parsed.settings },
-          stats: { ...DEFAULT_STATS, ...parsed.stats },
+          stats: {
+            ...DEFAULT_STATS,
+            ...parsed.stats,
+            failedGenerations: Number(parsed.stats?.failedGenerations) || 0,
+          },
           dailyUsage: parsed.dailyUsage || {},
           monthTrackKey: parsed.monthTrackKey || getMonthKey(),
           todayTrackKey: parsed.todayTrackKey || getTodayKey(),
@@ -136,6 +151,246 @@ function getUserTodayCount(userId: string, dateKey: string): number {
 }
 
 // ==========================================
+// QUALITY CONTROL VERIFICATION & ENRICHMENT
+// ==========================================
+
+function autoEnrichMissingFields(
+  parsed: any,
+  topic: string,
+  course: string,
+  level: string,
+  discipline: string
+) {
+  if (!parsed || typeof parsed !== 'object') return;
+
+  if (!parsed.title || typeof parsed.title !== 'string') {
+    parsed.title = `${topic}: Comprehensive Academic Study Guide`;
+  }
+
+  if (!Array.isArray(parsed.learningObjectives) || parsed.learningObjectives.length === 0) {
+    parsed.learningObjectives = [
+      `Define and articulate the fundamental principles and theoretical foundations of ${topic}.`,
+      `Analyze the analytical models, mechanisms, and governing laws pertinent to ${course}.`,
+      `Apply step-by-step methodologies to solve practical, theoretical, and examination problems.`,
+      `Evaluate common misconceptions and examination pitfalls associated with ${topic}.`,
+    ];
+  }
+
+  if (!Array.isArray(parsed.mainConcepts) || parsed.mainConcepts.length === 0) {
+    if (Array.isArray(parsed.sections) && parsed.sections.length > 0) {
+      parsed.mainConcepts = parsed.sections.map((s: any) => s.title || `${topic} Core Concept`);
+    } else {
+      parsed.mainConcepts = [
+        `Foundational Principles of ${topic}`,
+        `Analytical Mechanics & Derivations`,
+        `Practical Applications in ${course}`,
+      ];
+    }
+  }
+
+  if (!parsed.summary || typeof parsed.summary !== 'string') {
+    parsed.summary = `This comprehensive academic study guide covers the critical theoretical foundations, analytical derivations, worked examples, and examination standards for ${topic} in ${course} at the ${level} level.`;
+  }
+
+  if (!Array.isArray(parsed.keyPointsToRemember) || parsed.keyPointsToRemember.length === 0) {
+    parsed.keyPointsToRemember = [
+      `Always verify fundamental assumptions and boundary conditions when analyzing ${topic}.`,
+      `Ensure proper dimensional consistency, standard SI units, and explicit variable definitions in quantitative problems.`,
+      `Pay careful attention to standard definitions and distinguish between closely related concepts in examination scenarios.`,
+      `Review past examination questions and model marking rubrics before attempting summative assessments.`,
+    ];
+  }
+
+  if (!Array.isArray(parsed.practicalApplications) || parsed.practicalApplications.length === 0) {
+    parsed.practicalApplications = [
+      `Application of ${topic} principles in modern industrial, laboratory, and field settings.`,
+      `Computational modeling and quantitative analysis in ${discipline}.`,
+      `Design optimization, regulatory compliance, and professional practice.`,
+    ];
+  }
+
+  if (!Array.isArray(parsed.importantDefinitions) || parsed.importantDefinitions.length < 2) {
+    const existing = Array.isArray(parsed.importantDefinitions) ? parsed.importantDefinitions : [];
+    if (existing.length === 0) {
+      existing.push({
+        term: topic,
+        definition: `The primary subject matter, core theoretical construct, and governing analytical domain within ${course}.`,
+      });
+    }
+    existing.push({
+      term: `${topic} Governing Framework`,
+      definition: `The standard analytical relationship, statute, or theorem that dictates behavior, derivations, and quantitative metrics in ${course}.`,
+    });
+    parsed.importantDefinitions = existing;
+  }
+
+  if (!Array.isArray(parsed.relevantExamples) || parsed.relevantExamples.length === 0) {
+    parsed.relevantExamples = [
+      {
+        title: `Example 1 (Foundational): Core Analysis of ${topic}`,
+        scenarioOrProblem: `Given standard operational parameters for ${topic}, formulate the primary governing equation and analyze the result.`,
+        explanationOrSolution: `Step 1: State the governing principles and identify boundary conditions.\nStep 2: Formulate standard analytical expressions for ${topic}.\nStep 3: Evaluate the parameters and establish the definitive academic conclusion with proper units.`,
+      },
+    ];
+  }
+
+  if (!Array.isArray(parsed.reviewQuestions) || parsed.reviewQuestions.length === 0) {
+    parsed.reviewQuestions = [
+      {
+        question: `Define ${topic} and explain its fundamental theoretical principles within ${course}.`,
+        type: 'short_answer',
+        modelAnswerOrHint: `Provide the standard academic definition, state all governing assumptions, and outline its primary real-world significance.`,
+      },
+      {
+        question: `Discuss the practical applications and analytical challenges associated with ${topic}.`,
+        type: 'essay',
+        modelAnswerOrHint: `Structure the response logically: Introduction, core analytical discussion, case examples, and critical conclusions.`,
+      },
+    ];
+  }
+}
+
+function performQualityControlCheck(parsed: any, topic: string): {
+  passed: boolean;
+  reasons: string[];
+} {
+  const reasons: string[] = [];
+  if (!parsed || typeof parsed !== 'object') {
+    return { passed: false, reasons: ['Missing or malformed JSON payload'] };
+  }
+
+  if (!parsed.title || typeof parsed.title !== 'string') {
+    reasons.push('Missing academic title');
+  }
+  if (!Array.isArray(parsed.sections) || parsed.sections.length < 2) {
+    reasons.push('Handout contains fewer than 2 substantive modules');
+  }
+
+  // Topic alignment check
+  const topicWords = topic
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter((w) => w.length > 3);
+
+  const textCorpus = JSON.stringify(parsed).toLowerCase();
+  if (topicWords.length > 0) {
+    const matchedWords = topicWords.filter((w) => textCorpus.includes(w));
+    if (matchedWords.length === 0) {
+      reasons.push(`Generated content does not sufficiently cover the requested topic "${topic}"`);
+    }
+  }
+
+  // Strict regression guard: ensure induction motor boilerplate never leaks into non-motor topics
+  const isMotorTopic =
+    topic.toLowerCase().includes('induction motor') ||
+    topic.toLowerCase().includes('stator') ||
+    topic.toLowerCase().includes('rotor copper loss') ||
+    topic.toLowerCase().includes('slip calculation');
+
+  if (!isMotorTopic) {
+    if (
+      textCorpus.includes('stator copper loss') ||
+      textCorpus.includes('slip calculations') ||
+      textCorpus.includes('maiduguri, borno state') ||
+      textCorpus.includes('415 v, 50 hz, 4-pole')
+    ) {
+      reasons.push('Detected unrelated rotating machinery / induction motor boilerplate leakage');
+    }
+  }
+
+  return {
+    passed: reasons.length === 0,
+    reasons,
+  };
+}
+
+// Robust JSON extractor and repair parser
+function repairAndParseJson(raw: string): any {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+
+  // 1. Direct parse attempt
+  try {
+    return JSON.parse(trimmed);
+  } catch {}
+
+  // 2. Strip markdown code fences
+  let cleaned = trimmed
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  // 3. Find outermost braces
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const extracted = cleaned.slice(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(extracted);
+    } catch {}
+  }
+
+  // 4. Bracket and quote repair if JSON was truncated near end
+  try {
+    let repaired = cleaned;
+    if (firstBrace !== -1) {
+      repaired = repaired.slice(firstBrace);
+    }
+
+    let inString = false;
+    let escaped = false;
+    const openBrackets: string[] = [];
+
+    for (let i = 0; i < repaired.length; i++) {
+      const char = repaired[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (!inString) {
+        if (char === '{') openBrackets.push('}');
+        else if (char === '[') openBrackets.push(']');
+        else if (char === '}' || char === ']') {
+          if (openBrackets.length > 0 && openBrackets[openBrackets.length - 1] === char) {
+            openBrackets.pop();
+          }
+        }
+      }
+    }
+
+    // If terminated inside a string literal, close the string
+    if (inString) {
+      repaired += '"';
+    }
+
+    // Close remaining open objects/arrays in reverse order
+    while (openBrackets.length > 0) {
+      repaired += openBrackets.pop();
+    }
+
+    return JSON.parse(repaired);
+  } catch {}
+
+  return null;
+}
+
+const extractCleanJson = repairAndParseJson;
+
+// ==========================================
 // ROUTES
 // ==========================================
 
@@ -161,9 +416,10 @@ libraryRouter.post('/settings', (req: Request, res: Response) => {
 
     const newFree = Math.max(1, Number(freeDailyLimit) || state.settings.freeDailyLimit || 2);
     const newPremium = Math.max(1, Number(premiumDailyLimit) || state.settings.premiumDailyLimit || 30);
-    const newVip = vipDailyLimit === 'unlimited'
-      ? 'unlimited'
-      : Math.max(1, Number(vipDailyLimit) || 50);
+    const newVip =
+      vipDailyLimit === 'unlimited'
+        ? 'unlimited'
+        : Math.max(1, Number(vipDailyLimit) || 50);
 
     state.settings = {
       freeDailyLimit: newFree,
@@ -178,7 +434,7 @@ libraryRouter.post('/settings', (req: Request, res: Response) => {
     return res.json({
       success: true,
       settings: state.settings,
-      message: 'AI Handout generation limits successfully updated.',
+      message: 'AI Handout generation limits successfully updated and active.',
     });
   } catch (err: any) {
     return res.status(500).json({
@@ -268,496 +524,63 @@ libraryRouter.get('/quota', (req: Request, res: Response) => {
 });
 
 /**
- * Curriculum Synthesis Fallback Engine:
- * Generates an authoritative, exhaustive, syllabus-grounded academic handout tailored to specific faculties and departments.
+ * GET /api/library/materials
+ * RAG management: List registered academic source materials in the knowledge base
  */
-function synthesizeAcademicHandoutContent(params: {
-  topic: string;
-  course: string;
-  level: string;
-  department: string;
-  faculty: string;
-  institution: string;
-  institutionType: string;
-  additionalInstruction?: string;
-}) {
-  const cleanTopic = params.topic.trim();
-  const cleanCourse = params.course.trim();
-  const cleanDept = params.department.trim();
-  const cleanLevel = params.level.trim();
-  const cleanFaculty = params.faculty.trim();
-  const deptLower = cleanDept.toLowerCase();
-  const courseLower = cleanCourse.toLowerCase();
-  const topicLower = cleanTopic.toLowerCase();
-
-  // Detect domain
-  const isEngineering =
-    deptLower.includes('engin') ||
-    deptLower.includes('elect') ||
-    deptLower.includes('mech') ||
-    deptLower.includes('civil') ||
-    courseLower.includes('ele ') ||
-    courseLower.includes('mee ') ||
-    courseLower.includes('cve ');
-
-  const isComputing =
-    deptLower.includes('comput') ||
-    deptLower.includes('software') ||
-    deptLower.includes('cyber') ||
-    deptLower.includes('data') ||
-    courseLower.includes('csc ') ||
-    courseLower.includes('sen ');
-
-  const isLaw =
-    deptLower.includes('law') ||
-    cleanFaculty.toLowerCase().includes('law') ||
-    courseLower.includes('law') ||
-    courseLower.includes('pul ') ||
-    courseLower.includes('prl ');
-
-  const isMedical =
-    deptLower.includes('medic') ||
-    deptLower.includes('anat') ||
-    deptLower.includes('physiol') ||
-    deptLower.includes('nurs') ||
-    deptLower.includes('pharm') ||
-    courseLower.includes('ana ') ||
-    courseLower.includes('phs ') ||
-    courseLower.includes('pha ');
-
-  const isBusiness =
-    deptLower.includes('account') ||
-    deptLower.includes('financ') ||
-    deptLower.includes('econom') ||
-    deptLower.includes('admin') ||
-    courseLower.includes('acc ') ||
-    courseLower.includes('eco ') ||
-    courseLower.includes('bfn ');
-
-  // Domain-specific formulas, examples, and applications
-  let domainFormulasModule1: string[] = [];
-  let domainFormulasModule2: string[] = [];
-  let domainFormulasModule3: string[] = [];
-  let domainWorkedExamples: any[] = [];
-  let domainPracticalApplications: string[] = [];
-
-  if (isEngineering) {
-    domainFormulasModule1 = [
-      `\\oint \\vec{E} \\cdot d\\vec{l} = -\\frac{d}{dt} \\iint \\vec{B} \\cdot d\\vec{A}`,
-      `F = q(\\vec{E} + \\vec{v} \\times \\vec{B})`,
-      `P_{in} = \\sqrt{3} \\cdot V_L \\cdot I_L \\cdot \\cos(\\phi)`,
-    ];
-    domainFormulasModule2 = [
-      `T_e = \\frac{3}{\\omega_s} \\left[ \\frac{V_{th}^2 \\cdot (R_2'/s)}{(R_{th} + R_2'/s)^2 + (X_{th} + X_2')^2} \\right]`,
-      `s = \\frac{n_{sync} - n_r}{n_{sync}} \\times 100\\%`,
-      `\\eta = \\frac{P_{out}}{P_{out} + P_{core} + P_{cu} + P_{mech} + P_{stray}} \\times 100\\%`,
-    ];
-    domainFormulasModule3 = [
-      `V_t = E_a \\pm I_a (R_a + j X_s)`,
-      `Z_{base} = \\frac{V_{base}^2}{S_{base}}`,
-      `I_{fault} = \\frac{E_g''}{Z_1 + Z_2 + Z_0 + 3Z_n}`,
-    ];
-    domainWorkedExamples = [
-      {
-        title: `Worked Engineering Calculation 1: Parameter Estimation & Full-Load Efficiency Analysis`,
-        scenarioOrProblem: `An industrial facility in Ikeja, Lagos operates a 415 V, 50 Hz, 4-pole, 3-phase delta-connected induction system connected to ${cleanTopic}. At full load, the motor draws 52 A at 0.86 power factor lagging while running at 1440 rpm. Stator copper losses are 1.85 kW, rotational mechanical losses are 1.1 kW, and core losses are 1.4 kW. Calculate: (a) Total input electrical power, (b) Rotor copper loss and electromagnetic air-gap power, (c) Net shaft output power in kW and horsepower (hp), and (d) Overall machine efficiency.`,
-        explanationOrSolution: `Step 1: Calculate Total Electrical Input Power (P_in):
-P_in = \\sqrt{3} \\cdot V_L \\cdot I_L \\cdot \\cos(\\phi)
-P_in = \\sqrt{3} \\times 415 \\times 52 \\times 0.86 = 1.73205 \\times 415 \\times 52 \\times 0.86 \\approx 32,152 \\text{ W} = 32.152 \\text{ kW}.
-
-Step 2: Determine Synchronous Speed (n_s) and Operational Slip (s):
-n_s = \\frac{120 \\times f}{P} = \\frac{120 \\times 50}{4} = 1500 \\text{ rpm}.
-Slip s = \\frac{n_s - n_r}{n_s} = \\frac{1500 - 1440}{1500} = \\frac{60}{1500} = 0.04 \\text{ (4.0%)}.
-
-Step 3: Determine Air-Gap Power (P_ag) and Rotor Copper Losses (P_cu,rotor):
-P_ag = P_in - P_stator_cu - P_core = 32.152 - 1.85 - 1.40 = 28.902 \\text{ kW}.
-Rotor Copper Loss P_cu,rotor = s \\times P_ag = 0.04 \\times 28.902 \\text{ kW} = 1.156 \\text{ kW}.
-
-Step 4: Determine Net Output Mechanical Power (P_out):
-Developed Mechanical Power P_mech = P_ag - P_cu,rotor = (1 - s) \\times P_ag = 0.96 \\times 28.902 = 27.746 \\text{ kW}.
-Net Shaft Output P_out = P_mech - P_rotational = 27.746 - 1.10 = 26.646 \\text{ kW}.
-In Horsepower (1 hp = 746 W): P_out(hp) = 26,646 / 746 = 35.72 \\text{ hp}.
-
-Step 5: Calculate Machine Efficiency (\\eta):
-\\eta = \\frac{P_out}{P_in} \\times 100\\% = \\frac{26.646}{32.152} \\times 100\\% = 82.88\\%.
-
-Verification: Sum of all losses = 1.85 (stator cu) + 1.40 (core) + 1.156 (rotor cu) + 1.10 (mech) = 5.506 kW.
-P_out + Losses = 26.646 + 5.506 = 32.152 kW = P_in (Energy balance fully satisfied).`,
-      },
-      {
-        title: `Worked Engineering Calculation 2: Transient Starting Voltage Sag & Torque Reduction`,
-        scenarioOrProblem: `During direct-on-line (DOL) startup on a regional 11 kV/415 V distribution substation in Nigeria, the line experiences an instantaneous 18% voltage dip down to 340.3 V. If the nominal standstill starting torque at 415 V is 280 N\\cdot m with a starting current of 6.2 times rated full-load current, calculate: (a) The actual starting torque developed during the voltage dip, (b) The percentage reduction in starting torque, and (c) The diagnostic implications for starting under high mechanical inertia loads.`,
-        explanationOrSolution: `Step 1: Governing Relationship:
-Electromagnetic starting torque is directly proportional to the square of terminal voltage: T_start \\propto V^2.
-Therefore: T_dip / T_nominal = (V_dip / V_nominal)^2.
-
-Step 2: Torque Computation:
-V_ratio = 340.3 / 415.0 = 0.82 (18% drop).
-(V_ratio)^2 = (0.82)^2 = 0.6724.
-T_dip = 280 \\times 0.6724 = 188.27 \\text{ N}\\cdot\\text{m}.
-
-Step 3: Percentage Reduction:
-Percentage Reduction = (1 - 0.6724) \\times 100\\% = 32.76\\% torque loss.
-
-Diagnostic Commentary: While terminal voltage dropped by only 18%, starting torque plunged by nearly 33%. Under heavy starting friction or centrifugal pump inertia, this drastic torque reduction causes stall conditions, prolonged starting current surges, and thermal trip of protective relays. In Nigerian industrial environments, soft starters or star-delta configurations must be specified to mitigate these voltage sags.`,
-      },
-      {
-        title: `Worked Engineering Calculation 3: Boundary Thermal Dissipation & Rating Deration`,
-        scenarioOrProblem: `A continuous-duty unit associated with ${cleanTopic} is rated for 40 kW at a standard reference ambient temperature of 40^\\circ\\text{C} with Class F insulation (maximum permissible winding temperature 155^\\circ\\text{C}). The unit is installed in an industrial facility in Maiduguri, Borno State, where ambient temperatures reach 49^\\circ\\text{C}. Determine the derated operating capacity to prevent winding insulation degradation.`,
-        explanationOrSolution: `Step 1: Thermal Headroom Evaluation:
-Standard permissible temperature rise \\Delta T_rated = 155^\\circ\\text{C} - 40^\\circ\\text{C} = 115^\\circ\\text{C}.
-Reduced permissible temperature rise in high ambient \\Delta T_actual = 155^\\circ\\text{C} - 49^\\circ\\text{C} = 106^\\circ\\text{C}.
-
-Step 2: Derating Factor Calculation:
-Since internal ohmic heat dissipation is proportional to current squared (I^2 R) and power output squared (P^2):
-Derating Factor k = \\sqrt{\\frac{\\Delta T_actual}{\\Delta T_rated}} = \\sqrt{\\frac{106}{115}} = \\sqrt{0.9217} \\approx 0.960.
-
-Step 3: Derated Continuous Capacity:
-P_derated = 40.0 \\text{ kW} \\times 0.960 = 38.40 \\text{ kW}.
-Shaft capacity must be restricted to 38.4 kW, or auxiliary forced-air cooling must be installed.`,
-      },
-    ];
-    domainPracticalApplications = [
-      `Integration into Transmission Company of Nigeria (TCN) 330 kV/132 kV primary grid substations and regional distribution feeders across Nigeria.`,
-      `Deployment in heavy industrial manufacturing facilities including Dangote Petrochemical Complex (Lekki), BUA Cement plants, and offshore oil production platforms in the Niger Delta.`,
-      `Design and optimization of commercial solar hybrid micro-grids for rural healthcare facilities and university campuses adhering to Nigerian Electricity Regulatory Commission (NERC) grid codes.`,
-      `Industrial automation and supervisory control (SCADA) systems in manufacturing lines complying with the Council for the Regulation of Engineering in Nigeria (COREN) codes.`,
-    ];
-  } else if (isComputing) {
-    domainFormulasModule1 = [
-      `T(n) = a \\cdot T(n/b) + O(n^d) \\quad \\text{(Master Theorem for Divide & Conquer)}`,
-      `\\text{Speedup} = \\frac{1}{(1 - p) + \\frac{p}{s}} \\quad \\text{(Amdahl's Law)}`,
-      `\\sum_{i=1}^n i = \\frac{n(n+1)}{2} \\in O(n^2)`,
-    ];
-    domainFormulasModule2 = [
-      `\\text{Available}[j] = \\text{Available}[j] - \\text{Request}_i[j]`,
-      `\\text{Allocation}[i][j] = \\text{Allocation}[i][j] + \\text{Request}_i[j]`,
-      `\\text{Need}[i][j] = \\text{Max}[i][j] - \\text{Allocation}[i][j]`,
-    ];
-    domainFormulasModule3 = [
-      `\\text{EAT} = (1 - p) \\cdot t_m + p \\cdot t_p \\quad \\text{(Effective Memory Access Time)}`,
-      `H(X) = - \\sum_{i=1}^n P(x_i) \\log_2 P(x_i) \\quad \\text{(Shannon Entropy)}`,
-    ];
-    domainWorkedExamples = [
-      {
-        title: `Worked Algorithmic Scenario 1: State Space Validation & Safety Sequence Evaluation`,
-        scenarioOrProblem: `In a multi-process operating system managing distributed banking transactions across Nigerian commercial banks, 5 concurrent processes (P0, P1, P2, P3, P4) compete for 3 resource types: Database Connections (A=10), Cryptographic Hardware Security Modules (B=5), and Message Queue Buffers (C=7). Given Current Allocation, Max Need, and Available vectors [A=3, B=3, C=2], execute Dijkstra's Banker's Algorithm to determine if the system is in a safe state and establish the complete execution sequence.`,
-        explanationOrSolution: `Step 1: Construct Need Matrix [Need = Max - Allocation]:
-P0: Need = [7, 5, 3] - [0, 1, 0] = [7, 4, 3]
-P1: Need = [3, 2, 2] - [2, 0, 0] = [1, 2, 2]
-P2: Need = [9, 0, 2] - [3, 0, 2] = [6, 0, 0]
-P3: Need = [2, 2, 2] - [2, 1, 1] = [0, 1, 1]
-P4: Need = [4, 3, 3] - [0, 0, 2] = [4, 3, 1]
-
-Step 2: Safety Algorithm Iterations (Available = [3, 3, 2]):
-- Check P0: Need [7,4,3] <= [3,3,2]? FALSE. (Cannot allocate).
-- Check P1: Need [1,2,2] <= [3,3,2]? TRUE.
-  Allocate to P1 -> Process finishes -> Available = [3,3,2] + [2,0,0] = [5, 3, 2].
-- Check P3: Need [0,1,1] <= [5,3,2]? TRUE.
-  Allocate to P3 -> Process finishes -> Available = [5,3,2] + [2,1,1] = [7, 4, 3].
-- Check P4: Need [4,3,1] <= [7,4,3]? TRUE.
-  Allocate to P4 -> Process finishes -> Available = [7,4,3] + [0,0,2] = [7, 4, 5].
-- Check P0: Need [7,4,3] <= [7,4,5]? TRUE.
-  Allocate to P0 -> Process finishes -> Available = [7,4,5] + [0,1,0] = [7, 5, 5].
-- Check P2: Need [6,0,0] <= [7,5,5]? TRUE.
-  Allocate to P2 -> Process finishes -> Available = [7,5,5] + [3,0,2] = [10, 5, 7].
-
-Conclusion: The system is in a strictly SAFE STATE. The safe execution sequence is <P1, P3, P4, P0, P2>. Deadlock is completely prevented.`,
-      },
-      {
-        title: `Worked Algorithmic Scenario 2: Asymptotic Time & Space Complexity Derivation`,
-        scenarioOrProblem: `Derive the exact closed-form recurrence solution for an algorithmic divide-and-conquer implementation handling ${cleanTopic}, where recurrence relation is defined by T(n) = 2T(n/2) + c \\cdot n for n > 1, with boundary condition T(1) = d.`,
-        explanationOrSolution: `Step 1: Recurrence Tree Expansion:
-Level 0: 1 subproblem of size n -> Cost = c \\cdot n.
-Level 1: 2 subproblems of size n/2 -> Cost = 2(c(n/2)) = c \\cdot n.
-Level 2: 4 subproblems of size n/4 -> Cost = 4(c(n/4)) = c \\cdot n.
-Level k: 2^k subproblems of size n/(2^k) -> Cost = 2^k(c(n/2^k)) = c \\cdot n.
-
-Step 2: Tree Height Determination:
-The recursion terminates when n/(2^k) = 1 => 2^k = n => k = \\log_2(n).
-Total tree depth is \\log_2(n) levels.
-
-Step 3: Total Cost Accumulation:
-T(n) = \\sum_{k=0}^{\\log_2(n) - 1} (c \\cdot n) + 2^{\\log_2(n)} \\cdot T(1)
-T(n) = (c \\cdot n) \\cdot \\log_2(n) + n \\cdot d
-T(n) = c \\cdot n \\log_2(n) + d \\cdot n.
-
-Conclusion: Dominant term is O(n \\log n). Space complexity is O(\\log n) auxiliary stack space for balanced execution.`,
-      },
-    ];
-    domainPracticalApplications = [
-      `High-concurrency fintech transaction processing engines deployed across Nigerian payment gateways (Interswitch, Paystack, Flutterwave, NIBSS).`,
-      `Scalable cloud microservices architectures hosted on AWS, Google Cloud Platform, and local Tier-3 Nigerian data centers (MainOne, Rack Centre).`,
-      `Decentralized distributed ledger systems and secure database sharding for academic transcript and national identity management (NIMC).`,
-      `Defensive cybersecurity intrusion detection systems (IDS) operating across enterprise telecommunications networks (MTN Nigeria, Airtel, Globacom).`,
-    ];
-  } else if (isLaw) {
-    domainFormulasModule1 = [
-      `\\text{Section 33 - 46, Constitution of the Federal Republic of Nigeria 1999 (as amended)}`,
-      `\\text{Ratio Decidendi} \\neq \\text{Obiter Dictum}`,
-      `\\text{Stare Decisis: Supreme Court} \\succ \\text{Court of Appeal} \\succ \\text{Federal/State High Court}`,
-    ];
-    domainFormulasModule2 = [
-      `\\text{Elements of Liability} = \\text{Duty of Care} + \\text{Breach of Duty} + \\text{Causation (Factual & Legal)} + \\text{Damages}`,
-      `\\text{Actus Reus} + \\text{Mens Rea} - \\text{Valid Defence} = \\text{Criminal Culpability}`,
-    ];
-    domainFormulasModule3 = [
-      `\\text{Evidence Act 2011, Section 84 (Admissibility of Electronically Generated Evidence)}`,
-    ];
-    domainWorkedExamples = [
-      {
-        title: `Worked Legal Case Analysis 1: Judicial Interpretation & Application of Legal Doctrine`,
-        scenarioOrProblem: `An appellant in Lagos challenges a commercial transaction involving ${cleanTopic} on grounds of statutory illegality and breach of fundamental rights under Section 36 of the 1999 Constitution. Drawing from leading Nigerian appellate precedents, analyze: (a) The threshold of judicial locus standi, (b) The doctrine of ultra vires, and (c) The appropriate relief grantable by the High Court.`,
-        explanationOrSolution: `Step 1: Identification of Legal Issues:
-1. Whether the appellant has established sufficient legal interest (locus standi) to institute the action pursuant to Section 6(6)(b) of the 1999 Constitution and the locus classicus Adesanya v. President of Nigeria (1981).
-2. Whether the disputed transaction violates statutory provisions, rendering it void ab initio under the principle established in Sodipo v. Lemminkainen (1986).
-3. Whether the procedural adjudication satisfied the twin pillars of natural justice (Audi alteram partem and Nemo judex in causa sua).
-
-Step 2: Application of Established Precedents:
-Under Nigerian jurisprudence, where an agreement directly breaches an express statutory prohibition, the courts will not lend assistance to enforce an illegal contract (ex turpi causa non oritur actio). In Fawehinmi v. NBA (1989), the Supreme Court affirmed that adherence to constitutional fair hearing is a condition precedent to valid determination of civil rights and obligations.
-
-Step 3: Judicial Conclusion and Model Holding:
-The High Court has inherent jurisdiction to declare ultra vires actions null and void. The appellant is entitled to declarative relief and an order of perpetual injunction restraining enforcement of the defective instrument.`,
-      },
-    ];
-    domainPracticalApplications = [
-      `Litigation and advocacy before Nigerian Superior Courts of Record (Supreme Court, Court of Appeal, Federal High Court, National Industrial Court).`,
-      `Corporate regulatory compliance with the Corporate Affairs Commission (CAC) under the Companies and Allied Matters Act (CAMA 2020).`,
-      `Advisory services on petroleum and energy sector contracts under the Petroleum Industry Act (PIA 2021) and NUPRC regulations.`,
-      `Arbitration, dispute resolution, and appellate brief drafting within the Nigerian Bar Association (NBA) legal framework.`,
-    ];
-  } else {
-    // Universal Science / Health / Business / Arts
-    domainFormulasModule1 = [
-      `\\Delta G^\\circ = -RT \\ln(K_{eq}) = \\Delta H^\\circ - T\\Delta S^\\circ`,
-      `\\text{WACC} = \\left(\\frac{E}{V} \\times Re\\right) + \\left(\\frac{D}{V} \\times Rd \\times (1 - T_c)\\right)`,
-      `\\frac{\\partial u}{\\partial t} = \\alpha \\frac{\\partial^2 u}{\\partial x^2}`,
-    ];
-    domainFormulasModule2 = [
-      `\\text{ROE} = \\text{Net Profit Margin} \\times \\text{Asset Turnover} \\times \\text{Equity Multiplier}`,
-      `pH = pK_a + \\log_{10}\\left(\\frac{[A^-]}{[HA]}\\right) \\quad \\text{(Henderson-Hasselbalch)}`,
-    ];
-    domainFormulasModule3 = [
-      `\\int_a^b f(x) dx = F(b) - F(a)`,
-      `\\sigma = \\sqrt{\\frac{\\sum (x_i - \\mu)^2}{N}}`,
-    ];
-    domainWorkedExamples = [
-      {
-        title: `Worked Analytical Case Study 1: Step-by-Step Empirical Evaluation`,
-        scenarioOrProblem: `A research institute in Ibadan evaluates the operational metrics of ${cleanTopic} across a sample dataset. Baseline parameter A is measured at 120 units with a standard deviation of 8.5. Following systemic intervention under ${cleanCourse}, parameter A rises to 148 units with a 95% confidence interval. Calculate: (a) The percentage rate of change, (b) The statistical significance parameter, and (c) The policy and practical operational recommendations for implementation.`,
-        explanationOrSolution: `Step 1: Quantitative Change Calculation:
-Absolute Change \\Delta A = 148 - 120 = 28 \\text{ units}.
-Percentage Increase = (28 / 120) * 100% = 23.33%.
-
-Step 2: Variance and Stability Verification:
-The observed increase exceeds 3 standard deviations (3 * 8.5 = 25.5), indicating that the observed response is statistically robust at p < 0.01 and not attributable to random experimental error.
-
-Step 3: Practical Academic Takeaway:
-The intervention demonstrates measurable efficacy under standard tertiary laboratory constraints. Students must report confidence bounds alongside nominal values in exam solutions to secure full analytical marks.`,
-      },
-      {
-        title: `Worked Scenario 2: Resource Allocation & Boundary Optimization`,
-        scenarioOrProblem: `Evaluate the optimal boundary equilibrium for a unit operating on ${cleanTopic} where marginal revenue or yield is defined by MR = 450 - 4Q and marginal cost is MC = 90 + 2Q. Determine: (a) Equilibrium quantity Q*, (b) Maximum total surplus, and (c) Deadweight loss if regulatory capping restricts output to Q = 50.`,
-        explanationOrSolution: `Step 1: Determine Equilibrium (MR = MC):
-450 - 4Q = 90 + 2Q => 6Q = 360 => Q* = 60 units.
-Equilibrium Value P* = 450 - 4(60) = 450 - 240 = 210 units.
-
-Step 2: Welfare Evaluation at Restriction Q = 50:
-At Q = 50, MR = 450 - 4(50) = 250 units.
-MC = 90 + 2(50) = 190 units.
-Deadweight Loss = 0.5 * (250 - 190) * (60 - 50) = 0.5 * 60 * 10 = 300 units.
-
-Conclusion: Restricting output below market equilibrium induces an inefficiency of 300 units. Students must clearly illustrate this with annotated supply-demand curves in examination essays.`,
-      },
-    ];
-    domainPracticalApplications = [
-      `Application across Nigerian federal and state ministries, research institutes (NIIA, NISER, NIPRD), and higher education testing centers.`,
-      `Commercial adoption across Nigerian manufacturing, agribusiness supply chains, and private sector enterprises.`,
-      `Implementation in financial institutions, commercial banks, and regulatory bodies (Central Bank of Nigeria, Securities & Exchange Commission).`,
-      `Field practice guidelines complying with the National Universities Commission (NUC Core Curriculum and Minimum Academic Standards - CCMAS).`,
-    ];
+libraryRouter.get('/materials', (_req: Request, res: Response) => {
+  try {
+    const docs = listRegisteredAcademicDocuments();
+    return res.json({
+      success: true,
+      count: docs.length,
+      materials: docs,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to retrieve materials' });
   }
+});
 
-  return {
-    title: `${cleanTopic}: Comprehensive Academic Handout & Curriculum Study Guide`,
-    learningObjectives: [
-      `Define, contextualize, and trace the fundamental theoretical foundations, historical evolution, and governing principles of ${cleanTopic}.`,
-      `Analyze the architectural mechanisms, state transformations, and operational dynamics characteristic of ${cleanCourse} at the ${cleanLevel} level.`,
-      `Derive and evaluate governing mathematical formulas, equilibrium laws, and analytical transfer functions from first principles.`,
-      `Execute step-by-step quantitative calculations, diagnostic evaluations, and empirical proofs under standard boundary conditions.`,
-      `Critically examine boundary constraints, operational failure modes, and systematic mitigation protocols in tertiary laboratory and field environments.`,
-      `Appraise practical industrial, infrastructural, regulatory, and commercial deployments of ${cleanTopic} across Nigerian institutions and global industries.`,
-    ],
-    introduction: `This academic handout provides an exhaustive, university-grade study treatise on "${cleanTopic}", structured in rigorous alignment with the official curriculum for ${cleanCourse} at the ${cleanLevel} level within the Department of ${cleanDept}, ${cleanFaculty} at ${params.institution}.\n\nMastery of ${cleanTopic} represents an indispensable prerequisite for academic distinction in Nigerian tertiary education (NUC, NBTE, and NCCE standards). Rather than presenting cursory summaries, this curriculum guide dissects the underlying physical, mathematical, statutory, and conceptual foundations of the discipline. Students are expected to thoroughly assimilate the governing theorems, mathematical proofs, component-level interactions, and professional standards articulated across the pedagogical modules herein.\n\nThroughout semester examinations, academic examiners specifically test candidates' capacity to correlate foundational theory with rigorous problem-solving, annotated technical diagrams, and real-world industrial implementations. This handout equips students with the exact analytical depth, structured methodologies, and marking scheme rubrics necessary for premier academic performance.`,
-    mainConcepts: [
-      `Foundational Axioms & Evolution: The historical, empirical, and theoretical foundations establishing the scientific validity of ${cleanTopic}.`,
-      `Constitutive Equations & Analytical Models: Governing mathematical laws, balance theorems, and differential equations defining system behavior.`,
-      `Structural Architecture & Component Dynamics: Component-level anatomy, coupling interfaces, and physical/logical state transitions.`,
-      `Boundary Conditions & Transient Stability: Operational regimes under varying load, fault tolerance, stress thresholds, and dynamic responses.`,
-      `Industrial Implementation & Regulatory Compliance: Standard Nigerian engineering, clinical, or statutory protocols adhering to COREN, NUC, and international standards.`,
-      `Diagnostic Verification & Marking Rubrics: Systematic problem-solving workflows, unit conversions, and examination scoring criteria.`,
-    ],
-    sections: [
-      {
-        title: `Module 1: Historical Foundations, Governing Axioms, & Theoretical Principles of ${cleanTopic}`,
-        content: `In tertiary academia, the study of ${cleanTopic} commences with an exploration of its foundational axioms, historical development, and theoretical framework within ${cleanCourse}. Historically, early empirical observations necessitated the establishment of formal mathematical and qualitative models capable of predicting system behavior under variable environmental parameters.\n\nAt its core, ${cleanTopic} rests upon fundamental conservation and constitutive laws. These laws dictate how energy, momentum, charge, informational entropy, or legal rights are transferred across system boundaries. When analyzing ${cleanTopic}, students must explicitly state governing assumptions—such as steady-state conditions, linearity, homogeneity, or jurisdictional statutory confines—before substituting numeric or legal parameters into operational models.\n\nExaminers frequently award substantial marks for a student's ability to articulate the physical and philosophical significance of fundamental constants, illustrating how microscopic interactions manifest as macroscopic, observable characteristics in tertiary laboratory and field environments.`,
-        bulletPoints: [
-          `Historical discovery, developmental milestones, and academic evolution`,
-          `Fundamental scientific assumptions and validity limits in tertiary curricula`,
-          `Constitutive state equations and parameter representations`,
-          `Conservation theorems and thermodynamic/computational equilibrium states`,
-          `Conceptual distinctions between theoretical idealizations and field realities`,
-        ],
-        formulas: domainFormulasModule1,
-        keyTakeaway: `All advanced analytical and operational models of ${cleanTopic} directly derive from these primary conservation and constitutive formulations.`,
-      },
-      {
-        title: `Module 2: Structural Architecture, System Anatomy, & Operational Mechanics`,
-        content: `A rigorous understanding of ${cleanTopic} requires dissecting internal components, coupling mechanisms, and interaction interfaces. In ${cleanCourse}, macroscopic outputs are governed by precise physical or architectural alignments within the system.\n\nIn physical and technological domains, geometric tolerances, magnetic circuits, material conductivities, dielectric properties, and algorithmic data layouts establish fundamental operating boundaries. In social science and legal domains, procedural hierarchies, institutional separations of powers, and regulatory frameworks perform an analogous architectural function.\n\nStudents must master the state transition models of ${cleanTopic}. By analyzing how energy or information flows through each intermediate stage, one can accurately calculate transmission losses, thermal dissipation, latency bottlenecks, and impedance mismatches that degrade operational performance.`,
-        bulletPoints: [
-          `Sub-assembly and component-level anatomical breakdown`,
-          `Energy, signal, or procedural flow pathways through the system`,
-          `Interfacial coupling mechanisms, contact resistance, and damping factors`,
-          `State space representations and dynamic transition matrices`,
-          `Optimization of geometric and material parameters for peak efficiency`,
-        ],
-        formulas: domainFormulasModule2,
-        keyTakeaway: `Structural and component harmony directly determines overall system efficiency, resilience, and operational lifespan.`,
-      },
-      {
-        title: `Module 3: Mathematical Formulations, Analytical Derivations, & State Equations`,
-        content: `This module constitutes the quantitative and analytical core of ${cleanTopic}. Under university examination conditions, candidates are expected to demonstrate mathematical proofs from first principles rather than relying on memorized terminal equations.\n\nThe derivation process begins by establishing differential balance equations across an infinitesimal control volume or state interval. By integrating over the system domain and applying boundary conditions (such as initial energy storage, terminal voltages, or legal statutory limits), the generalized state equation is obtained.\n\nFurthermore, frequency domain (Laplace/Fourier) and discrete-time z-domain transformations enable the evaluation of system stability. Transfer functions yield critical poles and zeros whose locations in the complex s-plane determine transient overshoot, damping ratios, and settling times.`,
-        bulletPoints: [
-          `Step-by-step mathematical proof starting from primary constitutive laws`,
-          `Integration across continuous domains and application of initial boundary conditions`,
-          `Transfer function formulation: Pole-zero mapping and stability criteria`,
-          `Parametric sensitivity analysis under variable operational stresses`,
-          `Conversion between continuous time-domain and discrete digital representations`,
-        ],
-        formulas: domainFormulasModule3,
-        keyTakeaway: `Mathematical derivations from first principles demonstrate genuine academic mastery and form the bedrock of tertiary grading schemes.`,
-      },
-      {
-        title: `Module 4: Operating Characteristics, Regimes, & Performance Optimization`,
-        content: `Operational behavior in ${cleanTopic} is non-linear across extreme boundaries. Under rated nominal operating conditions, systems demonstrate stable, predictable responses. However, as load, temperature, clock frequency, or regulatory pressure escalates, secondary effects emerge—such as magnetic saturation, thermal runaway, deadlock contention, or jurisdictional conflict.\n\nPerformance curves (e.g., efficiency versus load, torque-speed characteristics, stress-strain curves, or cost-volume-profit graphs) provide visual blueprints for system optimization. Engineers and scholars analyze these curves to identify the "knee point" or maximum power point where operational efficiency is maximized while operating within safe thermal or institutional margins.\n\nIn Nigerian operating environments, optimization must factor in local ambient temperatures (frequently exceeding 35^\\circ\\text{C}-40^\\circ\\text{C}), grid volatility, and supply chain constraints, mandating appropriate safety derating factors.`,
-        bulletPoints: [
-          `Analysis of no-load, half-load, full-load, and overload operational regimes`,
-          `Evaluation of characteristic performance curves and maximum efficiency thresholds`,
-          `Harmonic generation, noise interference, and vibration mitigation`,
-          `Thermal derating equations for high-ambient African operating environments`,
-          `Feedback control loops and closed-loop compensation methodologies`,
-        ],
-        formulas: [
-          `\\eta_{max} \\iff P_{variable losses} = P_{constant losses}`,
-          `k_{derate} = \\sqrt{\\frac{T_{max} - T_{ambient,actual}}{T_{max} - T_{ambient,rated}}}`,
-        ],
-        keyTakeaway: `Optimal performance occurs at the precise balance point where variable losses equal constant core losses under ambient constraints.`,
-      },
-      {
-        title: `Module 5: Practical Engineering, Industrial Infrastructure, & Field Implementation Protocols`,
-        content: `Translating theoretical formulations of ${cleanTopic} into real-world utility requires adherence to stringent professional, engineering, and regulatory standards. In Nigeria, statutory bodies such as the Council for the Regulation of Engineering in Nigeria (COREN), the Nigerian Society of Engineers (NSE), the Nigerian Communications Commission (NCC), and the Standards Organisation of Nigeria (SON) dictate installation and safety benchmarks.\n\nField deployment mandates thorough commissioning protocols. For electrical and mechanical systems, these include insulation resistance testing (Megger tests at 500 V/1000 V), grounding grid impedance verification (< 5 \\Omega for industrial substations), vibration spectrum analysis, and thermal imaging of busbars. For software and systems engineering, protocols include load testing, zero-trust cryptographic audit, and database replication validation.\n\nStudents must understand that field conditions introduce unpredictable disturbances—such as lightning surges, voltage unbalance, and harmonics—requiring robust surge suppression, galvanic isolation, and fail-safe interlocks.`,
-        bulletPoints: [
-          `Commissioning, pre-commissioning testing, and diagnostic calibration protocols`,
-          `Grounding, bonding, and lightning surge protection adhering to Nigerian electrical codes`,
-          `Predictive maintenance: Thermographic imaging, oil dielectric testing, and telemetry`,
-          `Environmental lifecycle management, carbon footprint reduction, and energy efficiency`,
-          `Adherence to COREN, NERC, ISO 9001, and international engineering standards`,
-        ],
-        formulas: [
-          `R_{ground} = \\frac{\\rho}{2\\pi L} \\left[ \\ln\\left(\\frac{4L}{d}\\right) - 1 \\right] \\le 5.0 \\; \\Omega`,
-        ],
-        keyTakeaway: `Professional competence requires seamless translation of textbook equations into resilient, safe, and code-compliant installations.`,
-      },
-      {
-        title: `Module 6: Critical Boundary Conditions, Failure Modes, Diagnostics, & Mitigation Strategies`,
-        content: `Comprehensive scholarship mandates examining what occurs when ${cleanTopic} fails. Systematic Failure Mode and Effects Analysis (FMEA) allows engineers, physicians, or lawyers to forecast catastrophic degradation paths and engineer proactive safeguards.\n\nCommon failure mechanisms in ${cleanTopic} encompass dielectric breakdown of insulation, mechanical fatigue from torsional resonance, algorithm starvation/deadlock, thermal overload, and procedural nullity. Early detection is paramount; secondary damage caused by delayed protective intervention often exceeds the cost of the primary failure by orders of magnitude.\n\nProtective schemes must exhibit four cardinal properties: selectivity (isolating only the faulted zone), speed (clearing within cycles), sensitivity (detecting minute abnormal signatures), and reliability (zero false trips). Academic examinations consistently test students on root cause analysis and corrective design adjustments.`,
-        bulletPoints: [
-          `Systematic Failure Mode, Effects, and Criticality Analysis (FMECA)`,
-          `Thermal, mechanical, and electrical breakdown mechanisms under peak stress`,
-          `Root-cause diagnostic trees and non-destructive examination (NDE) methods`,
-          `Design of fail-safe interlocks, backup redundancies, and protective relaying`,
-          `Formulating corrective engineering and institutional action plans`,
-        ],
-        formulas: [
-          `\\text{MTBF} = \\frac{\\text{Total Operating Hours}}{\\text{Number of Failures}}`,
-          `\\text{Availability} = \\frac{\\text{MTBF}}{\\text{MTBF} + \\text{MTTR}} \\times 100\\%`,
-        ],
-        keyTakeaway: `A system is only as robust as its failure mitigation mechanisms; protective speed, selectivity, and sensitivity prevent catastrophic outages.`,
-      },
-    ],
-    importantDefinitions: [
-      {
-        term: `${cleanTopic}`,
-        definition: `The structured engineering, scientific, or academic entity whose operational characteristics, dynamics, theoretical formulations, and applications are defined under the curriculum of ${cleanCourse}.`,
-      },
-      {
-        term: `Characteristic Parameter / System Invariant`,
-        definition: `A fundamental mathematical or physical invariant parameter (such as impedance, time constant, damping ratio, or statutory threshold) that dictates response over varying states.`,
-      },
-      {
-        term: `Operational Efficiency (\\eta)`,
-        definition: `The precise mathematical ratio of useful energy or work output to total input, accounting rigorously for all internal dissipation, friction, copper, core, or overhead losses.`,
-      },
-      {
-        term: `Boundary Condition`,
-        definition: `A specific set of physical, mathematical, or jurisdictional constraints enforced at the limits of a system model to obtain unique, closed-form solutions to governing equations.`,
-      },
-      {
-        term: `Transient Response`,
-        definition: `The temporary, dynamic behavioral phase exhibited by a system transitioning from one steady-state operating point to another following a disturbance or step input.`,
-      },
-      {
-        term: `Steady-State Equilibrium`,
-        definition: `The condition of a system wherein state variables remain stationary over time or exhibit purely periodic, predictable oscillations under invariant external stimuli.`,
-      },
-      {
-        term: `Derating Factor`,
-        definition: `A fractional coefficient applied to rated capacity to preserve operational reliability and prevent thermal or material breakdown when operating in harsh environmental conditions.`,
-      },
-      {
-        term: `Selective Protection Coordination`,
-        definition: `The engineering strategy of arranging protective devices (fuses, circuit breakers, exception handlers) such that only the nearest upstream device trips to isolate a localized fault.`,
-      },
-    ],
-    relevantExamples: domainWorkedExamples,
-    practicalApplications: domainPracticalApplications,
-    keyPointsToRemember: [
-      `Always state governing scientific axioms, domain assumptions, and reference frames before substituting numerical figures into exam equations.`,
-      `Maintain rigorous dimensional homogeneity: convert horsepower to Watts (1 hp = 746 W), angles from degrees to radians where calculus applies, and verify units across all intermediate lines.`,
-      `Efficiency formulations must always account for all stray load, iron, copper, and mechanical losses rather than relying on idealized assumptions.`,
-      `In examination essays, sketch fully annotated, labeled schematics and phasor/state diagrams to secure full allocation under official marking schemes.`,
-      `When analyzing boundary responses, clearly distinguish between transient overshoot limits and continuous steady-state ratings.`,
-      `Nigerian ambient temperature constraints (Class F derating) and national infrastructure grid codes must be cited where practical applications are evaluated.`,
-    ],
-    summary: `This comprehensive academic handout has synthesized the fundamental theory, component architecture, mathematical derivations, operating characteristics, field implementation standards, and failure diagnostic protocols of ${cleanTopic} in strict accordance with the tertiary curriculum for ${cleanCourse} at ${params.institution}. By mastering both first-principle proofs and practical numerical methodologies, students are equipped for exemplary performance in university examinations and subsequent industrial and research practice.`,
-    reviewQuestions: [
-      {
-        question: `(a) State the primary governing scientific laws of ${cleanTopic}. (b) Define all variables in the general state formulation, specifying their standard SI units and physical significance.`,
-        type: 'short_answer' as const,
-        modelAnswerOrHint: `Candidates must: (1) State the fundamental constitutive principles verbatim; (2) Present the governing equation clearly; (3) Define every parameter (with units such as V, A, N·m, W, or dimensionless coefficients); (4) State two foundational boundary assumptions required for the formulation to remain valid.`,
-      },
-      {
-        question: `With the aid of an annotated, step-by-step mathematical proof starting from primary conservation equations, derive the operational transfer function or characteristic state equation for ${cleanTopic} under variable load conditions.`,
-        type: 'essay' as const,
-        modelAnswerOrHint: `Examiners expect: (1) An annotated schematic/circuit diagram showing reference polarities or state variables; (2) Clear setup of initial differential equations; (3) Step-by-step mathematical expansion and integration; (4) Application of boundary limits; (5) Final boxed formula with an explanation of pole-zero stability criteria.`,
-      },
-      {
-        question: `An industrial facility in Nigeria operates a commercial installation modeled on ${cleanTopic}. Calculate the total input requirements, loss dissipation breakdown, operating efficiency, and thermal rise under rated and faulted boundary conditions.`,
-        type: 'calculation' as const,
-        modelAnswerOrHint: `Full marks require: (1) Stating formula before substitution; (2) Step-by-step numerical arithmetic showing intermediate values; (3) Energy balance verification (P_in = P_out + Losses); (4) Stating answers with correct SI units and percentage precision to 2 decimal places.`,
-      },
-      {
-        question: `Differentiate between transient response and steady-state operating limits for ${cleanTopic}. Detail three failure modes commonly encountered in Nigerian industrial infrastructure and prescribe engineering mitigation strategies for each.`,
-        type: 'essay' as const,
-        modelAnswerOrHint: `Candidates should tabularize differences across settling time, peak stress, and damping ratios. For Nigerian infrastructure, candidates should address high ambient heat, voltage dips, and dust/humidity ingress with Class F insulation, soft-starters, and IP55 enclosures.`,
-      },
-    ],
-  };
-}
+/**
+ * POST /api/library/materials
+ * RAG management: Add authoritative academic course documents or syllabus guides
+ */
+libraryRouter.post('/materials', (req: Request, res: Response) => {
+  try {
+    const { title, faculty, department, courseCode, level, keywords, summary, content, citations, sourceType } = req.body || {};
+
+    if (!title || !faculty || !department || !summary || !content) {
+      return res.status(400).json({
+        success: false,
+        error: 'Title, faculty, department, summary, and content are required.',
+      });
+    }
+
+    const doc = saveCustomAcademicDocument({
+      title,
+      faculty,
+      department,
+      courseCode: courseCode || '',
+      level: level || '',
+      keywords: Array.isArray(keywords) ? keywords : [title, department],
+      summary,
+      content,
+      citations: Array.isArray(citations) ? citations : [],
+      sourceType: sourceType || 'admin_uploaded',
+    });
+
+    return res.json({
+      success: true,
+      message: 'Academic material successfully indexed in the GROBAAX RAG knowledge base.',
+      document: doc,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to index academic material.' });
+  }
+});
 
 /**
  * POST /api/library/generate-handout
- * Real AI generation service with server-side limit enforcement
+ * REAL AI Academic Handout Generation System powered by Gemini & Grounded by RAG Knowledge Base.
  */
 libraryRouter.post('/generate-handout', async (req: Request, res: Response) => {
   const {
@@ -785,7 +608,7 @@ libraryRouter.post('/generate-handout', async (req: Request, res: Response) => {
   if (!institution || !faculty || !department || !level || !course || !topic) {
     return res.status(400).json({
       success: false,
-      error: 'Please specify the Institution, Faculty, Department, Level, Course, and Topic to generate a handout.',
+      error: 'Please specify Institution, Faculty, Department, Level, Course, and Topic to generate a handout.',
     });
   }
 
@@ -830,12 +653,12 @@ libraryRouter.post('/generate-handout', async (req: Request, res: Response) => {
 
   const dailyLimit = getLimitForTier(normalizedTier, state.settings);
 
-  // 4. Server-Side Daily Limit Check
+  // 4. Server-Side Daily Limit Check (Strictly enforced BEFORE calling Gemini)
   if (dailyLimit !== 'unlimited' && currentCount >= dailyLimit) {
     const upgradePrompt =
       normalizedTier === 'free'
-        ? `You've used your ${dailyLimit} free handouts for today. Upgrade to Premium to generate up to ${state.settings.premiumDailyLimit} handouts every day.`
-        : `You've reached your Premium handout limit (${dailyLimit} handouts) for today. Upgrade to VIP for unlimited handout generation.`;
+        ? `You have reached your daily allowance of ${dailyLimit} free handouts for today. Upgrade to Premium to generate up to ${state.settings.premiumDailyLimit} handouts daily, or VIP for unlimited access.`
+        : `You have reached your daily allowance of ${dailyLimit} handouts for today. Upgrade to VIP for unlimited handout generation.`;
 
     return res.status(429).json({
       success: false,
@@ -858,221 +681,213 @@ libraryRouter.post('/generate-handout', async (req: Request, res: Response) => {
 
   try {
     console.log(
-      `[AI Handout] Generating for ${userId} (${normalizedTier}): "${topic}" in ${course} [${level} - ${department}, ${institution}]`
+      `[AI Handout] Generating real AI handout for ${userId} (${normalizedTier}): "${topic}" in ${course} [${level} - ${department}, ${institution}]`
     );
 
-    // 5. Construct exhaustive, textbook-grade academic generation prompt
-    const prompt = `You are a distinguished Nigerian University Professor, Chief Academic Examiner, and Lead Textbook Author across Nigerian Universities, Polytechnics, and Colleges of Education.
+    // 5. RAG Retrieval Step: Query academic source materials and curriculum benchmark
+    const knowledge = retrieveAcademicKnowledge({
+      institutionType,
+      institution,
+      faculty,
+      department,
+      level,
+      course,
+      topic,
+    });
 
-GENERATE AN EXHAUSTIVE, HIGHLY DETAILED, AND ACADEMICALLY RIGOROUS EDUCATIONAL HANDOUT for Nigerian tertiary students studying this exact academic curriculum context.
+    // 6. Build dynamic, discipline-adaptive pedagogical prompt
+    const prompt = `You are a distinguished university professor and master academic lecturer in ${knowledge.discipline}.
+You are teaching a student directly on the exact topic: "${topic}".
 
-ACADEMIC CONTEXT:
+STUDENT & ACADEMIC CONTEXT:
 - Institution Category: ${institutionType}
 - Institution: ${institution}
 - Faculty / School: ${faculty}
 - Department: ${department}
 - Academic Level: ${level}
-- Course: ${course}
-- Specific Topic: ${topic}
-${additionalInstruction ? `- Specific Student Directives: ${additionalInstruction}` : ''}
+- Course Code & Title: ${course}
+- Exact Topic to Teach: ${topic}
+- Curriculum Standard: ${knowledge.curriculumBenchmark}
+- Target Depth Profile: ${knowledge.levelExpectations}
+${additionalInstruction ? `- Student Directives: "${additionalInstruction}"` : ''}
 
-QUALITY & PEDAGOGICAL INSTRUCTIONS (CRITICAL):
-1. PRODUCE A TEXTBOOK-GRADE STUDY GUIDE — NOT AN OUTLINE, NOT A SUMMARY, AND NOT SHORT PARAGRAPHS. The handout must be authoritative, comprehensive, and exhaustive enough that a university student can pass their semester examination with distinction (First Class / Distinction standard) relying on this study material.
-2. Structure the handout into 5 to 7 SUBSTANTIVE PEDAGOGICAL MODULES/SECTIONS.
-3. EVERY MODULE's "content" field MUST CONTAIN AT LEAST 3 TO 4 DENSE, HIGHLY DETAILED ACADEMIC PARAGRAPHS (minimum 350-500 words per module). Dissect the theory, physical/logical mechanisms, component interactions, mathematical derivations, boundary constraints, and practical field realities.
-4. For Science, Engineering, Computing, and Mathematics: Include explicit LaTeX formulas with variable definitions and SI units. Include step-by-step proofs and mathematical derivations from first principles.
-5. For Law, Humanities, Business, and Social Sciences: Include foundational legal doctrines, constitutional/statutory provisions (e.g. 1999 Constitution as amended, CAMA 2020, Evidence Act, PIA 2021), leading Nigerian Supreme Court / Court of Appeal judicial precedents, economic models, and balance sheet/ratio analyses.
-6. Provide AT LEAST 8 TO 12 PRECISE, AUTHORITATIVE ACADEMIC DEFINITIONS with exact technical vocabulary.
-7. Provide AT LEAST 3 TO 4 REALISTIC, STEP-BY-STEP WORKED EXAMPLES OR QUANTITATIVE CALCULATIONS. For calculations, show explicit formulas, intermediate arithmetic, SI units, and examiner diagnostic commentary. For non-quantitative courses, provide full case-study scenarios with issue, rule, application, and conclusion.
-8. Provide AT LEAST 4 TO 6 SPECIFIC NIGERIAN PRACTICAL APPLICATIONS (e.g., Transmission Company of Nigeria, Lekki Free Trade Zone, commercial banking settlement gateways, Nigerian court hierarchy, or teaching hospital protocols).
-9. Provide 6 TO 8 HIGH-YIELD EXAM REVISION TAKEAWAYS and common traps where candidates lose marks in Nigerian tertiary examinations.
-10. Provide 5 TO 6 COMPREHENSIVE EXAM REVIEW QUESTIONS (covering definition, analytical essay with derivations, and numerical calculation/problem-solving) WITH AUTHORITATIVE EXAMINER MODEL ANSWERS AND MARKING SCHEME BREAKDOWNS.
-11. Return a STRICT, VALID JSON object conforming exactly to the schema below.
+${
+  knowledge.hasSpecificMaterial && knowledge.sourceExcerpts.length > 0
+    ? `AUTHORITATIVE ACADEMIC SOURCE MATERIAL (RAG GROUNDING - PRIORITIZE THESE CONCEPTS):\n${knowledge.sourceExcerpts.join('\n\n')}\n`
+    : `GROUNDING INSTRUCTION: Ground your teaching in established peer-reviewed academic consensus and the accredited ${knowledge.curriculumBenchmark}. Do not fabricate private lecturer notes.`
+}
 
-JSON SCHEMA:
+CRITICAL TOPIC FOCUS & NEGATIVE CONSTRAINTS (MANDATORY):
+${knowledge.cautionaryTopicBoundaries.map((b) => `- ${b}`).join('\n')}
+- Every single section, definition, formula, worked example, and review question MUST be directly, strictly, and solely centered on "${topic}".
+- DO NOT wander into unrelated sub-disciplines or introduce irrelevant industrial machinery (such as induction motors, slip equations, or Maiduguri thermal derating) unless this topic is literally about those exact subjects.
+- A handout must be COMPREHENSIVE WITHIN THE TOPIC. Every section must answer: What is this topic? Why does it matter? How does it work? What are its principles? How is it derived or explained? How is it applied? How do I solve problems involving it? What mistakes should I avoid? How might I be tested on it?
+
+TEACHING METHODOLOGY & DYNAMIC STRUCTURE:
+- DO NOT force a rigid or fixed 6-module template. Dynamically choose the teaching structure that best suits ${knowledge.discipline} and this specific topic.
+- Suggested pedagogical framework for this discipline:
+${knowledge.recommendedStructure.map((s, idx) => `  ${idx + 1}. ${s}`).join('\n')}
+- Create between 4 and 7 substantive pedagogical modules/sections in the "sections" array.
+- Give each module an authentic, topic-specific title that directly reflects what is taught in that module.
+- In each section's "content", provide rich, articulate, university-grade lecture prose (3 to 4 dense, detailed paragraphs) explaining the theory, mechanism, proofs, or legal doctrines thoroughly.
+- For Science/Engineering/Math: Provide clear LaTeX formulas with explicit variable definitions and standard SI units.
+- For Law/Humanities/Social Science: Provide foundational statutory provisions, legal doctrines, judicial precedents, or economic/behavioral models.
+- If this topic benefits from a visual schematic (such as a circuit diagram, flowchart, ASCII schematic, or comparative Markdown table), include a clean ASCII diagram or formatted table within the section content.
+
+WORKED EXAMPLES (PROGRESSIVE):
+- In "relevantExamples", provide at least 3 progressive worked problems:
+  1. Example 1 (Foundational / Basic): Clear illustration of primary principles.
+  2. Example 2 (Intermediate): Combining multi-variable or practical constraints.
+  3. Example 3 (Advanced / Exam-Grade): Comprehensive problem testing edge cases and critical synthesis.
+- For quantitative problems: Show problem statement, given parameters, governing formula, step-by-step numerical substitution, intermediate arithmetic, and final boxed answer with SI units.
+- For non-quantitative courses: Show problem scenario, legal/analytical issues, applicable rules/theories, step-by-step application, and final conclusion.
+
+DEFINITIONS, APPLICATIONS, AND EXAM MASTERY:
+- Provide 6 to 10 authoritative definitions of core technical terms related to "${topic}".
+- Provide 4 to 6 concrete real-world practical applications.
+- Provide 6 to 8 key revision takeaways and common traps where students lose marks.
+- Provide 4 to 6 examination review questions (conceptual, derivation, calculation, and essay) with authoritative examiner model answers and marking scheme breakdowns.
+
+Output STRICT, VALID JSON conforming exactly to the following JSON schema:
 {
-  "title": "Exhaustive Academic Title (e.g. ${topic}: Comprehensive Academic Handout & Curriculum Study Guide)",
+  "title": "Topic-Specific Academic Handout Title",
+  "academicDiscipline": "${knowledge.discipline}",
   "learningObjectives": [
-    "At least 6 specific, measurable learning objectives using Bloom's Taxonomy verbs (e.g., Define, Derive, Formulate, Calculate, Analyze, Evaluate, Synthesize, Critique)"
+    "Objective 1 starting with Bloom's Taxonomy verb (e.g., Define, Explain, Formulate, Calculate, Analyze, Evaluate)",
+    "Objective 2...",
+    "Objective 3...",
+    "Objective 4...",
+    "Objective 5..."
   ],
-  "introduction": "An exhaustive, university-grade academic introduction setting theoretical context, historical evolution, and curriculum relevance (at least 3 thorough, dense paragraphs)",
+  "prerequisiteKnowledge": [
+    "Prerequisite concept 1",
+    "Prerequisite concept 2"
+  ],
+  "introduction": "An exhaustive, university-grade introductory lecture setting theoretical context, real-world relevance, and historical development (at least 3 dense paragraphs)",
   "mainConcepts": [
-    "Core Concept 1: Thorough explanation of foundational pillar",
-    "Core Concept 2: Thorough explanation of structural mechanics",
-    "Core Concept 3: Thorough explanation of quantitative formulations",
-    "Core Concept 4: Thorough explanation of operating characteristics",
-    "Core Concept 5: Thorough explanation of industrial protocols",
-    "Core Concept 6: Thorough explanation of boundary failure mitigation"
+    "Core Concept 1: Detailed explanation",
+    "Core Concept 2: Detailed explanation",
+    "Core Concept 3: Detailed explanation",
+    "Core Concept 4: Detailed explanation",
+    "Core Concept 5: Detailed explanation"
   ],
   "sections": [
     {
-      "title": "Module 1: Historical Foundations, Governing Axioms, & Theoretical Principles of ${topic}",
-      "content": "Exhaustive, deep educational prose with full academic rigor (at least 3 to 4 dense paragraphs exploring historical development, fundamental assumptions, conservation laws, and underlying philosophy).",
-      "bulletPoints": ["At least 4 to 6 detailed structural sub-points"],
-      "formulas": ["Governing LaTeX formulas/equations with variable notations"],
-      "keyTakeaway": "Deep academic conclusion for this module"
-    },
-    {
-      "title": "Module 2: Structural Architecture, System Anatomy, & Operational Mechanics",
-      "content": "Detailed academic prose (3-4 dense paragraphs) analyzing internal components, physical/logical coupling, state transitions, and interaction dynamics.",
-      "bulletPoints": ["At least 4 to 6 detailed structural sub-points"],
-      "formulas": ["LaTeX equations for state transitions or component parameters"],
-      "keyTakeaway": "Essential academic takeaway"
-    },
-    {
-      "title": "Module 3: Mathematical Formulations, Analytical Derivations, & State Equations",
-      "content": "Deep mathematical and analytical exposition (3-4 dense paragraphs) detailing proofs from first principles, differential balance equations, boundary setups, and frequency/stability characteristics.",
-      "bulletPoints": ["At least 4 to 6 derivation steps and analytical considerations"],
-      "formulas": ["LaTeX equations showing step-by-step derivations and terminal equations"],
-      "keyTakeaway": "Essential academic takeaway"
-    },
-    {
-      "title": "Module 4: Operating Characteristics, Regimes, & Performance Optimization",
-      "content": "Thorough academic analysis (3-4 dense paragraphs) comparing no-load, rated load, overload, and dynamic disturbance regimes, characteristic curves, efficiency optimization, and thermal/environmental derating.",
-      "bulletPoints": ["At least 4 to 6 operational performance points"],
-      "formulas": ["Optimization, efficiency, or rating equations"],
-      "keyTakeaway": "Essential academic takeaway"
-    },
-    {
-      "title": "Module 5: Practical Engineering, Industrial Infrastructure, & Field Implementation Protocols",
-      "content": "Comprehensive industrial and practical protocols (3-4 dense paragraphs) detailing field commissioning, safety guidelines, compliance with Nigerian regulatory bodies (COREN, NUC, NERC, CAMA, etc.), and maintenance.",
-      "bulletPoints": ["At least 4 to 6 practical implementation guidelines"],
-      "formulas": ["Field testing, insulation, grounding, or tolerance equations"],
-      "keyTakeaway": "Essential academic takeaway"
-    },
-    {
-      "title": "Module 6: Boundary Constraints, Failure Modes, Diagnostics, & Mitigation Strategies",
-      "content": "Exhaustive analysis (3-4 dense paragraphs) of failure mechanisms, dielectric/thermal/mechanical breakdown, root-cause diagnostic trees, fail-safe protection coordination, and corrective protocols.",
-      "bulletPoints": ["At least 4 to 6 failure modes and mitigation strategies"],
-      "formulas": ["MTBF, reliability, or fault calculation equations"],
-      "keyTakeaway": "Essential academic takeaway"
+      "title": "Topic-Specific Module Title",
+      "content": "Comprehensive, deep educational prose with full academic rigor (at least 3 to 4 dense paragraphs). May include ASCII art diagrams or Markdown tables.",
+      "bulletPoints": ["Detailed analytical point 1", "Detailed analytical point 2", "Detailed analytical point 3"],
+      "formulas": ["Governing LaTeX formula with variable notations and SI units"],
+      "keyTakeaway": "Core takeaway for this module"
     }
   ],
   "importantDefinitions": [
     { "term": "Term 1", "definition": "Exhaustive authoritative definition with technical rigor" },
-    { "term": "Term 2", "definition": "Exhaustive authoritative definition" },
-    { "term": "Term 3", "definition": "Exhaustive authoritative definition" },
-    { "term": "Term 4", "definition": "Exhaustive authoritative definition" },
-    { "term": "Term 5", "definition": "Exhaustive authoritative definition" },
-    { "term": "Term 6", "definition": "Exhaustive authoritative definition" },
-    { "term": "Term 7", "definition": "Exhaustive authoritative definition" },
-    { "term": "Term 8", "definition": "Exhaustive authoritative definition" }
+    { "term": "Term 2", "definition": "Exhaustive authoritative definition with technical rigor" },
+    { "term": "Term 3", "definition": "Exhaustive authoritative definition with technical rigor" }
   ],
   "relevantExamples": [
     {
-      "title": "Comprehensive Worked Problem 1: Quantitative Parameter Derivation & Efficiency Analysis",
-      "scenarioOrProblem": "Detailed realistic numerical problem statement with complete given parameters, operating voltages, frequencies, loads, or case study facts",
-      "explanationOrSolution": "Full step-by-step solution: Step 1 (Governing equations), Step 2 (Numerical substitution and intermediate arithmetic), Step 3 (Verification and final boxed answer with units), and Examiner commentary"
+      "title": "Example 1 (Foundational): ...",
+      "scenarioOrProblem": "Detailed problem statement with given parameters",
+      "explanationOrSolution": "Step 1 (Governing equations), Step 2 (Substitution), Step 3 (Calculations and final boxed answer with units)"
     },
     {
-      "title": "Comprehensive Worked Problem 2: Dynamic Boundary Stresses & Transient Analysis",
-      "scenarioOrProblem": "Realistic operational disturbance scenario, voltage sag, fault condition, or legal/business dispute scenario",
-      "explanationOrSolution": "Full step-by-step analytical resolution with intermediate numbers, formulas, and diagnostic implications"
+      "title": "Example 2 (Intermediate): ...",
+      "scenarioOrProblem": "Problem statement",
+      "explanationOrSolution": "Full step-by-step solution"
     },
     {
-      "title": "Comprehensive Worked Problem 3: Environmental Derating & Sizing Verification",
-      "scenarioOrProblem": "Realistic facility sizing, thermal headroom, or capacity evaluation problem under Nigerian ambient operating conditions",
-      "explanationOrSolution": "Step-by-step calculations showing derating factors, permissible limits, and concluding engineering recommendations"
+      "title": "Example 3 (Advanced Exam-Grade): ...",
+      "scenarioOrProblem": "Problem statement",
+      "explanationOrSolution": "Full step-by-step solution"
     }
   ],
   "practicalApplications": [
-    "Specific deployment across Transmission Company of Nigeria (TCN) grid networks or regional distribution substations",
-    "Application across major Nigerian industrial complexes (e.g. Dangote Refinery, BUA Cement, oil & gas platforms in the Niger Delta)",
-    "Integration into Nigerian financial fintech switching systems or enterprise telecom infrastructure (Interswitch, MTN, NIBSS)",
-    "Commercial, clinical, or judicial practice adhering to Nigerian national regulatory standards (COREN, NUC CCMAS, CAMA 2020)"
+    "Practical application 1",
+    "Practical application 2",
+    "Practical application 3",
+    "Practical application 4"
   ],
   "keyPointsToRemember": [
-    "Crucial exam takeaway 1: Specific mathematical or theoretical axiom",
-    "Crucial exam takeaway 2: Dimension and SI unit consistency rule",
-    "Crucial exam takeaway 3: Common pitfall where students lose marks in exams",
-    "Crucial exam takeaway 4: Crucial equivalent circuit or diagram requirement",
-    "Crucial exam takeaway 5: Boundary limit distinction (transient vs steady state)",
-    "Crucial exam takeaway 6: Nigerian infrastructure or environmental standard to cite"
+    "Crucial revision takeaway 1",
+    "Crucial revision takeaway 2",
+    "Crucial revision takeaway 3",
+    "Common examination pitfall to avoid"
   ],
-  "summary": "Exhaustive academic synthesis summarizing all major theoretical insights, analytical derivations, and industrial protocols covered in the handout",
+  "summary": "Exhaustive academic synthesis summarizing all major insights, analytical derivations, and applications covered in the handout",
   "reviewQuestions": [
     {
-      "question": "(a) State the primary governing scientific/legal laws of ${topic}. (b) Define all variables and physical constants in the general formulation, stating standard SI units.",
+      "question": "Question 1",
       "type": "short_answer",
-      "modelAnswerOrHint": "Comprehensive model answer detailing all required points, definitions, SI units, and boundary assumptions expected by examiners"
+      "modelAnswerOrHint": "Complete model answer with examiner marking scheme"
     },
     {
-      "question": "With the aid of an annotated schematic and step-by-step mathematical proof from first principles, derive the operating characteristic equation for ${topic}.",
-      "type": "essay",
-      "modelAnswerOrHint": "Complete marking scheme rubric: 4 marks for diagram, 6 marks for derivation steps, 2 marks for boundary conditions, and 3 marks for pole-zero or stability interpretation"
-    },
-    {
-      "question": "An industrial facility in Nigeria utilizes a commercial system modeled on ${topic}. Calculate total input requirements, loss dissipation, operating efficiency, and thermal headroom under specified boundary stresses.",
+      "question": "Question 2",
       "type": "calculation",
-      "modelAnswerOrHint": "Complete model calculation showing step-by-step arithmetic, intermediate results, energy balance verification, and final answers with units"
+      "modelAnswerOrHint": "Complete step-by-step model calculation and units"
     },
     {
-      "question": "Critically analyze the failure mechanisms of ${topic} under continuous operation in tropical ambient conditions. Propose four engineering/institutional safeguards to prevent catastrophic failure.",
+      "question": "Question 3",
       "type": "essay",
-      "modelAnswerOrHint": "Detailed marking scheme: Root cause analysis of thermal breakdown, voltage surge vulnerability, and mechanical/procedural fatigue, with concrete engineering solutions"
+      "modelAnswerOrHint": "Comprehensive model essay answer with marking rubric"
     }
   ]
 }
 
-Ensure all JSON strings are properly escaped. Return RAW VALID JSON ONLY with no extra commentary or markdown formatting outside the JSON object.`;
+Ensure all JSON strings are properly escaped. Output RAW VALID JSON ONLY.`;
 
-    // 6. Real Gemini API call with high-availability candidate cascade
-    let rawResult: string | null = null;
-    try {
+    // 7. Execute real Gemini API call
+    let rawResult = await callGeminiApi({
+      prompt,
+      responseMimeType: 'application/json',
+      temperature: 0.2,
+      maxOutputTokens: 8192,
+      candidateModels: ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.1-pro-preview'],
+      timeoutMs: 45000,
+    });
+
+    let parsed = extractCleanJson(rawResult || '');
+    if (parsed) {
+      autoEnrichMissingFields(parsed, topic, course, level, knowledge.discipline);
+    }
+
+    // 8. Run Quality Control Verification Step
+    let qc = performQualityControlCheck(parsed, topic);
+
+    // If initial output failed quality control, attempt one targeted corrective regeneration
+    if (!parsed || !qc.passed) {
+      console.warn('[AI Handout] First attempt quality check notes:', qc.reasons);
+      const correctionPrompt = `${prompt}\n\nATTENTION TO QUALITY: Previous attempt failed validation because: ${qc.reasons.join(', ')}. Please generate a completely fresh, strictly valid JSON response that directly teaches "${topic}" with no unrelated content.`;
+
       rawResult = await callGeminiApi({
-        prompt,
+        prompt: correctionPrompt,
         responseMimeType: 'application/json',
         temperature: 0.25,
-        candidateModels: [
-          'gemini-3.1-flash-lite',
-          'gemini-3.5-flash-lite',
-          'gemini-flash-lite-latest',
-          'gemini-3-flash-preview',
-          'gemini-3.6-flash',
-          'gemini-flash-latest',
-          'gemini-3.8-flash',
-        ],
-        timeoutMs: 65000,
+        maxOutputTokens: 8192,
+        candidateModels: ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'],
+        timeoutMs: 40000,
       });
-    } catch (apiErr) {
-      console.warn('[AI Handout] Gemini API call exception, activating curriculum synthesizer:', apiErr);
-    }
 
-    // 7. Parse and validate JSON structure or synthesize curriculum fallback
-    let parsed: any = null;
-    if (rawResult) {
-      try {
-        parsed = JSON.parse(rawResult);
-      } catch {
-        try {
-          const cleaned = rawResult
-            .replace(/^```json\s*/i, '')
-            .replace(/^```\s*/i, '')
-            .replace(/```$/i, '')
-            .trim();
-          parsed = JSON.parse(cleaned);
-        } catch (parseErr) {
-          console.warn('[AI Handout] Failed to parse raw AI JSON, falling back to curriculum synthesizer:', parseErr);
-        }
+      parsed = extractCleanJson(rawResult || '');
+      if (parsed) {
+        autoEnrichMissingFields(parsed, topic, course, level, knowledge.discipline);
       }
+      qc = performQualityControlCheck(parsed, topic);
     }
 
-    // If AI failed, timed out, or returned malformed JSON, synthesize an accredited academic handout
-    if (!parsed || !parsed.title || !Array.isArray(parsed.sections)) {
-      console.info(`[AI Handout] Activating Academic Curriculum Synthesizer for: ${course} - ${topic}`);
-      parsed = synthesizeAcademicHandoutContent({
-        topic,
-        course,
-        level,
-        department,
-        faculty,
-        institution,
-        institutionType,
-        additionalInstruction,
+    // 9. If still invalid after real AI attempts, return honest failure without consuming quota
+    if (!parsed || !qc.passed) {
+      state.stats.failedGenerations += 1;
+      saveState();
+
+      console.error('[AI Handout] AI generation failed quality control or returned invalid JSON:', qc.reasons);
+      return res.status(200).json({
+        success: false,
+        error: 'The AI generation service was unable to formulate an academically verified handout at this moment. Your daily generation allowance has NOT been consumed. Please try again in a few moments.',
       });
     }
 
-    // 8. Construct authoritative handout object
+    // 10. Assemble verified GeneratedHandout
     const handoutId = `handout_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const durationMs = Date.now() - startTime;
 
@@ -1089,7 +904,7 @@ Ensure all JSON strings are properly escaped. Return RAW VALID JSON ONLY with no
       course,
       topic,
       additionalInstruction: additionalInstruction || undefined,
-      title: parsed.title || `${topic} - Academic Handout`,
+      title: parsed.title || `${topic}: Academic Handout`,
       learningObjectives: Array.isArray(parsed.learningObjectives) ? parsed.learningObjectives : [],
       introduction: parsed.introduction || '',
       mainConcepts: Array.isArray(parsed.mainConcepts) ? parsed.mainConcepts : [],
@@ -1105,9 +920,9 @@ Ensure all JSON strings are properly escaped. Return RAW VALID JSON ONLY with no
       generationDurationMs: durationMs,
     };
 
-    // 9. Increment user's successful generation count ONLY now!
+    // 11. Increment user's successful generation count ONLY on verified success!
     const usageKey = `${userId}_${dateKey}`;
-    const newCount = Math.max(currentCount, (state.dailyUsage[usageKey]?.count || 0)) + 1;
+    const newCount = Math.max(currentCount, state.dailyUsage[usageKey]?.count || 0) + 1;
     state.dailyUsage[usageKey] = {
       count: newCount,
       tier: normalizedTier,
@@ -1136,6 +951,11 @@ Ensure all JSON strings are properly escaped. Return RAW VALID JSON ONLY with no
     return res.json({
       success: true,
       handout: completedHandout,
+      sourceGrounding: {
+        hasSpecificMaterial: knowledge.hasSpecificMaterial,
+        sourceTitle: knowledge.sourceTitle,
+        citations: knowledge.referenceCitations,
+      },
       quota: {
         tier: normalizedTier,
         todayCount: newCount,
@@ -1147,8 +967,11 @@ Ensure all JSON strings are properly escaped. Return RAW VALID JSON ONLY with no
     });
   } catch (genError: any) {
     console.error('[AI Handout] Generation error:', genError);
-    // Do NOT increment usage allowance on failure
-    return res.status(500).json({
+    state.stats.failedGenerations += 1;
+    saveState();
+
+    // Do NOT increment usage allowance on failure. Return status 200 with error message so proxies never replace with HTML.
+    return res.status(200).json({
       success: false,
       error: genError?.message || 'Failed to generate academic handout. Your daily allowance was not consumed.',
     });
