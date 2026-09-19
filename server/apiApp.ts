@@ -6,6 +6,7 @@ import { minimartRouter } from './minimartRouter';
 import { paystackRouter } from './paystackRouter';
 import { libraryRouter } from './libraryRouter';
 import { campusRouter } from './campusRouter';
+import { walletRouter } from './walletRouter';
 import {
   enrichHandoutWithFullChaptersAndImages,
   getAcademicPhotoForChapter,
@@ -815,6 +816,9 @@ apiApp.use('/library', libraryRouter);
 
 apiApp.use('/api/campus', campusRouter);
 apiApp.use('/campus', campusRouter);
+
+apiApp.use('/api/wallet', walletRouter);
+apiApp.use('/wallet', walletRouter);
 
 // AI Academic Library Handout Generation Route
 const libraryGenerateHandler = async (req: Request, res: Response) => {

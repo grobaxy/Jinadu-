@@ -291,13 +291,14 @@ function sanitizeOperations(obj: any): any {
 }
 
 /**
- * Set or upsert a document in Supabase
+ * Set or upsert a document in Supabase with strict security controls
  */
 export async function setDocToSupabase<T = any>(
   tableName: string,
   docId: string,
   data: T,
-  merge: boolean = true
+  merge: boolean = true,
+  options?: { isServerAuthoritative?: boolean }
 ): Promise<T> {
   const table = normalizeTableName(tableName);
   const now = new Date().toISOString();
@@ -308,17 +309,101 @@ export async function setDocToSupabase<T = any>(
     updatedAt: (data as any)?.updatedAt || now,
   };
 
-  if (merge) {
-    const existing = await getDocFromSupabase(tableName, docId);
-    if (existing) {
-      finalPayload = deepMergeOperations(existing, finalPayload);
-      finalPayload.id = docId;
-      finalPayload.updatedAt = now;
-    }
+  const existing = await getDocFromSupabase(tableName, docId);
+
+  if (merge && existing) {
+    finalPayload = deepMergeOperations(existing, finalPayload);
+    finalPayload.id = docId;
+    finalPayload.updatedAt = now;
   }
 
   // Sanitize any remaining __op increment objects recursively
   finalPayload = sanitizeOperations(finalPayload);
+
+  // =========================================================================
+  // STRICT SECURITY GUARD: Prevent unauthorized client-side GP generation & exploits
+  // =========================================================================
+  if (!options?.isServerAuthoritative) {
+    let activeUser: any = null;
+    try {
+      const sessionRes = await supabase.auth.getSession();
+      activeUser = sessionRes?.data?.session?.user || null;
+    } catch {}
+
+    const callerUid = activeUser?.id || '';
+    const callerEmail = activeUser?.email || '';
+    const isCallerSuperAdmin = isSuperAdmin(callerUid, callerEmail);
+
+    if (!isCallerSuperAdmin) {
+      if (table === 'users') {
+        if (existing) {
+          // 1. Role cannot be elevated client-side
+          finalPayload.role = existing.role || 'student';
+          finalPayload.accountStatus = existing.accountStatus || 'active';
+          finalPayload.verified = Boolean(existing.verified);
+          finalPayload.isPostingSuspended = Boolean(existing.isPostingSuspended);
+
+          // 2. GP balance can NEVER be increased client-side! Can only stay same or decrease (spending)
+          const prevGp = Number(existing.gpBalance || 0);
+          const newGp = Number(finalPayload.gpBalance);
+          if (!isNaN(newGp) && newGp > prevGp) {
+            console.error(`[SECURITY DEFENSE] Blocked unauthorized client GP increase for user ${docId}: Attempted ${prevGp} -> ${newGp}`);
+            throw new Error('SECURITY VIOLATION: Unauthorized attempt to increment GP balance. GP generation is strictly reserved for verified official channels.');
+          }
+
+          // 3. Wallet balance can NEVER be increased client-side!
+          const prevWallet = Number(existing.walletBalance || 0);
+          const newWallet = Number(finalPayload.walletBalance);
+          if (!isNaN(newWallet) && newWallet > prevWallet) {
+            console.error(`[SECURITY DEFENSE] Blocked unauthorized client walletBalance increase for user ${docId}: Attempted ${prevWallet} -> ${newWallet}`);
+            throw new Error('SECURITY VIOLATION: Unauthorized attempt to increment walletBalance.');
+          }
+
+          // 4. Total GP Earned can NEVER be increased client-side!
+          const prevTotalGp = Number(existing.totalGpEarned || 0);
+          const newTotalGp = Number(finalPayload.totalGpEarned);
+          if (!isNaN(newTotalGp) && newTotalGp > prevTotalGp) {
+            console.error(`[SECURITY DEFENSE] Blocked unauthorized totalGpEarned increase for user ${docId}: Attempted ${prevTotalGp} -> ${newTotalGp}`);
+            throw new Error('SECURITY VIOLATION: Unauthorized attempt to increment totalGpEarned.');
+          }
+
+          // 5. Tokens can NEVER be increased client-side!
+          const prevTokens = Number(existing.grbxTokens || 0);
+          const newTokens = Number(finalPayload.grbxTokens);
+          if (!isNaN(newTokens) && newTokens > prevTokens) {
+            console.error(`[SECURITY DEFENSE] Blocked unauthorized grbxTokens increase for user ${docId}: Attempted ${prevTokens} -> ${newTokens}`);
+            throw new Error('SECURITY VIOLATION: Unauthorized attempt to increment grbxTokens.');
+          }
+        } else {
+          // New user creation must initialize with 0 financial balances and student role
+          finalPayload.gpBalance = 0;
+          finalPayload.walletBalance = 0;
+          finalPayload.totalGpEarned = 0;
+          finalPayload.grbxTokens = 0;
+          finalPayload.stakedTokens = 0;
+          finalPayload.role = 'student';
+          finalPayload.accountStatus = 'active';
+          finalPayload.verified = false;
+        }
+      } else if (table === 'wallets') {
+        if (existing) {
+          const prevGp = Number(existing.gpBalance || existing.balanceGP || 0);
+          const newGp = Number(finalPayload.gpBalance || finalPayload.balanceGP || 0);
+          if (newGp > prevGp) {
+            throw new Error('SECURITY VIOLATION: Unauthorized attempt to increment wallet GP balance.');
+          }
+        }
+      } else if (table === 'wallettransactions' || table === 'transactions') {
+        // Normal users can ONLY create debit records (isCredit: false)
+        if (finalPayload.isCredit === true || finalPayload.action === 'Credit' || finalPayload.type === 'admin_adjustment' || finalPayload.type === 'gp_earned') {
+          console.error(`[SECURITY DEFENSE] Blocked forged credit transaction for user ${finalPayload.userId}`);
+          throw new Error('SECURITY VIOLATION: Unauthorized attempt to create credit transaction.');
+        }
+      } else if (table === 'guswinners' || table === 'gusprizetransactions') {
+        throw new Error('SECURITY VIOLATION: Unauthorized competition prize modification.');
+      }
+    }
+  }
 
   const row = {
     id: docId,
@@ -351,9 +436,10 @@ export async function setDocToSupabase<T = any>(
 export async function updateDocInSupabase<T = any>(
   tableName: string,
   docId: string,
-  updates: Partial<T>
+  updates: Partial<T>,
+  options?: { isServerAuthoritative?: boolean }
 ): Promise<T> {
-  return setDocToSupabase<T>(tableName, docId, updates as any, true);
+  return setDocToSupabase<T>(tableName, docId, updates as any, true, options);
 }
 
 /**

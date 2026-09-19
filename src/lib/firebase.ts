@@ -2151,14 +2151,37 @@ export const updateUserProfileInFirestore = async (
   if (updates.equippedBadge !== undefined) {
     payload.equippedBadge = updates.equippedBadge;
   }
+  // SECURITY VERIFICATION: Protect financial balances and roles from client-side spoofing
+  const currentAuthUser = auth.currentUser;
+  const isCallerAdmin = isSuperAdmin(currentAuthUser?.uid, currentAuthUser?.email);
+
   if (updates.gpBalance !== undefined) {
-    payload.gpBalance = typeof updates.gpBalance === 'number' ? Math.max(0, updates.gpBalance) : Number(updates.gpBalance || 0);
+    const prevGp = Number(existing.gpBalance || 0);
+    const requestedGp = typeof updates.gpBalance === 'number' ? Math.max(0, updates.gpBalance) : Number(updates.gpBalance || 0);
+    if (requestedGp > prevGp && !isCallerAdmin) {
+      console.warn(`[SECURITY AUDIT] Blocked unauthorized client GP increment: ${prevGp} -> ${requestedGp}. Preserving existing balance.`);
+      payload.gpBalance = prevGp;
+    } else {
+      payload.gpBalance = requestedGp;
+    }
   }
   if (updates.grbxTokens !== undefined) {
-    payload.grbxTokens = typeof updates.grbxTokens === 'number' ? Math.max(0, updates.grbxTokens) : Number(updates.grbxTokens || 0);
+    const prevTokens = Number(existing.grbxTokens || 0);
+    const requestedTokens = typeof updates.grbxTokens === 'number' ? Math.max(0, updates.grbxTokens) : Number(updates.grbxTokens || 0);
+    if (requestedTokens > prevTokens && !isCallerAdmin) {
+      payload.grbxTokens = prevTokens;
+    } else {
+      payload.grbxTokens = requestedTokens;
+    }
   }
   if (updates.stakedTokens !== undefined) {
-    payload.stakedTokens = typeof updates.stakedTokens === 'number' ? Math.max(0, updates.stakedTokens) : Number(updates.stakedTokens || 0);
+    const prevStaked = Number(existing.stakedTokens || 0);
+    const requestedStaked = typeof updates.stakedTokens === 'number' ? Math.max(0, updates.stakedTokens) : Number(updates.stakedTokens || 0);
+    if (requestedStaked > prevStaked && !isCallerAdmin) {
+      payload.stakedTokens = prevStaked;
+    } else {
+      payload.stakedTokens = requestedStaked;
+    }
   }
   if (updates.reputationPoints !== undefined) {
     payload.reputationPoints = typeof updates.reputationPoints === 'number' ? updates.reputationPoints : Number(updates.reputationPoints || 100);
@@ -2170,13 +2193,13 @@ export const updateUserProfileInFirestore = async (
     payload.purchasedBadgeIds = updates.purchasedBadgeIds;
   }
   if (updates.accountStatus !== undefined) {
-    payload.accountStatus = updates.accountStatus;
+    payload.accountStatus = isCallerAdmin ? updates.accountStatus : (existing.accountStatus || 'active');
   }
   if (updates.role !== undefined) {
-    payload.role = updates.role;
+    payload.role = isCallerAdmin ? updates.role : (existing.role || 'student');
   }
   if (updates.verified !== undefined) {
-    payload.verified = updates.verified;
+    payload.verified = isCallerAdmin ? updates.verified : Boolean(existing.verified);
   }
   if (updates.studentIdCardUrl !== undefined) {
     payload.studentIdCardUrl = updates.studentIdCardUrl;
@@ -2477,6 +2500,23 @@ export const adjustUserGpInFirestore = async (
     if (!uid) {
       return { success: false, newBalance: 0, error: 'User ID is required' };
     }
+
+    // SECURITY DEFENSE: Manual positive GP credit adjustments MUST be authorized by a Super Admin
+    if (delta > 0) {
+      const activeFirebaseUser = auth.currentUser;
+      const callerUid = activeFirebaseUser?.uid || adminUid || '';
+      const callerEmail = activeFirebaseUser?.email || '';
+      const isPrivileged = isSuperAdmin(callerUid, callerEmail);
+      if (!isPrivileged) {
+        console.error(`[SECURITY VIOLATION] Unauthorized GP adjustment attempt by ${callerUid} (${callerEmail}) for target user ${uid}`);
+        return {
+          success: false,
+          newBalance: 0,
+          error: 'SECURITY VIOLATION: Manual GP credit adjustments require authenticated Super Admin authority.',
+        };
+      }
+    }
+
     const userDocRef = doc(db, 'users', uid);
     let newBalance = 0;
     let uName = 'Scholar';

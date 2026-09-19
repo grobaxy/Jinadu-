@@ -1796,43 +1796,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
 
-    // 2. Award GP to user balance if correct
+    // 2. Authoritatively award GP via verified backend endpoint
     if (isCorrect && gpEarned > 0) {
-      const newGp = currentUser.gpBalance + gpEarned;
-      setCurrentUser(prev => ({
-        ...prev,
-        gpBalance: prev.gpBalance + gpEarned,
-      }));
-
-      if (firebaseUser) {
-        updateUserProfileInFirestore(firebaseUser.uid, {
-          gpBalance: newGp,
-        }).catch(err => console.warn('Dome GP firestore sync notice:', err));
-      }
-
-      // Record authoritative transaction log entry for user & admin panels
-      addTransaction({
-        type: 'gp_earned',
-        amount: gpEarned,
-        unit: 'GP',
-        title: 'Dome Speed Quiz Reward',
-        description: `Earned ${gpEarned} GP for correct answer in Speed Quiz session`,
-        isCredit: true,
-        userId: firebaseUser?.uid || currentUser.id,
-        userName: currentUser.name || currentUser.fullName || 'Scholar',
-        userEmail: currentUser.email || currentUser.username || '',
-        userAvatar: currentUser.avatar || '',
-        institutionName: currentUser.institution || currentUser.institutionName || '',
-        status: 'completed',
-      });
+      const activeUid = firebaseUser?.uid || currentUser.id;
+      fetch('/api/wallet/credit-quiz-reward', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: activeUid,
+          sessionId,
+          questionIndex,
+          selectedOptionIndex,
+          rewardAmount: gpEarned,
+        }),
+      })
+        .then(async res => {
+          const data = await res.json().catch(() => null);
+          if (data && data.success && typeof data.newBalance === 'number') {
+            setCurrentUser(prev => ({
+              ...prev,
+              gpBalance: data.newBalance,
+            }));
+          }
+        })
+        .catch(err => {
+          console.warn('Backend quiz reward verification notice:', err);
+        });
 
       sendNotification({
         title: `⚡ Speed Quiz Achievement: +${gpEarned} GP!`,
         message: `Sharp intellect! You correctly solved the Speed Quiz challenge and earned +${gpEarned} GP directly to your wallet.`,
         type: 'dome',
         actionUrl: 'wallet:history',
-        targetUserId: firebaseUser?.uid || currentUser.id,
-        userId: firebaseUser?.uid || currentUser.id,
+        targetUserId: activeUid,
+        userId: activeUid,
       });
 
       // Update session total GP distributed
@@ -1958,7 +1955,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Sync current user profile whenever role changes
   const setRole = (newRole: UserRole) => {
     setRoleState(newRole);
-    if (firebaseUser?.uid) {
+    // SECURITY GUARD: Only verified Super Admins can write and persist role modifications to Firestore
+    const isCallerSuperAdmin = isPrimarySuperAdmin(firebaseUser?.uid || currentUser.id, firebaseUser?.email || currentUser.email);
+    if (firebaseUser?.uid && isCallerSuperAdmin) {
       setCurrentUser(prev => ({
         ...prev,
         role: newRole,
@@ -1967,7 +1966,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('Could not update role in Firestore:', err);
       });
     } else {
-      if (MOCK_USERS[newRole]) {
+      // For all other users, role switching is strictly an in-memory preview state for UI testing
+      setCurrentUser(prev => ({
+        ...prev,
+        role: newRole,
+      }));
+      if (!firebaseUser && MOCK_USERS[newRole]) {
         setCurrentUser(MOCK_USERS[newRole]);
       }
     }
@@ -3547,51 +3551,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const claimReward = async (amount: number, unit: 'GRBX' | 'GP', reason: string) => {
-    const newGrbx = unit === 'GRBX' ? currentUser.grbxTokens + amount : currentUser.grbxTokens;
-    const newGp = unit === 'GP' ? currentUser.gpBalance + amount : currentUser.gpBalance;
-
-    setCurrentUser(prev => ({
-      ...prev,
-      grbxTokens: newGrbx,
-      gpBalance: newGp,
-    }));
-
-    if (firebaseUser) {
-      try {
-        await updateUserProfileInFirestore(firebaseUser.uid, {
-          grbxTokens: newGrbx,
-          gpBalance: newGp,
-        });
-      } catch (e) {
-        console.warn('claimReward firestore sync notice:', e);
-      }
-    }
-
-    addTransaction({
-      type: 'reward',
-      amount,
-      unit,
-      title: `${unit} Reward Claimed`,
-      description: reason || `Claimed ${amount} ${unit} academic milestone reward`,
-      isCredit: true,
-      userId: firebaseUser?.uid || currentUser.id,
-      userName: currentUser.name || currentUser.fullName || 'Scholar',
-      userEmail: currentUser.email || currentUser.username || '',
-      userAvatar: currentUser.avatar || '',
-      institutionName: currentUser.institution || currentUser.institutionName || '',
-      status: 'completed',
-      reason,
-    });
-
-    // Send push notification for achievement milestone reward
-    sendNotification({
-      title: `🎉 Achievement Reward Claimed: +${amount} ${unit}!`,
-      message: reason || `Congratulations! You've successfully claimed your ${amount} ${unit} academic milestone reward.`,
-      type: 'reward',
-      actionUrl: 'wallet:history',
-      targetUserId: firebaseUser?.uid || currentUser.id,
-      userId: firebaseUser?.uid || currentUser.id,
-    });
+    // SECURITY GUARD: Direct client-side currency creation is neutralized
+    console.warn('[SECURITY DEFENSE] Direct client reward claiming is disabled. Rewards must be authoritatively issued by backend services.');
+    return;
   };
 
   const buyBadge = async (badge: BadgeStoreItem): Promise<boolean> => {

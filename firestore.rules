@@ -59,16 +59,43 @@ service cloud.firestore {
       );
     }
 
+    // Helper to verify user is not escalating privileges or generating currency client-side
+    function isValidUserProfileUpdate(userId) {
+      return isOwner(userId) && (
+        // Role cannot be modified or escalated by normal users
+        (!('role' in request.resource.data) || request.resource.data.role == resource.data.role) &&
+        // Account status & verification cannot be self-modified
+        (!('accountStatus' in request.resource.data) || request.resource.data.accountStatus == resource.data.accountStatus) &&
+        (!('verified' in request.resource.data) || request.resource.data.verified == resource.data.verified) &&
+        (!('isPostingSuspended' in request.resource.data) || request.resource.data.isPostingSuspended == resource.data.isPostingSuspended) &&
+        // GP Balance: Normal users can NEVER increase their GP balance client-side! Can only decrease (spend) or stay equal
+        (!('gpBalance' in request.resource.data) || request.resource.data.gpBalance <= resource.data.gpBalance) &&
+        (!('walletBalance' in request.resource.data) || request.resource.data.walletBalance <= resource.data.walletBalance) &&
+        (!('totalGpEarned' in request.resource.data) || request.resource.data.totalGpEarned <= resource.data.totalGpEarned) &&
+        (!('grbxTokens' in request.resource.data) || request.resource.data.grbxTokens <= resource.data.grbxTokens) &&
+        (!('stakedTokens' in request.resource.data) || request.resource.data.stakedTokens <= resource.data.stakedTokens)
+      );
+    }
+
+    function isValidUserCreate(userId) {
+      return isOwner(userId) &&
+        request.resource.data.get('gpBalance', 0) == 0 &&
+        request.resource.data.get('walletBalance', 0) == 0 &&
+        request.resource.data.get('totalGpEarned', 0) == 0 &&
+        request.resource.data.get('grbxTokens', 0) == 0 &&
+        request.resource.data.get('role', 'student') == 'student';
+    }
+
     // Connection test collection
     match /test/{docId} {
       allow read, write: if true;
     }
 
-    // Users collection
+    // Users collection - Strict client-side GP generation defense
     match /users/{userId} {
       allow read: if true;
-      allow create: if true;
-      allow update: if true;
+      allow create: if isSuperAdmin() || isManager() || isValidUserCreate(userId);
+      allow update: if isSuperAdmin() || isManager() || isValidUserProfileUpdate(userId);
       allow delete: if isSuperAdmin() || isManager() || isOwner(userId);
     }
 
@@ -424,11 +451,11 @@ service cloud.firestore {
     }
     match /gusWinners/{winId} {
       allow read: if true;
-      allow write: if isManager() || isSignedIn();
+      allow write: if isManager();
     }
     match /gusPrizeTransactions/{txId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isManager() || isSignedIn();
+      allow read: if isSignedIn() && (isManager() || resource.data.userId == request.auth.uid);
+      allow write: if isManager();
     }
     match /gusLive/{seasonId} {
       allow read: if true;
@@ -445,22 +472,44 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // Wallets & Transactions
+    // Wallets & Transactions - Authoritative Protection Against Client Forgery
     match /wallets/{uid} {
       allow read: if isOwner(uid) || isManager();
-      allow write: if isManager() || isOwner(uid);
+      allow create: if isManager() || (isOwner(uid) && request.resource.data.get('gpBalance', 0) == 0 && request.resource.data.get('balanceGP', 0) == 0);
+      allow update: if isManager() || (
+        isOwner(uid) &&
+        request.resource.data.get('gpBalance', 0) <= resource.data.get('gpBalance', 0) &&
+        request.resource.data.get('balanceGP', 0) <= resource.data.get('balanceGP', 0) &&
+        request.resource.data.get('nairaBalance', 0) <= resource.data.get('nairaBalance', 0)
+      );
+      allow delete: if isSuperAdmin();
     }
     match /walletTransactions/{txId} {
-      allow read: if isSignedIn();
-      allow write: if isManager() || isSignedIn();
+      allow read: if isSignedIn() && (isManager() || resource.data.userId == request.auth.uid || resource.data.userEmail == request.auth.token.email);
+      allow create: if isManager() || (
+        isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.isCredit == false &&
+        request.resource.data.type in ['gp_withdrawal', 'vtu_redemption', 'badge_purchase', 'subscription_purchase']
+      );
+      allow update, delete: if isManager();
     }
     match /transactions/{txId} {
-      allow read: if isSignedIn();
-      allow write: if isManager() || isSignedIn();
+      allow read: if isSignedIn() && (isManager() || resource.data.userId == request.auth.uid || resource.data.userEmail == request.auth.token.email);
+      allow create: if isManager() || (
+        isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.isCredit == false &&
+        request.resource.data.type in ['gp_withdrawal', 'vtu_redemption', 'badge_purchase', 'subscription_purchase']
+      );
+      allow update, delete: if isManager();
     }
     match /withdrawals/{withdrawalId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (isManager() || resource.data.userId == request.auth.uid || resource.data.userEmail == request.auth.token.email);
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.amountGp > 0;
       allow update, delete: if isManager();
     }
 
