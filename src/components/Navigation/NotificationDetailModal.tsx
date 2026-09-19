@@ -35,12 +35,33 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
   onClose,
   onMarkAsRead,
 }) => {
-  const { setActiveTab, openWalletModal, navigateToAdminTab, currentUser, setCommunitySubTab } = useApp();
+  const { setActiveTab, openWalletModal, navigateToAdminTab, currentUser, setCommunitySubTab, markNotificationRead } = useApp();
+
+  const markCurrentAsRead = React.useCallback(() => {
+    if (!notification) return;
+    if (onMarkAsRead) {
+      onMarkAsRead(notification.id);
+    } else if (markNotificationRead) {
+      markNotificationRead(notification.id);
+    }
+  }, [notification, onMarkAsRead, markNotificationRead]);
+
+  // Mark notification as read as soon as it is opened/viewed in this modal
+  React.useEffect(() => {
+    if (notification && !notification.isRead) {
+      markCurrentAsRead();
+    }
+  }, [notification?.id, notification?.isRead, markCurrentAsRead]);
 
   if (!notification) return null;
 
+  const handleDismiss = () => {
+    markCurrentAsRead();
+    onClose();
+  };
+
   const handleActionNavigate = () => {
-    if (onMarkAsRead) onMarkAsRead(notification.id);
+    markCurrentAsRead();
     onClose();
 
     const userRoleStr = String(currentUser?.role || '').toLowerCase();
@@ -267,7 +288,7 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
       {/* Backdrop overlay */}
       <div
         className="fixed inset-0 bg-slate-950/85 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
-        onClick={onClose}
+        onClick={handleDismiss}
       />
 
       {/* Modal Dialog Body - Dark Blue Aesthetic */}
@@ -278,7 +299,7 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
 
         {/* Close Button */}
         <button
-          onClick={onClose}
+          onClick={handleDismiss}
           className="absolute top-5 right-5 text-slate-400 hover:text-white p-2 rounded-xl hover:bg-blue-950/70 border border-transparent hover:border-blue-800/40 transition cursor-pointer z-20"
           title="Close details"
         >
@@ -403,10 +424,7 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
         <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
           <button
             type="button"
-            onClick={() => {
-              if (onMarkAsRead) onMarkAsRead(notification.id);
-              onClose();
-            }}
+            onClick={handleDismiss}
             className="w-full sm:w-auto px-5 py-3 rounded-xl border border-blue-900/60 bg-[#021327] hover:bg-blue-950/70 text-slate-200 hover:text-white font-bold text-xs transition cursor-pointer shadow-xs"
           >
             Dismiss

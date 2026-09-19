@@ -468,6 +468,7 @@ interface AppContextType {
   // Notifications & Global Badges
   notifications: NotificationItem[];
   markNotificationRead: (id: string) => void;
+  markAllNotificationsRead?: () => void;
   sendNotification: (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'isRead'>) => void;
   addNotification?: (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'isRead'>) => void;
   sectionNotifications: UserSectionUnreadCounts;
@@ -818,6 +819,56 @@ export const resolveUserSubscriptionStatus = (user: Partial<UserProfile> | null 
     tierType: 'free',
     isPremium: false,
   };
+};
+
+export const getReadNotifSet = (uid?: string, fallbackUid?: string, fbUid?: string | null): Set<string> => {
+  const set = new Set<string>();
+  const keys = [
+    ...(uid ? [`grobax_read_notifs_${uid}`] : []),
+    ...(fallbackUid ? [`grobax_read_notifs_${fallbackUid}`] : []),
+    ...(fbUid ? [`grobax_read_notifs_${fbUid}`] : []),
+    'grobax_read_notifs',
+    'grobax_read_notifs_global',
+  ];
+  keys.forEach((k) => {
+    try {
+      const stored = localStorage.getItem(k);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((x: string) => {
+            if (typeof x === 'string' && x.trim()) set.add(x.trim());
+          });
+        }
+      }
+    } catch {}
+  });
+  return set;
+};
+
+export const persistReadNotifKeys = (
+  keysToAdd: string[],
+  uid?: string,
+  fallbackUid?: string,
+  fbUid?: string | null
+) => {
+  const set = getReadNotifSet(uid, fallbackUid, fbUid);
+  keysToAdd.forEach((k) => {
+    if (k && typeof k === 'string' && k.trim()) set.add(k.trim());
+  });
+  const arr = Array.from(set);
+  const keys = [
+    ...(uid ? [`grobax_read_notifs_${uid}`] : []),
+    ...(fallbackUid ? [`grobax_read_notifs_${fallbackUid}`] : []),
+    ...(fbUid ? [`grobax_read_notifs_${fbUid}`] : []),
+    'grobax_read_notifs',
+    'grobax_read_notifs_global',
+  ];
+  keys.forEach((k) => {
+    try {
+      localStorage.setItem(k, JSON.stringify(arr));
+    } catch {}
+  });
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -1471,7 +1522,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
   const [upgradePlans, setUpgradePlans] = useState<UpgradePlan[]>(MOCK_UPGRADE_PLANS);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(DEFAULT_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    try {
+      const cached = localStorage.getItem('grobax_saved_notifications');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const readSet = getReadNotifSet();
+          return parsed.map((n: any) => ({
+            ...n,
+            isRead: Boolean(n.isRead) || readSet.has(n.id) || readSet.has(`${n.title || ''}_${n.message || ''}`),
+          }));
+        }
+      }
+    } catch {}
+    return DEFAULT_NOTIFICATIONS;
+  });
   const [systemSettings, setSystemSettings] = useState<SystemSettings>(() => {
     try {
       const cached = localStorage.getItem('grobax_system_settings_cache');
@@ -2146,25 +2212,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notifQuery,
         (snapshot) => {
           if (!snapshot.empty) {
-            // Read stored read-notification ids from localStorage scoped to this specific user
-            let readIds: string[] = [];
-            try {
-              const storageKey = `grobax_read_notifs_${currentUid}`;
-              const stored = localStorage.getItem(storageKey) || localStorage.getItem('grobax_read_notifs');
-              if (stored) readIds = JSON.parse(stored);
-            } catch (e) {
-              console.warn('Local read notifs parse notice:', e);
-            }
+            // Read stored read-notification ids & fingerprints from localStorage
+            const readSet = getReadNotifSet(currentUid, currentUser.id, firebaseUser?.uid);
 
             const rawNotifs: NotificationItem[] = snapshot.docs.map((docSnap) => {
               const data = docSnap.data();
+              const fp = `${data.title || ''}_${data.message || ''}`;
+              const isRead = Boolean(data.isRead) || readSet.has(docSnap.id) || (Boolean(fp) && readSet.has(fp));
               return {
                 id: docSnap.id,
                 title: data.title || 'Platform Notification',
                 message: data.message || '',
                 type: data.type || 'system',
                 timestamp: data.timestamp || (data.createdAt?.toDate ? data.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recent'),
-                isRead: Boolean(data.isRead) || readIds.includes(docSnap.id),
+                isRead,
                 actionUrl: data.actionUrl || '',
                 userId: data.userId || undefined,
                 targetUserId: data.targetUserId || data.userId || undefined,
@@ -2272,22 +2333,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (cached) {
                 const parsed = JSON.parse(cached);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                  const cleaned = parsed.filter((notif: any) => {
-                    const lowerTitle = (notif.title || '').toLowerCase();
-                    const lowerMsg = (notif.message || '').toLowerCase();
-                    const isPrize =
-                      lowerTitle.includes('prize distributed') ||
-                      lowerTitle.includes('prize credited') ||
-                      lowerTitle.includes('champion prize') ||
-                      lowerTitle.includes('prize split') ||
-                      lowerMsg.includes('deposited directly into your wallet') ||
-                      lowerMsg.includes('gp has been deposited');
-                    if (isPrize) {
-                      const target = notif.targetUserId || notif.userId;
-                      return target === currentUid || target === currentUser.username || target === currentUser.id;
-                    }
-                    return true;
-                  });
+                  const readSet = getReadNotifSet(currentUid, currentUser.id, firebaseUser?.uid);
+                  const cleaned = parsed
+                    .map((notif: any) => {
+                      const fp = `${notif.title || ''}_${notif.message || ''}`;
+                      return {
+                        ...notif,
+                        isRead: Boolean(notif.isRead) || readSet.has(notif.id) || (Boolean(fp) && readSet.has(fp)),
+                      };
+                    })
+                    .filter((notif: any) => {
+                      const lowerTitle = (notif.title || '').toLowerCase();
+                      const lowerMsg = (notif.message || '').toLowerCase();
+                      const isPrize =
+                        lowerTitle.includes('prize distributed') ||
+                        lowerTitle.includes('prize credited') ||
+                        lowerTitle.includes('champion prize') ||
+                        lowerTitle.includes('prize split') ||
+                        lowerMsg.includes('deposited directly into your wallet') ||
+                        lowerMsg.includes('gp has been deposited');
+                      if (isPrize) {
+                        const target = notif.targetUserId || notif.userId;
+                        return target === currentUid || target === currentUser.username || target === currentUser.id;
+                      }
+                      return true;
+                    });
                   setNotifications(cleaned);
                   return;
                 }
@@ -2303,22 +2373,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (cached) {
               const parsed = JSON.parse(cached);
               if (Array.isArray(parsed) && parsed.length > 0) {
-                const cleaned = parsed.filter((notif: any) => {
-                  const lowerTitle = (notif.title || '').toLowerCase();
-                  const lowerMsg = (notif.message || '').toLowerCase();
-                  const isPrize =
-                    lowerTitle.includes('prize distributed') ||
-                    lowerTitle.includes('prize credited') ||
-                    lowerTitle.includes('champion prize') ||
-                    lowerTitle.includes('prize split') ||
-                    lowerMsg.includes('deposited directly into your wallet') ||
-                    lowerMsg.includes('gp has been deposited');
-                  if (isPrize) {
-                    const target = notif.targetUserId || notif.userId;
-                    return target === currentUid || target === currentUser.username || target === currentUser.id;
-                  }
-                  return true;
-                });
+                const readSet = getReadNotifSet(currentUid, currentUser.id, firebaseUser?.uid);
+                const cleaned = parsed
+                  .map((notif: any) => {
+                    const fp = `${notif.title || ''}_${notif.message || ''}`;
+                    return {
+                      ...notif,
+                      isRead: Boolean(notif.isRead) || readSet.has(notif.id) || (Boolean(fp) && readSet.has(fp)),
+                    };
+                  })
+                  .filter((notif: any) => {
+                    const lowerTitle = (notif.title || '').toLowerCase();
+                    const lowerMsg = (notif.message || '').toLowerCase();
+                    const isPrize =
+                      lowerTitle.includes('prize distributed') ||
+                      lowerTitle.includes('prize credited') ||
+                      lowerTitle.includes('champion prize') ||
+                      lowerTitle.includes('prize split') ||
+                      lowerMsg.includes('deposited directly into your wallet') ||
+                      lowerMsg.includes('gp has been deposited');
+                    if (isPrize) {
+                      const target = notif.targetUserId || notif.userId;
+                      return target === currentUid || target === currentUser.username || target === currentUser.id;
+                    }
+                    return true;
+                  });
                 setNotifications(cleaned);
                 return;
               }
@@ -5197,22 +5276,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const markNotificationRead = (id: string) => {
-    // Persist to local storage scoped by current user
-    try {
-      const currentUid = firebaseUser?.uid || currentUser.id;
-      const storageKey = `grobax_read_notifs_${currentUid}`;
-      const stored = localStorage.getItem(storageKey);
-      const readIds: string[] = stored ? JSON.parse(stored) : [];
-      if (!readIds.includes(id)) {
-        readIds.push(id);
-        localStorage.setItem(storageKey, JSON.stringify(readIds));
-        localStorage.setItem('grobax_read_notifs', JSON.stringify(readIds));
-      }
-    } catch (e) {
-      console.warn('Failed to save read notif ID to local storage:', e);
+    const currentUid = firebaseUser?.uid || currentUser.id;
+    const targetNotif = notifications.find(n => n.id === id);
+    const keysToPersist: string[] = [id];
+    if (targetNotif && (targetNotif.title || targetNotif.message)) {
+      keysToPersist.push(`${targetNotif.title || ''}_${targetNotif.message || ''}`);
     }
 
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    persistReadNotifKeys(keysToPersist, currentUid, currentUser.id, firebaseUser?.uid);
+
+    setNotifications(prev => {
+      const updated = prev.map(n => {
+        const matchesId = n.id === id;
+        const matchesFp = targetNotif && (n.title || n.message) &&
+          `${n.title || ''}_${n.message || ''}` === `${targetNotif.title || ''}_${targetNotif.message || ''}`;
+        return matchesId || matchesFp ? { ...n, isRead: true } : n;
+      });
+      try {
+        localStorage.setItem('grobax_saved_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    if (id && !id.startsWith('notif_')) {
+      try {
+        updateDoc(doc(db, 'notifications', id), { isRead: true }).catch(() => {});
+      } catch {}
+    }
+  };
+
+  const markAllNotificationsRead = () => {
+    const currentUid = firebaseUser?.uid || currentUser.id;
+    const keysToPersist: string[] = [];
+    notifications.forEach(n => {
+      keysToPersist.push(n.id);
+      if (n.title || n.message) {
+        keysToPersist.push(`${n.title || ''}_${n.message || ''}`);
+      }
+    });
+
+    persistReadNotifKeys(keysToPersist, currentUid, currentUser.id, firebaseUser?.uid);
+
+    setNotifications(prev => {
+      const updated = prev.map(n => ({ ...n, isRead: true }));
+      try {
+        localStorage.setItem('grobax_saved_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    notifications.forEach(n => {
+      if (!n.isRead && n.id && !n.id.startsWith('notif_')) {
+        try {
+          updateDoc(doc(db, 'notifications', n.id), { isRead: true }).catch(() => {});
+        } catch {}
+      }
+    });
   };
 
   const sendNotification = async (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'isRead'>) => {
@@ -6250,6 +6369,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateUpgradePlan,
         notifications,
         markNotificationRead,
+        markAllNotificationsRead,
         sendNotification,
         addNotification: sendNotification,
         sectionNotifications,

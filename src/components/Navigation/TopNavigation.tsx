@@ -44,6 +44,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
     firebaseUser,
     notifications,
     markNotificationRead,
+    markAllNotificationsRead,
     openWalletModal,
   } = useApp();
 
@@ -94,7 +95,9 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
   };
 
   const handleMarkAllRead = () => {
-    if (notifications && markNotificationRead) {
+    if (markAllNotificationsRead) {
+      markAllNotificationsRead();
+    } else if (notifications && markNotificationRead) {
       notifications.forEach((n) => {
         if (!n.isRead) markNotificationRead(n.id);
       });
@@ -281,7 +284,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenAdminPanel }
                             key={notif.id}
                             onClick={() => {
                               if (markNotificationRead) markNotificationRead(notif.id);
-                              setSelectedNotification(notif);
+                              setSelectedNotification({ ...notif, isRead: true });
                               setIsNotificationsOpen(false);
                             }}
                             className={`p-3 rounded-xl border transition cursor-pointer flex items-start gap-3 hover:border-blue-400 dark:hover:border-blue-500 ${
